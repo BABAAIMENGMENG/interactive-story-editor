@@ -13,6 +13,9 @@ import {
   MessageCircle,
   QrCode,
   ThumbsUp,
+  X,
+  Loader2,
+  Gem,
 } from 'lucide-react';
 import { GameViewer } from '@/components/game/GameViewer';
 
@@ -37,6 +40,9 @@ interface ProjectData {
     avatar?: string;
   };
   isLiked?: boolean;
+  beansPrice?: number;
+  isPurchased?: boolean;
+  isFree?: boolean;
 }
 
 function PlayPageContent() {
@@ -52,6 +58,12 @@ function PlayPageContent() {
   const [copied, setCopied] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
   const [visitorId, setVisitorId] = useState<string>('');
+  
+  // 购买相关状态
+  const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const [userBeansBalance, setUserBeansBalance] = useState<number | null>(null);
   
   // 从 URL 参数初始化自动播放
   useEffect(() => {
@@ -81,6 +93,19 @@ function PlayPageContent() {
         }
         const data = await response.json();
         setProject(data.project);
+        
+        // 获取用户快乐豆余额
+        if (visitorId) {
+          try {
+            const beansRes = await fetch(`/api/user/beans?userId=${visitorId}`);
+            if (beansRes.ok) {
+              const beansData = await beansRes.json();
+              setUserBeansBalance(beansData.balance || 0);
+            }
+          } catch (e) {
+            console.error('获取快乐豆余额失败:', e);
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : '加载失败');
       } finally {
@@ -119,6 +144,67 @@ function PlayPageContent() {
     } finally {
       setIsLiking(false);
     }
+  };
+
+  // 购买作品
+  const handlePurchase = async () => {
+    if (!project || !visitorId || isPurchasing) return;
+    
+    setIsPurchasing(true);
+    setPurchaseError(null);
+    
+    try {
+      const response = await fetch(`/api/projects/${project.id}/purchase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: visitorId }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // 更新项目状态为已购买
+        setProject(prev => prev ? {
+          ...prev,
+          isPurchased: true,
+        } : null);
+        
+        // 更新用户余额
+        if (data.newBalance !== undefined) {
+          setUserBeansBalance(data.newBalance);
+        }
+        
+        // 关闭弹窗，开始播放
+        setShowPurchaseDialog(false);
+        setIsPlaying(true);
+      } else if (data.alreadyPurchased) {
+        // 已购买过，直接播放
+        setProject(prev => prev ? { ...prev, isPurchased: true } : null);
+        setShowPurchaseDialog(false);
+        setIsPlaying(true);
+      } else {
+        setPurchaseError(data.error || '购买失败');
+      }
+    } catch (error) {
+      console.error('购买失败:', error);
+      setPurchaseError('网络错误，请重试');
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
+
+  // 点击开始体验
+  const handleStartPlay = () => {
+    if (!project) return;
+    
+    // 如果是付费作品且未购买，显示购买弹窗
+    if (!project.isFree && !project.isPurchased) {
+      setShowPurchaseDialog(true);
+      return;
+    }
+    
+    // 已购买或免费作品，直接播放
+    setIsPlaying(true);
   };
 
   // 获取分享链接
@@ -244,11 +330,11 @@ function PlayPageContent() {
           {/* 开始按钮 */}
           <Button
             size="lg"
-            onClick={() => setIsPlaying(true)}
+            onClick={handleStartPlay}
             className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-lg px-8 py-6 rounded-full shadow-lg shadow-purple-500/30"
           >
             <Play className="w-5 h-5 mr-2" />
-            开始体验
+            {project.isFree ? '开始体验' : project.isPurchased ? '开始体验' : `💎 ${project.beansPrice} 豆 解锁`}
           </Button>
           
           {/* 统计 */}
@@ -355,6 +441,79 @@ function PlayPageContent() {
               >
                 关闭
               </Button>
+            </div>
+          </div>
+        )}
+
+        {/* 购买弹窗 */}
+        {showPurchaseDialog && project && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-800 rounded-xl p-6 max-w-sm w-full">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-medium flex items-center gap-2">
+                  <Gem className="w-5 h-5 text-amber-400" />
+                  解锁作品
+                </h3>
+                <button
+                  onClick={() => setShowPurchaseDialog(false)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+                <p className="text-white font-medium mb-2">{project.name}</p>
+                <p className="text-gray-400 text-sm mb-3">{project.description || '暂无描述'}</p>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-400">价格</span>
+                  <span className="text-amber-400 font-medium">💎 {project.beansPrice} 快乐豆</span>
+                </div>
+              </div>
+              
+              {/* 用户余额 */}
+              <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-400">我的余额</span>
+                  <span className={userBeansBalance && userBeansBalance >= (project.beansPrice || 0) ? 'text-green-400' : 'text-red-400'}>
+                    💎 {userBeansBalance !== null ? userBeansBalance : '...'} 豆
+                  </span>
+                </div>
+                {userBeansBalance !== null && userBeansBalance < (project.beansPrice || 0) && (
+                  <p className="text-red-400 text-xs mt-2">快乐豆不足，请先充值</p>
+                )}
+              </div>
+              
+              {/* 错误提示 */}
+              {purchaseError && (
+                <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 mb-4">
+                  <p className="text-red-400 text-sm">{purchaseError}</p>
+                </div>
+              )}
+              
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowPurchaseDialog(false)}
+                  className="flex-1"
+                >
+                  取消
+                </Button>
+                <Button
+                  onClick={handlePurchase}
+                  disabled={isPurchasing || (userBeansBalance !== null && userBeansBalance < (project.beansPrice || 0))}
+                  className="flex-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                >
+                  {isPurchasing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      购买中...
+                    </>
+                  ) : (
+                    <>确认购买</>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         )}

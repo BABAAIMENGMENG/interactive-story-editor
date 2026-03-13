@@ -71,7 +71,7 @@ export async function POST(
     // 4. 获取用户信息
     const { data: user, error: userError } = await supabase
       .from('profiles')
-      .select('id, beans_balance')
+      .select('id, user_id, beans_balance')
       .eq('id', userId)
       .single();
 
@@ -108,7 +108,7 @@ export async function POST(
     const { data: creator } = await supabase
       .from('profiles')
       .select('beans_balance')
-      .eq('id', project.user_id)
+      .eq('user_id', project.user_id)
       .single();
 
     if (creator) {
@@ -117,7 +117,7 @@ export async function POST(
         .update({ 
           beans_balance: (creator.beans_balance || 0) + creatorEarnings 
         })
-        .eq('id', project.user_id);
+        .eq('user_id', project.user_id);
     }
 
     // 9. 更新作品累计收入
@@ -138,7 +138,7 @@ export async function POST(
     await supabase
       .from('beans_transactions')
       .insert({
-        user_id: userId,
+        user_id: user.user_id,
         project_id: projectId,
         transaction_type: 'spend',
         amount: -project.beans_price,

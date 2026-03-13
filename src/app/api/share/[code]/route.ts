@@ -142,7 +142,8 @@ export async function GET(
         like_count,
         category,
         created_at,
-        user_id
+        user_id,
+        beans_price
       `)
       .eq('share_code', code)
       .eq('is_public', true)
@@ -188,6 +189,24 @@ export async function GET(
       isLiked = !!like;
     }
 
+    // 检查是否已购买（付费作品）
+    let isPurchased = false;
+    const beansPrice = project.beans_price || 0;
+    if (userId && beansPrice > 0) {
+      const { data: purchase } = await supabase
+        .from('project_purchases')
+        .select('id')
+        .eq('project_id', project.id)
+        .eq('user_id', userId)
+        .single();
+      isPurchased = !!purchase;
+    }
+
+    // 免费作品自动视为已购买
+    if (beansPrice === 0) {
+      isPurchased = true;
+    }
+
     // 增加浏览次数
     await supabase
       .from('projects')
@@ -209,6 +228,9 @@ export async function GET(
         createdAt: project.created_at,
         author: author || { name: '匿名用户' },
         isLiked,
+        beansPrice,
+        isPurchased,
+        isFree: beansPrice === 0,
       },
     });
   } catch (error) {
