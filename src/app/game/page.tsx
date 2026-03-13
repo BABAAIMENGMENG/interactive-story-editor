@@ -1379,60 +1379,6 @@ function GamePageContent() {
       {/* 视频预加载 */}
       <VideoPreloader videos={allVideoUrls} />
       
-      {/* 调试信息面板 */}
-      <div className="fixed top-12 right-2 z-[100] bg-black/80 text-white text-xs p-3 rounded max-w-sm max-h-80 overflow-auto">
-        <div className="font-bold mb-2 text-purple-400">调试信息</div>
-        <div className="space-y-1">
-          <div className="text-zinc-300">项目ID: {storyId}</div>
-          <div className="text-zinc-300">场景数量: {editorScenes.length}</div>
-          <div className="text-zinc-300">当前场景ID: {currentEditorSceneId || 'null'}</div>
-          {currentEditorScene ? (
-            <>
-              <div className="border-t border-zinc-600 pt-2 mt-2">
-                <div className="text-green-400">当前场景已加载</div>
-                <div>场景名称: {currentEditorScene.name}</div>
-                <div className="text-cyan-400">画布尺寸: {currentEditorScene.canvasWidth || 1920} x {currentEditorScene.canvasHeight || 1080}</div>
-                <div className="text-pink-400">窗口尺寸: {windowSize.width} x {windowSize.height}</div>
-                <div className="text-pink-400">可用空间: {windowSize.width} x {windowSize.height - 64}</div>
-                <div className="text-yellow-400">缩放比例: {(Math.min(windowSize.width / (currentEditorScene.canvasWidth || 1920), (windowSize.height - 64) / (currentEditorScene.canvasHeight || 1080)) * 100).toFixed(1)}%</div>
-                <div className="text-yellow-400">实际显示: {Math.round((currentEditorScene.canvasWidth || 1920) * Math.min(windowSize.width / (currentEditorScene.canvasWidth || 1920), (windowSize.height - 64) / (currentEditorScene.canvasHeight || 1080)))} x {Math.round((currentEditorScene.canvasHeight || 1080) * Math.min(windowSize.width / (currentEditorScene.canvasWidth || 1920), (windowSize.height - 64) / (currentEditorScene.canvasHeight || 1080)))}</div>
-                <div>全景图: {currentEditorScene.panoramaImage ? '✅ 有' : '❌ 无'}</div>
-                {currentEditorScene.panoramaImage && (
-                  <div className="break-all text-zinc-400 text-[10px] max-h-16 overflow-hidden">
-                    URL: {currentEditorScene.panoramaImage.substring(0, 100)}...
-                  </div>
-                )}
-                <div className="text-yellow-400">PanoramaViewer条件: {!currentEditorScene.panoramaVideo && currentEditorScene.panoramaImage && currentEditorScene.panoramaImage.startsWith('http') ? '✅ 满足' : '❌ 不满足'}</div>
-                <div>全景视频: {currentEditorScene.panoramaVideo ? '✅ 有' : '❌ 无'}</div>
-                <div>元素数量: {currentEditorScene.elements?.length || 0}</div>
-                {currentEditorScene.elements && currentEditorScene.elements.length > 0 && (
-                  <div className="border-t border-zinc-600 pt-2 mt-2">
-                    <div className="text-zinc-400">元素坐标（前3个）:</div>
-                    {currentEditorScene.elements.slice(0, 3).map((el: any) => (
-                      <div key={el.id} className="text-[10px] text-zinc-500">
-                        {el.name}: ({el.x}, {el.y}) {el.width}x{el.height}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="text-red-400">当前场景未加载</div>
-          )}
-          {editorScenes.length > 0 && (
-            <div className="border-t border-zinc-600 pt-2 mt-2">
-              <div className="text-zinc-400">所有场景ID:</div>
-              {editorScenes.map((s: any) => (
-                <div key={s.id} className="text-zinc-500 text-[10px]">
-                  - {s.id} ({s.name})
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-      
       <div className="relative h-screen w-screen overflow-hidden bg-black">
         {/* 编辑器场景 - 优先渲染 */}
         {currentEditorScene && (
