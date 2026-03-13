@@ -63,7 +63,7 @@ export default function EarningsPage() {
   const fetchEarnings = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('supabase_token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch('/api/user/earnings', {
         headers: {
           'Authorization': `Bearer ${token}`,

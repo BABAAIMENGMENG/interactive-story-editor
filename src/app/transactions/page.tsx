@@ -59,7 +59,7 @@ export default function TransactionsPage() {
   const fetchTransactions = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('supabase_token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`/api/user/beans?transactions=true&page=${page}&limit=${limit}`, {
         headers: {
           'Authorization': `Bearer ${token}`,

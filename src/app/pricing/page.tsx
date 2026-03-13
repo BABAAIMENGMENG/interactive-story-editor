@@ -114,7 +114,7 @@ export default function PricingPage() {
     setIsProcessing(true);
     
     try {
-      const token = localStorage.getItem('supabase_token');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch('/api/user/beans', {
         method: 'POST',
         headers: {
