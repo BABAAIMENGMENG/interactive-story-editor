@@ -100,9 +100,17 @@ export async function POST(
       return NextResponse.json({ error: '扣除快乐豆失败' }, { status: 500 });
     }
 
-    // 7. 计算创作者收入（平台抽成10%）
-    const platformFee = Math.ceil(project.beans_price * 0.1); // 平台抽成10%，向上取整
-    const creatorEarnings = project.beans_price - platformFee; // 创作者获得90%
+    // 7. 计算创作者收入（平台抽成规则）
+    // 小额作品（1-9豆）：平台不抽成，创作者获得全部
+    // 10豆及以上：平台抽成10%（向下取整，最低1豆）
+    let platformFee = 0;
+    let creatorEarnings = project.beans_price;
+    
+    if (project.beans_price >= 10) {
+      platformFee = Math.max(1, Math.floor(project.beans_price * 0.1));
+      creatorEarnings = project.beans_price - platformFee;
+    }
+    // 10豆以下不抽成，创作者获得全部
 
     // 8. 给创作者增加快乐豆
     const { data: creator } = await supabase
