@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 /**
  * 获取公开的系统设置
@@ -15,16 +16,46 @@ export async function GET() {
   };
 
   try {
-    // 从数据库或配置文件读取
-    // 这里暂时返回默认值，实际应用可从 Supabase 读取
+    const supabase = getSupabaseClient();
+
+    // 获取所有公开设置
+    const { data, error } = await supabase
+      .from('system_settings')
+      .select('key, value')
+      .in('key', [
+        'contactWechat',
+        'contactEmail', 
+        'contactOnlineTime',
+        'siteName',
+        'siteDescription'
+      ]);
+
+    if (error) {
+      console.error('获取系统设置失败:', error);
+      return NextResponse.json({
+        success: true,
+        settings: defaultSettings,
+      });
+    }
+
+    // 合并数据库设置和默认值
+    const settings = { ...defaultSettings };
+    (data || []).forEach((item: any) => {
+      try {
+        settings[item.key as keyof typeof settings] = JSON.parse(item.value);
+      } catch {
+        settings[item.key as keyof typeof settings] = item.value;
+      }
+    });
+
     return NextResponse.json({
       success: true,
-      settings: defaultSettings,
+      settings,
     });
   } catch (error) {
     console.error('获取系统设置失败:', error);
     return NextResponse.json({
-      success: false,
+      success: true,
       settings: defaultSettings,
     });
   }

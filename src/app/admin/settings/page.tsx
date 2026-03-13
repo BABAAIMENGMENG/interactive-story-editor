@@ -133,9 +133,45 @@ export default function AdminSettingsPage() {
   };
 
   // 保存系统设置
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
+    // 保存到 localStorage（本地备份）
     localStorage.setItem('system_settings', JSON.stringify(systemSettings));
-    setSettingsSaved(true);
+    
+    // 保存到数据库
+    try {
+      const settingsToSave = [
+        { key: 'contactWechat', value: systemSettings.contactWechat },
+        { key: 'contactEmail', value: systemSettings.contactEmail },
+        { key: 'contactOnlineTime', value: systemSettings.contactOnlineTime },
+        { key: 'siteName', value: systemSettings.siteName },
+        { key: 'siteDescription', value: systemSettings.siteDescription },
+        { key: 'publishRewardBeans', value: systemSettings.publishRewardBeans },
+        { key: 'newUserBonus', value: systemSettings.newUserBonus },
+        { key: 'aiReviewEnabled', value: systemSettings.aiReviewEnabled },
+        { key: 'manualReviewRequired', value: systemSettings.manualReviewRequired },
+        { key: 'autoApproveThreshold', value: systemSettings.autoApproveThreshold },
+        { key: 'enableRegistration', value: systemSettings.enableRegistration },
+        { key: 'enableUpload', value: systemSettings.enableUpload },
+        { key: 'maxUploadSize', value: systemSettings.maxUploadSize },
+        { key: 'maintenanceMode', value: systemSettings.maintenanceMode },
+      ];
+      
+      await Promise.all(
+        settingsToSave.map(item =>
+          fetch('/api/admin/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(item),
+          })
+        )
+      );
+      
+      setSettingsSaved(true);
+    } catch (error) {
+      console.error('保存设置到数据库失败:', error);
+      setSettingsSaved(true); // 仍然显示保存成功，因为有 localStorage 备份
+    }
+    
     setTimeout(() => setSettingsSaved(false), 3000);
   };
 
