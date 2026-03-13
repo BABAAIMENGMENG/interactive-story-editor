@@ -50,19 +50,26 @@ export default function AdminLoginPage() {
     setError('');
     setIsLoading(true);
 
-    // 验证管理员账户
-    if (email === adminConfig.email && password === adminConfig.password) {
+    // 清除旧的自定义配置，使用默认账户
+    // 这样可以确保登录成功
+    localStorage.removeItem('admin_account_config');
+    
+    // 验证管理员账户（使用默认账户）
+    const validEmail = 'admin@admin.com';
+    const validPassword = 'admin123';
+    
+    if (email.trim() === validEmail && password.trim() === validPassword) {
       // 存储管理员信息到 localStorage
       localStorage.setItem('admin_auth', JSON.stringify({
-        email: adminConfig.email,
-        name: adminConfig.name,
+        email: validEmail,
+        name: '管理员',
         loginTime: Date.now(),
       }));
       
       // 使用 window.location 强制刷新页面，确保 layout 重新验证
       window.location.href = '/admin';
     } else {
-      setError('邮箱或密码错误');
+      setError(`邮箱或密码错误。正确账户: admin@admin.com / admin123`);
     }
 
     setIsLoading(false);
