@@ -56,6 +56,7 @@ export default function AdminLayout({
     const adminAuth = localStorage.getItem('admin_auth');
     
     if (!adminAuth) {
+      setIsLoading(false);
       router.push('/admin/login');
       return;
     }
@@ -67,18 +68,19 @@ export default function AdminLayout({
       const loginExpire = 24 * 60 * 60 * 1000;
       if (Date.now() - admin.loginTime > loginExpire) {
         localStorage.removeItem('admin_auth');
+        setIsLoading(false);
         router.push('/admin/login');
         return;
       }
 
       setAdminUser(admin);
+      setIsLoading(false);
     } catch {
       localStorage.removeItem('admin_auth');
+      setIsLoading(false);
       router.push('/admin/login');
       return;
     }
-
-    setIsLoading(false);
   }, [pathname, router]);
 
   // 登出

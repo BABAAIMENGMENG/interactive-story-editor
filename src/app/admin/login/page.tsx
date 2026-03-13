@@ -59,8 +59,8 @@ export default function AdminLoginPage() {
         loginTime: Date.now(),
       }));
       
-      // 跳转到管理后台
-      router.push('/admin');
+      // 使用 window.location 强制刷新页面，确保 layout 重新验证
+      window.location.href = '/admin';
     } else {
       setError('邮箱或密码错误');
     }
