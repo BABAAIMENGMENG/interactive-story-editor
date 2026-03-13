@@ -258,13 +258,14 @@ function PlayPageContent() {
     }
   };
 
-  // 微信分享
+  // 微信分享（邀请好友赚豆）
   const handleWechatShare = useCallback(async () => {
-    if (!shareUrl) return;
+    // 微信分享使用邀请链接，好友扫码注册后双方得奖励
+    if (!inviteLink) return;
     
     try {
-      // 生成二维码
-      const qrDataUrl = await QRCode.toDataURL(shareUrl, {
+      // 生成邀请链接的二维码
+      const qrDataUrl = await QRCode.toDataURL(inviteLink, {
         width: 256,
         margin: 2,
         color: {
@@ -279,7 +280,7 @@ function PlayPageContent() {
       // 降级：仍然显示弹窗，但使用占位符
       setShowShare(true);
     }
-  }, [shareUrl]);
+  }, [inviteLink]);
 
   // 关闭分享弹窗
   const handleCloseShare = () => {
@@ -426,14 +427,14 @@ function PlayPageContent() {
           </h3>
           
           <div className="flex gap-2">
-            {/* 微信分享 */}
+            {/* 微信分享（邀请好友赚豆） */}
             <Button
               variant="outline"
               onClick={handleWechatShare}
               className="flex-1 bg-green-600 hover:bg-green-700 text-white border-0"
             >
-              <MessageCircle className="w-4 h-4 mr-1" />
-              微信
+              <Gift className="w-4 h-4 mr-1" />
+              微信赚豆
             </Button>
             
             {/* QQ分享 */}
@@ -528,9 +529,12 @@ function PlayPageContent() {
         {/* 二维码弹窗 */}
         {showShare && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-800 rounded-xl p-6 max-w-xs w-full">
+            <div className="bg-gray-800 rounded-xl p-6 max-w-sm w-full">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white font-medium text-center flex-1">微信扫码分享</h3>
+                <h3 className="text-white font-medium flex items-center gap-2">
+                  <Gift className="w-5 h-5 text-amber-400" />
+                  邀请好友赚快乐豆
+                </h3>
                 <button
                   onClick={handleCloseShare}
                   className="text-gray-400 hover:text-white"
@@ -539,13 +543,34 @@ function PlayPageContent() {
                 </button>
               </div>
               
+              {/* 奖励说明 */}
+              <div className="bg-gradient-to-r from-amber-900/30 to-orange-900/30 border border-amber-500/30 rounded-lg p-3 mb-4">
+                <div className="flex items-center justify-center gap-6">
+                  <div className="text-center">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <Users className="w-4 h-4 text-purple-400" />
+                      <span className="text-gray-400 text-xs">您</span>
+                    </div>
+                    <span className="text-xl font-bold text-amber-400">+50豆</span>
+                  </div>
+                  <div className="text-gray-500">+</div>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <Users className="w-4 h-4 text-pink-400" />
+                      <span className="text-gray-400 text-xs">好友</span>
+                    </div>
+                    <span className="text-xl font-bold text-amber-400">+50豆</span>
+                  </div>
+                </div>
+              </div>
+              
               {/* 二维码 */}
               <div className="bg-white p-4 rounded-lg mb-4">
                 <div className="w-48 h-48 mx-auto flex items-center justify-center">
                   {qrCodeDataUrl ? (
                     <img 
                       src={qrCodeDataUrl} 
-                      alt="分享二维码" 
+                      alt="邀请二维码" 
                       className="w-full h-full object-contain"
                     />
                   ) : (
@@ -558,7 +583,7 @@ function PlayPageContent() {
               </div>
               
               <p className="text-gray-400 text-xs text-center mb-4">
-                打开微信扫一扫，分享给好友
+                打开微信扫一扫，好友注册后双方各得50快乐豆
               </p>
               
               <Button
