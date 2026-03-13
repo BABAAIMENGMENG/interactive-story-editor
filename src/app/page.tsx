@@ -336,8 +336,8 @@ function HomePageContent() {
           {/* 排序选项 */}
           <div className="mb-4 flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <Filter className="w-3.5 h-3.5 text-gray-200" />
-              <span className="text-xs text-gray-200">排序：</span>
+              <Filter className="w-3.5 h-3.5 text-white/80" />
+              <span className="text-xs text-white/80">排序：</span>
               {SORT_OPTIONS.map((option) => {
                 const Icon = option.icon;
                 return (
@@ -346,8 +346,8 @@ function HomePageContent() {
                     onClick={() => setSelectedSort(option.id)}
                     className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-all ${
                       selectedSort === option.id
-                        ? 'bg-purple-500/40 text-white'
-                        : 'text-gray-200 hover:text-white hover:bg-gray-700/50'
+                        ? 'bg-purple-500 text-white'
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
                     }`}
                   >
                     {typeof Icon === 'string' ? Icon : <Icon className="w-3 h-3" />}
@@ -357,19 +357,19 @@ function HomePageContent() {
               })}
             </div>
             
-            <div className="h-4 w-px bg-gray-600" />
+            <div className="h-4 w-px bg-white/20" />
             
             {/* 价格筛选 */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-200">价格：</span>
+              <span className="text-xs text-white/80">价格：</span>
               {PRICE_FILTERS.map((filter) => (
                 <button
                   key={filter.id}
                   onClick={() => setSelectedPriceFilter(filter.id)}
                   className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-all ${
                     selectedPriceFilter === filter.id
-                      ? 'bg-purple-500/40 text-white'
-                      : 'text-gray-200 hover:text-white hover:bg-gray-700/50'
+                      ? 'bg-purple-500 text-white'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
                   }`}
                 >
                   {filter.icon}
@@ -420,15 +420,15 @@ function HomePageContent() {
                     
                     {/* 分类标签 */}
                     <div className="absolute top-2 left-2 flex gap-1">
-                      <Badge className="bg-black/60 text-white text-[10px] px-1.5 py-0.5 border border-white/20">
+                      <Badge className="bg-white/90 text-gray-900 text-[10px] px-1.5 py-0.5 border border-gray-200">
                         {project.categoryName}
                       </Badge>
                       {project.beansPrice > 0 ? (
-                        <Badge className="bg-amber-500/90 text-white text-[10px] px-1.5 py-0.5 border border-amber-400/50">
+                        <Badge className="bg-amber-400 text-gray-900 text-[10px] px-1.5 py-0.5 border border-amber-300">
                           💎 {project.beansPrice}
                         </Badge>
                       ) : (
-                        <Badge className="bg-green-500/90 text-white text-[10px] px-1.5 py-0.5 border border-green-400/50">
+                        <Badge className="bg-green-400 text-gray-900 text-[10px] px-1.5 py-0.5 border border-green-300">
                           🆓 免费
                         </Badge>
                       )}
@@ -445,10 +445,10 @@ function HomePageContent() {
                   {/* 项目信息 */}
                   <div className="p-3">
                     <h4 className="font-medium text-white truncate text-sm">{project.name}</h4>
-                    <p className="text-gray-200 text-[11px] line-clamp-2 mb-2">
+                    <p className="text-white/80 text-[11px] line-clamp-2 mb-2">
                       {project.description || '暂无描述'}
                     </p>
-                    <div className="flex items-center justify-between text-[10px] text-gray-300">
+                    <div className="flex items-center justify-between text-[10px] text-white/70">
                       <div className="flex items-center gap-3">
                         <span className="flex items-center gap-1">
                           <Eye className="w-3 h-3" />
@@ -459,7 +459,7 @@ function HomePageContent() {
                           className={`flex items-center gap-1 transition-colors ${
                             project.isLiked 
                               ? 'text-pink-400' 
-                              : 'text-gray-300 hover:text-pink-400'
+                              : 'text-white/70 hover:text-pink-400'
                           }`}
                         >
                           <Heart className={`w-3 h-3 ${project.isLiked ? 'fill-current' : ''}`} />
