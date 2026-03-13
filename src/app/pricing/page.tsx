@@ -434,6 +434,10 @@ export default function PricingPage() {
                   <Check className="w-3 h-3 text-green-400 mt-0.5" />
                   收入自动计入快乐豆余额
                 </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-3 h-3 text-green-400 mt-0.5" />
+                  快乐豆可按平台规定回收
+                </li>
               </ul>
             </div>
           </div>
