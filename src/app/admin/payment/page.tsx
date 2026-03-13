@@ -1,14 +1,13 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
-  QrCode,
   Upload,
   Check,
-  X,
   Image as ImageIcon,
   RefreshCw,
+  Loader2,
 } from 'lucide-react';
 
 interface PaymentConfig {
@@ -28,19 +27,38 @@ export default function AdminPaymentPage() {
   const [config, setConfig] = useState<PaymentConfig>({
     wechat: {
       enabled: true,
-      qrCodeUrl: '/payment/wechat-qr.png',
+      qrCodeUrl: '',
       name: '微信支付',
     },
     alipay: {
       enabled: true,
-      qrCodeUrl: '/payment/alipay-qr.png',
+      qrCodeUrl: '',
       name: '支付宝',
     },
   });
   const [uploading, setUploading] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const wechatInputRef = useRef<HTMLInputElement>(null);
   const alipayInputRef = useRef<HTMLInputElement>(null);
+
+  // 加载配置
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const response = await fetch('/api/admin/payment');
+        const data = await response.json();
+        if (data.success && data.config) {
+          setConfig(data.config);
+        }
+      } catch (error) {
+        console.error('加载配置失败:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadConfig();
+  }, []);
 
   // 切换支付方式启用状态
   const handleToggle = (method: 'wechat' | 'alipay') => {
@@ -64,9 +82,9 @@ export default function AdminPaymentPage() {
       return;
     }
 
-    // 验证文件大小（最大5MB）
-    if (file.size > 5 * 1024 * 1024) {
-      alert('图片大小不能超过5MB');
+    // 验证文件大小（最大10MB）
+    if (file.size > 10 * 1024 * 1024) {
+      alert('图片大小不能超过10MB');
       return;
     }
 
@@ -76,7 +94,6 @@ export default function AdminPaymentPage() {
       // 创建表单数据
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('type', 'payment');
 
       // 上传到服务器
       const response = await fetch('/api/upload', {
@@ -87,14 +104,27 @@ export default function AdminPaymentPage() {
       const data = await response.json();
 
       if (data.success && data.url) {
-        setConfig({
+        // 更新配置
+        const newConfig = {
           ...config,
           [method]: {
             ...config[method],
             qrCodeUrl: data.url,
           },
+        };
+        setConfig(newConfig);
+        
+        // 自动保存到数据库
+        const saveResponse = await fetch('/api/admin/payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newConfig),
         });
-        setSaved(false);
+        
+        if (saveResponse.ok) {
+          setSaved(true);
+          setTimeout(() => setSaved(false), 2000);
+        }
       } else {
         throw new Error(data.error || '上传失败');
       }
@@ -109,7 +139,6 @@ export default function AdminPaymentPage() {
   // 保存配置
   const handleSave = async () => {
     try {
-      // 保存到数据库或配置文件
       const response = await fetch('/api/admin/payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -126,13 +155,21 @@ export default function AdminPaymentPage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* 说明 */}
       <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
         <h3 className="text-white font-medium mb-2">收款码配置</h3>
         <p className="text-gray-400 text-sm">
-          上传微信和支付宝收款码，用户订阅时会显示对应二维码进行扫码支付。
+          上传微信和支付宝收款码，用户充值时会显示对应二维码进行扫码支付。
         </p>
       </div>
 
@@ -170,48 +207,44 @@ export default function AdminPaymentPage() {
                   src={config.wechat.qrCodeUrl}
                   alt="微信收款码"
                   className="w-full h-full object-contain"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    if (e.currentTarget.nextElementSibling) {
-                      (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
-                    }
-                  }}
                 />
-              ) : null}
-              <div 
-                className={`w-full h-full flex-col items-center justify-center text-gray-400 ${config.wechat.qrCodeUrl ? 'hidden' : 'flex'}`}
-              >
-                <ImageIcon className="w-12 h-12 mb-2" />
-                <span className="text-xs">暂无收款码</span>
-              </div>
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                  <ImageIcon className="w-12 h-12 mb-2" />
+                  <span className="text-xs">暂无收款码</span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* 上传按钮 */}
-          <div className="flex gap-2">
-            <input
-              ref={wechatInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleUpload('wechat', file);
-              }}
-            />
-            <Button
-              onClick={() => wechatInputRef.current?.click()}
-              disabled={uploading === 'wechat'}
-              className="flex-1 bg-green-600 hover:bg-green-700"
-            >
-              {uploading === 'wechat' ? (
+          <input
+            ref={wechatInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleUpload('wechat', file);
+            }}
+          />
+          <Button
+            onClick={() => wechatInputRef.current?.click()}
+            disabled={uploading === 'wechat'}
+            className="w-full bg-green-600 hover:bg-green-700"
+          >
+            {uploading === 'wechat' ? (
+              <>
                 <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
+                上传中...
+              </>
+            ) : (
+              <>
                 <Upload className="w-4 h-4 mr-2" />
-              )}
-              {uploading === 'wechat' ? '上传中...' : '上传收款码'}
-            </Button>
-          </div>
+                上传收款码
+              </>
+            )}
+          </Button>
         </div>
 
         {/* 支付宝 */}
@@ -246,48 +279,44 @@ export default function AdminPaymentPage() {
                   src={config.alipay.qrCodeUrl}
                   alt="支付宝收款码"
                   className="w-full h-full object-contain"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    if (e.currentTarget.nextElementSibling) {
-                      (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
-                    }
-                  }}
                 />
-              ) : null}
-              <div 
-                className={`w-full h-full flex-col items-center justify-center text-gray-400 ${config.alipay.qrCodeUrl ? 'hidden' : 'flex'}`}
-              >
-                <ImageIcon className="w-12 h-12 mb-2" />
-                <span className="text-xs">暂无收款码</span>
-              </div>
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                  <ImageIcon className="w-12 h-12 mb-2" />
+                  <span className="text-xs">暂无收款码</span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* 上传按钮 */}
-          <div className="flex gap-2">
-            <input
-              ref={alipayInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleUpload('alipay', file);
-              }}
-            />
-            <Button
-              onClick={() => alipayInputRef.current?.click()}
-              disabled={uploading === 'alipay'}
-              className="flex-1 bg-blue-600 hover:bg-blue-700"
-            >
-              {uploading === 'alipay' ? (
+          <input
+            ref={alipayInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleUpload('alipay', file);
+            }}
+          />
+          <Button
+            onClick={() => alipayInputRef.current?.click()}
+            disabled={uploading === 'alipay'}
+            className="w-full bg-blue-600 hover:bg-blue-700"
+          >
+            {uploading === 'alipay' ? (
+              <>
                 <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
+                上传中...
+              </>
+            ) : (
+              <>
                 <Upload className="w-4 h-4 mr-2" />
-              )}
-              {uploading === 'alipay' ? '上传中...' : '上传收款码'}
-            </Button>
-          </div>
+                上传收款码
+              </>
+            )}
+          </Button>
         </div>
       </div>
 

@@ -1,58 +1,103 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 
-// 临时使用内存存储，生产环境应使用数据库
-let paymentConfig = {
-  wechat: {
-    enabled: true,
-    qrCodeUrl: '/payment/wechat-qr.png',
-    name: '微信支付',
-  },
-  alipay: {
-    enabled: true,
-    qrCodeUrl: '/payment/alipay-qr.png',
-    name: '支付宝',
-  },
-};
-
+/**
+ * 获取收款配置
+ * GET /api/admin/payment
+ */
 export async function GET() {
-  return NextResponse.json(paymentConfig);
+  try {
+    const supabase = getSupabaseClient();
+
+    const { data, error } = await supabase
+      .from('system_settings')
+      .select('key, value')
+      .in('key', ['paymentWechatQrcode', 'paymentAlipayQrcode']);
+
+    if (error) {
+      console.error('获取收款配置失败:', error);
+      return NextResponse.json({
+        success: true,
+        config: {
+          wechat: { enabled: true, qrCodeUrl: '', name: '微信支付' },
+          alipay: { enabled: true, qrCodeUrl: '', name: '支付宝' },
+        },
+      });
+    }
+
+    // 解析配置
+    const config: Record<string, string> = {};
+    (data || []).forEach((item: any) => {
+      try {
+        config[item.key] = JSON.parse(item.value);
+      } catch {
+        config[item.key] = item.value;
+      }
+    });
+
+    return NextResponse.json({
+      success: true,
+      config: {
+        wechat: {
+          enabled: true,
+          qrCodeUrl: config.paymentWechatQrcode || '',
+          name: '微信支付',
+        },
+        alipay: {
+          enabled: true,
+          qrCodeUrl: config.paymentAlipayQrcode || '',
+          name: '支付宝',
+        },
+      },
+    });
+  } catch (error) {
+    console.error('获取收款配置失败:', error);
+    return NextResponse.json({
+      success: true,
+      config: {
+        wechat: { enabled: true, qrCodeUrl: '', name: '微信支付' },
+        alipay: { enabled: true, qrCodeUrl: '', name: '支付宝' },
+      },
+    });
+  }
 }
 
+/**
+ * 保存收款配置
+ * POST /api/admin/payment
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
-    // 验证请求数据
-    if (!body.wechat || !body.alipay) {
-      return NextResponse.json(
-        { error: '缺少支付配置' },
-        { status: 400 }
-      );
+    const { wechat, alipay } = body;
+
+    const supabase = getSupabaseClient();
+
+    // 保存微信收款码
+    if (wechat?.qrCodeUrl !== undefined) {
+      await supabase
+        .from('system_settings')
+        .upsert({
+          key: 'paymentWechatQrcode',
+          value: JSON.stringify(wechat.qrCodeUrl),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'key' });
     }
 
-    // 更新配置
-    paymentConfig = {
-      wechat: {
-        enabled: body.wechat.enabled ?? true,
-        qrCodeUrl: body.wechat.qrCodeUrl || '',
-        name: body.wechat.name || '微信支付',
-      },
-      alipay: {
-        enabled: body.alipay.enabled ?? true,
-        qrCodeUrl: body.alipay.qrCodeUrl || '',
-        name: body.alipay.name || '支付宝',
-      },
-    };
+    // 保存支付宝收款码
+    if (alipay?.qrCodeUrl !== undefined) {
+      await supabase
+        .from('system_settings')
+        .upsert({
+          key: 'paymentAlipayQrcode',
+          value: JSON.stringify(alipay.qrCodeUrl),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'key' });
+    }
 
-    // 生产环境应保存到数据库
-    // await db.paymentConfig.upsert({...})
-
-    return NextResponse.json({ success: true, config: paymentConfig });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('保存支付配置失败:', error);
-    return NextResponse.json(
-      { error: '保存失败' },
-      { status: 500 }
-    );
+    console.error('保存收款配置失败:', error);
+    return NextResponse.json({ error: '保存失败' }, { status: 500 });
   }
 }
