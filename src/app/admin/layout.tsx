@@ -14,12 +14,14 @@ import {
   LogOut,
   ChevronLeft,
   ClipboardCheck,
+  Coins,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { id: 'overview', label: '概览', icon: LayoutDashboard, path: '/admin' },
   { id: 'reviews', label: '作品审核', icon: ClipboardCheck, path: '/admin/reviews' },
   { id: 'works', label: '作品管理', icon: FileVideo, path: '/admin/works' },
+  { id: 'beans', label: '欢乐豆管理', icon: Coins, path: '/admin/beans' },
   { id: 'categories', label: '分类管理', icon: FolderTree, path: '/admin/categories' },
   { id: 'payment', label: '收款配置', icon: QrCode, path: '/admin/payment' },
   { id: 'settings', label: '系统设置', icon: Settings, path: '/admin/settings' },
