@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('beans_balance, total_beans_earned, total_beans_spent')
-      .eq('id', user.id)
+      .eq('user_id', user.id)
       .single();
 
     if (error) {
@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
           .from('profiles')
           .insert({
             id: user.id,
+            user_id: user.id,
             email: user.email,
             name: user.user_metadata?.name || user.email?.split('@')[0],
             beans_balance: 100, // 新用户赠送100豆
@@ -145,7 +146,7 @@ export async function POST(request: NextRequest) {
       const { data: profile, error: fetchError } = await supabase
         .from('profiles')
         .select('beans_balance')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .single();
 
       if (fetchError) {
@@ -159,7 +160,7 @@ export async function POST(request: NextRequest) {
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ beans_balance: newBalance })
-        .eq('id', user.id);
+        .eq('user_id', user.id);
 
       if (updateError) {
         return NextResponse.json({ error: '充值失败' }, { status: 500 });

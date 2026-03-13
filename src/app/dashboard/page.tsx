@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth, getAuthToken } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -115,7 +115,12 @@ export default function DashboardPage() {
   // 从云端加载项目
   const fetchCloudProjects = async () => {
     try {
-      const response = await fetch('/api/projects');
+      const token = getAuthToken();
+      const response = await fetch('/api/projects', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         setProjects(data.projects || []);
@@ -132,7 +137,12 @@ export default function DashboardPage() {
   // 获取快乐豆余额
   const fetchBeansBalance = async () => {
     try {
-      const response = await fetch('/api/user/beans');
+      const token = getAuthToken();
+      const response = await fetch('/api/user/beans', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         setBeansBalance(data.balance || 0);
@@ -209,9 +219,13 @@ export default function DashboardPage() {
     try {
       if (isAuthenticated) {
         // 云端创建
+        const token = getAuthToken();
         const response = await fetch('/api/projects', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
           body: JSON.stringify({
             name: newProjectName,
             projectData: {
@@ -224,6 +238,9 @@ export default function DashboardPage() {
         if (response.ok) {
           const data = await response.json();
           router.push(`/create/editor/${data.project.id}`);
+        } else {
+          const error = await response.json();
+          alert(error.error || '创建项目失败');
         }
       } else {
         // 本地创建 (使用 IndexedDB)
@@ -246,6 +263,7 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('创建项目失败:', error);
+      alert('创建项目失败，请重试');
     } finally {
       setIsCreating(false);
       setShowNewProjectDialog(false);
@@ -258,8 +276,12 @@ export default function DashboardPage() {
 
     try {
       if (isAuthenticated) {
+        const token = getAuthToken();
         const response = await fetch(`/api/projects/${projectId}`, {
           method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
         });
 
         if (response.ok) {
