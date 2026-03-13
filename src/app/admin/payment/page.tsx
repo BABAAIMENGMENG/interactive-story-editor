@@ -8,6 +8,9 @@ import {
   Image as ImageIcon,
   RefreshCw,
   Loader2,
+  AlertCircle,
+  CheckCircle,
+  X,
 } from 'lucide-react';
 
 interface PaymentConfig {
@@ -39,8 +42,15 @@ export default function AdminPaymentPage() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const wechatInputRef = useRef<HTMLInputElement>(null);
   const alipayInputRef = useRef<HTMLInputElement>(null);
+
+  // 显示消息
+  const showMessage = (type: 'success' | 'error', text: string) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 3000);
+  };
 
   // 加载配置
   useEffect(() => {
@@ -78,13 +88,13 @@ export default function AdminPaymentPage() {
 
     // 验证文件类型
     if (!file.type.startsWith('image/')) {
-      alert('请上传图片文件');
+      showMessage('error', '请上传图片文件');
       return;
     }
 
     // 验证文件大小（最大10MB）
     if (file.size > 10 * 1024 * 1024) {
-      alert('图片大小不能超过10MB');
+      showMessage('error', '图片大小不能超过10MB');
       return;
     }
 
@@ -95,6 +105,8 @@ export default function AdminPaymentPage() {
       const formData = new FormData();
       formData.append('file', file);
 
+      console.log('开始上传收款码...');
+
       // 上传到服务器
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -102,6 +114,7 @@ export default function AdminPaymentPage() {
       });
 
       const data = await response.json();
+      console.log('上传响应:', data);
 
       if (data.success && data.url) {
         // 更新配置
@@ -121,16 +134,21 @@ export default function AdminPaymentPage() {
           body: JSON.stringify(newConfig),
         });
         
-        if (saveResponse.ok) {
+        const saveData = await saveResponse.json();
+        
+        if (saveResponse.ok && saveData.success) {
+          showMessage('success', '收款码上传成功');
           setSaved(true);
           setTimeout(() => setSaved(false), 2000);
+        } else {
+          showMessage('error', saveData.error || '保存失败，请重试');
         }
       } else {
-        throw new Error(data.error || '上传失败');
+        showMessage('error', data.error || '上传失败，请重试');
       }
     } catch (error) {
       console.error('上传失败:', error);
-      alert('上传失败，请重试');
+      showMessage('error', '上传失败，请检查网络连接');
     } finally {
       setUploading(null);
     }
@@ -145,13 +163,18 @@ export default function AdminPaymentPage() {
         body: JSON.stringify(config),
       });
 
-      if (response.ok) {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        showMessage('success', '配置保存成功');
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
+      } else {
+        showMessage('error', data.error || '保存失败，请重试');
       }
     } catch (error) {
       console.error('保存失败:', error);
-      alert('保存失败，请重试');
+      showMessage('error', '保存失败，请检查网络连接');
     }
   };
 
@@ -165,6 +188,30 @@ export default function AdminPaymentPage() {
 
   return (
     <div className="space-y-6">
+      {/* 消息提示 */}
+      {message && (
+        <div
+          className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg ${
+            message.type === 'success'
+              ? 'bg-green-600 text-white'
+              : 'bg-red-600 text-white'
+          }`}
+        >
+          {message.type === 'success' ? (
+            <CheckCircle className="w-5 h-5" />
+          ) : (
+            <AlertCircle className="w-5 h-5" />
+          )}
+          <span>{message.text}</span>
+          <button
+            onClick={() => setMessage(null)}
+            className="ml-2 hover:opacity-70"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* 说明 */}
       <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
         <h3 className="text-white font-medium mb-2">收款码配置</h3>
