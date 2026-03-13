@@ -43,16 +43,23 @@ function PlayPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const shareCode = params.shareCode as string;
-  const autoPlay = searchParams.get('auto') === 'true';
 
   const [project, setProject] = useState<ProjectData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(autoPlay);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
   const [visitorId, setVisitorId] = useState<string>('');
+  
+  // 从 URL 参数初始化自动播放
+  useEffect(() => {
+    const auto = searchParams.get('auto');
+    if (auto === 'true') {
+      setIsPlaying(true);
+    }
+  }, [searchParams]);
 
   // 获取或创建访客ID
   useEffect(() => {

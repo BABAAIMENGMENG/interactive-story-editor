@@ -171,17 +171,12 @@ function ExploreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // 从URL获取初始值
-  const initialCategory = searchParams.get('category') || 'all';
-  const initialSort = searchParams.get('sort') || 'popular';
-  const initialSearch = searchParams.get('q') || '';
-  
   const [publicProjects, setPublicProjects] = useState<PublicProject[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-  const [selectedSort, setSelectedSort] = useState(initialSort);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedSort, setSelectedSort] = useState('popular');
   const [selectedPriceFilter, setSelectedPriceFilter] = useState('all');
-  const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // 获取或创建访客ID
   const [visitorId, setVisitorId] = useState<string>('');
@@ -193,7 +188,15 @@ function ExploreContent() {
       localStorage.setItem('visitor_id', vid);
     }
     setVisitorId(vid);
-  }, []);
+    
+    // 从 URL 参数初始化筛选状态
+    const category = searchParams.get('category');
+    const sort = searchParams.get('sort');
+    const q = searchParams.get('q');
+    if (category) setSelectedCategory(category);
+    if (sort) setSelectedSort(sort);
+    if (q) setSearchQuery(q);
+  }, [searchParams]);
 
   // 加载公开项目
   const fetchPublicProjects = useCallback(async () => {

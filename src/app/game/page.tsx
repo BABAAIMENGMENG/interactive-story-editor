@@ -413,11 +413,21 @@ function VideoPreloader({ videos }: { videos: string[] }) {
 function GamePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const storyId = searchParams.get('story') || 'demo';
-  const initialSceneId = searchParams.get('scene'); // 获取URL中的初始场景ID
-
+  
   // 用于追踪当前播放的点击音效，防止多次点击叠加播放
   const clickAudioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // 状态管理
+  const [storyId, setStoryId] = useState('demo');
+  const [initialSceneId, setInitialSceneId] = useState<string | null>(null);
+  
+  // 从 URL 参数初始化
+  useEffect(() => {
+    const story = searchParams.get('story');
+    const scene = searchParams.get('scene');
+    if (story) setStoryId(story);
+    if (scene) setInitialSceneId(scene);
+  }, [searchParams]);
   
   // 用于追踪已被时间触发器显示的元素（初始为空，触发后才显示）
   const [triggeredShownElements, setTriggeredShownElements] = useState<Set<string>>(new Set());

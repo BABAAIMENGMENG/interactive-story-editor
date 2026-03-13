@@ -181,14 +181,10 @@ function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // 从URL获取初始值
-  const initialCategory = searchParams.get('category') || 'all';
-  const initialSort = searchParams.get('sort') || 'popular';
-  
   const [publicProjects, setPublicProjects] = useState<PublicProject[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-  const [selectedSort, setSelectedSort] = useState(initialSort);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedSort, setSelectedSort] = useState('popular');
   const [selectedPriceFilter, setSelectedPriceFilter] = useState('all');
   
   // 联系管理员弹窗
@@ -229,6 +225,14 @@ function HomePageContent() {
       })
       .catch(console.error);
   }, []);
+
+  // 从 URL 参数初始化筛选状态
+  useEffect(() => {
+    const category = searchParams.get('category');
+    const sort = searchParams.get('sort');
+    if (category) setSelectedCategory(category);
+    if (sort) setSelectedSort(sort);
+  }, [searchParams]);
 
   // 加载公开项目
   const fetchPublicProjects = useCallback(async () => {
