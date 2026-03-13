@@ -193,6 +193,13 @@ function HomePageContent() {
   
   // 联系管理员弹窗
   const [showContactDialog, setShowContactDialog] = useState(false);
+  
+  // 联系方式设置
+  const [contactSettings, setContactSettings] = useState({
+    wechat: 'CS_Service',
+    email: 'support@cs-interactive.com',
+    onlineTime: '工作日 9:00 - 18:00',
+  });
 
   // 获取或创建访客ID
   const [visitorId, setVisitorId] = useState<string>('');
@@ -205,6 +212,20 @@ function HomePageContent() {
       localStorage.setItem('visitor_id', vid);
     }
     setVisitorId(vid);
+    
+    // 加载联系方式设置
+    fetch('/api/settings/public')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.settings) {
+          setContactSettings({
+            wechat: data.settings.contactWechat || 'CS_Service',
+            email: data.settings.contactEmail || 'support@cs-interactive.com',
+            onlineTime: data.settings.contactOnlineTime || '工作日 9:00 - 18:00',
+          });
+        }
+      })
+      .catch(console.error);
   }, []);
 
   // 加载公开项目
@@ -595,7 +616,7 @@ function HomePageContent() {
                 <p className="text-white font-medium mb-1">微信客服</p>
                 <p className="text-zinc-400 text-xs mb-3">扫描二维码或搜索微信号</p>
                 <div className="bg-zinc-600 rounded px-3 py-2 text-center">
-                  <p className="text-white text-sm font-mono">CS_Service</p>
+                  <p className="text-white text-sm font-mono">{contactSettings.wechat}</p>
                 </div>
               </div>
 
@@ -606,7 +627,7 @@ function HomePageContent() {
                 </div>
                 <div className="flex-1">
                   <p className="text-zinc-400 text-xs">邮箱</p>
-                  <p className="text-white text-sm">support@cs-interactive.com</p>
+                  <p className="text-white text-sm">{contactSettings.email}</p>
                 </div>
               </div>
 
@@ -617,7 +638,7 @@ function HomePageContent() {
                 </div>
                 <div className="flex-1">
                   <p className="text-zinc-400 text-xs">在线时间</p>
-                  <p className="text-white text-sm">工作日 9:00 - 18:00</p>
+                  <p className="text-white text-sm">{contactSettings.onlineTime}</p>
                 </div>
               </div>
 

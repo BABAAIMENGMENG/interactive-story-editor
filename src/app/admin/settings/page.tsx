@@ -15,6 +15,7 @@ import {
   Globe,
   Database,
   Server,
+  MessageCircle,
 } from 'lucide-react';
 
 interface AdminAccount {
@@ -36,6 +37,10 @@ interface SystemSettings {
   aiReviewEnabled: boolean;
   manualReviewRequired: boolean;
   autoApproveThreshold: number;
+  // 联系方式设置
+  contactWechat: string;
+  contactEmail: string;
+  contactOnlineTime: string;
 }
 
 export default function AdminSettingsPage() {
@@ -63,6 +68,10 @@ export default function AdminSettingsPage() {
     aiReviewEnabled: true,
     manualReviewRequired: true,
     autoApproveThreshold: 0.8,
+    // 联系方式设置
+    contactWechat: 'CS_Service',
+    contactEmail: 'support@cs-interactive.com',
+    contactOnlineTime: '工作日 9:00 - 18:00',
   });
   const [settingsSaved, setSettingsSaved] = useState(false);
 
@@ -468,6 +477,83 @@ export default function AdminSettingsPage() {
                 AI评分高于此阈值才可通过审核（0-100%）
               </p>
             </div>
+          </div>
+
+          {/* 保存按钮 */}
+          <div className="flex justify-end border-t border-gray-700 pt-4">
+            <Button
+              onClick={handleSaveSettings}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {settingsSaved ? (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  已保存
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  保存设置
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* 联系方式设置 */}
+      <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-700 flex items-center gap-3">
+          <MessageCircle className="w-5 h-5 text-green-400" />
+          <h2 className="text-white font-medium">联系方式设置</h2>
+        </div>
+        
+        <div className="p-5 space-y-4">
+          <p className="text-gray-400 text-sm">设置前台页面"联系管理员"弹窗中显示的联系方式</p>
+          
+          {/* 微信号 */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-gray-400 text-sm block mb-2">
+                <span className="text-green-400 mr-1">💬</span> 微信号
+              </label>
+              <input
+                type="text"
+                value={systemSettings.contactWechat}
+                onChange={(e) => setSystemSettings({ ...systemSettings, contactWechat: e.target.value })}
+                className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                placeholder="输入微信号"
+              />
+              <p className="text-gray-500 text-xs mt-1">用户扫码或搜索添加</p>
+            </div>
+            <div>
+              <label className="text-gray-400 text-sm block mb-2">
+                <span className="text-blue-400 mr-1">📧</span> 联系邮箱
+              </label>
+              <input
+                type="email"
+                value={systemSettings.contactEmail}
+                onChange={(e) => setSystemSettings({ ...systemSettings, contactEmail: e.target.value })}
+                className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                placeholder="support@example.com"
+              />
+              <p className="text-gray-500 text-xs mt-1">用户邮件联系地址</p>
+            </div>
+          </div>
+
+          {/* 在线时间 */}
+          <div>
+            <label className="text-gray-400 text-sm block mb-2">
+              <span className="text-amber-400 mr-1">🕐</span> 在线服务时间
+            </label>
+            <input
+              type="text"
+              value={systemSettings.contactOnlineTime}
+              onChange={(e) => setSystemSettings({ ...systemSettings, contactOnlineTime: e.target.value })}
+              className="w-full md:w-1/2 px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+              placeholder="工作日 9:00 - 18:00"
+            />
+            <p className="text-gray-500 text-xs mt-1">显示客服在线时间段</p>
           </div>
 
           {/* 保存按钮 */}
