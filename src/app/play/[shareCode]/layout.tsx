@@ -27,16 +27,16 @@ export async function generateMetadata({
 
     return {
       title: project.name,
-      description: project.description || `${project.name} - 在VES互动短剧平台上观看精彩互动内容`,
+      description: project.description || `${project.name} - 在CS互动短剧平台上观看精彩互动内容`,
       openGraph: {
-        title: `${project.name} | VES互动短剧`,
+        title: `${project.name} | CS互动短剧`,
         description: project.description || `观看 ${project.name}`,
         images: project.coverImage ? [project.coverImage] : ['/og-image.png'],
         type: 'video.other',
       },
       twitter: {
         card: 'summary_large_image',
-        title: `${project.name} | VES互动短剧`,
+        title: `${project.name} | CS互动短剧`,
         description: project.description || `观看 ${project.name}`,
         images: project.coverImage ? [project.coverImage] : ['/og-image.png'],
       },
@@ -44,7 +44,7 @@ export async function generateMetadata({
   } catch (error) {
     return {
       title: '互动短剧',
-      description: '在VES互动短剧平台上观看精彩互动内容。',
+      description: '在CS互动短剧平台上观看精彩互动内容。',
     };
   }
 }
