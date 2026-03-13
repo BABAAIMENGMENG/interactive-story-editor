@@ -81,7 +81,7 @@ const MOCK_PROJECTS = [
     id: 'mock-5',
     name: '校园风云',
     description: '踏入大学校园，经历青春热血的校园生活，在学业、友情、爱情中做出你的选择。',
-    cover_image: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800&q=80',
+    cover_image: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=800&q=80',
     share_code: 'campus',
     view_count: 1567,
     like_count: 189,
