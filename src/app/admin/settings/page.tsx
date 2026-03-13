@@ -16,6 +16,8 @@ import {
   Database,
   Server,
   MessageCircle,
+  Trash2,
+  X,
 } from 'lucide-react';
 
 interface AdminAccount {
@@ -76,6 +78,15 @@ export default function AdminSettingsPage() {
     contactOnlineTime: '工作日 9:00 - 18:00',
   });
   const [settingsSaved, setSettingsSaved] = useState(false);
+
+  // 清空数据相关状态
+  const [showClearDataModal, setShowClearDataModal] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState('');
+  const [clearingData, setClearingData] = useState(false);
+  const [clearDataResult, setClearDataResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
 
   // 加载已保存的设置
   useEffect(() => {
@@ -176,6 +187,45 @@ export default function AdminSettingsPage() {
     }
     
     setTimeout(() => setSettingsSaved(false), 3000);
+  };
+
+  // 清空所有数据
+  const handleClearAllData = async () => {
+    if (clearConfirmText !== '确认清空所有数据') {
+      return;
+    }
+
+    setClearingData(true);
+    setClearDataResult(null);
+
+    try {
+      const response = await fetch('/api/admin/clear-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmText: clearConfirmText }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setClearDataResult({ success: true, message: '所有数据已清空！' });
+        setTimeout(() => {
+          setShowClearDataModal(false);
+          setClearConfirmText('');
+          setClearDataResult(null);
+        }, 2000);
+      } else {
+        setClearDataResult({
+          success: false,
+          message: data.message || '清空数据失败',
+        });
+      }
+    } catch (error) {
+      console.error('清空数据失败:', error);
+      setClearDataResult({ success: false, message: '网络错误，请重试' });
+    } finally {
+      setClearingData(false);
+    }
   };
 
   return (
@@ -707,17 +757,117 @@ export default function AdminSettingsPage() {
             <Button
               variant="outline"
               className="border-red-500/50 text-red-400 hover:bg-red-500/10"
-              onClick={() => {
-                if (confirm('确定要清空所有数据吗？此操作不可恢复！')) {
-                  alert('功能开发中，暂不支持');
-                }
-              }}
+              onClick={() => setShowClearDataModal(true)}
             >
+              <Trash2 className="w-4 h-4 mr-2" />
               清空数据
             </Button>
           </div>
         </div>
       </div>
+
+      {/* 清空数据确认弹窗 */}
+      {showClearDataModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg border border-red-500/50 w-full max-w-md mx-4 overflow-hidden">
+            {/* 弹窗标题 */}
+            <div className="px-5 py-4 border-b border-gray-700 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5 text-red-400" />
+                </div>
+                <span className="text-white font-medium">危险操作确认</span>
+              </div>
+              <button
+                onClick={() => {
+                  setShowClearDataModal(false);
+                  setClearConfirmText('');
+                  setClearDataResult(null);
+                }}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 弹窗内容 */}
+            <div className="p-5 space-y-4">
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                <p className="text-red-400 text-sm">
+                  ⚠️ 此操作将永久删除以下数据，且无法恢复：
+                </p>
+                <ul className="text-gray-400 text-xs mt-2 space-y-1 list-disc list-inside">
+                  <li>所有用户账号和资料</li>
+                  <li>所有项目和作品</li>
+                  <li>所有交易记录和订单</li>
+                  <li>所有点赞和评论数据</li>
+                </ul>
+              </div>
+
+              <div>
+                <label className="text-gray-400 text-sm block mb-2">
+                  请输入 <span className="text-red-400 font-medium">确认清空所有数据</span> 以继续：
+                </label>
+                <input
+                  type="text"
+                  value={clearConfirmText}
+                  onChange={(e) => setClearConfirmText(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-red-500"
+                  placeholder="确认清空所有数据"
+                />
+              </div>
+
+              {/* 操作结果 */}
+              {clearDataResult && (
+                <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+                  clearDataResult.success
+                    ? 'bg-green-500/10 border border-green-500/50 text-green-400'
+                    : 'bg-red-500/10 border border-red-500/50 text-red-400'
+                }`}>
+                  {clearDataResult.success ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4" />
+                  )}
+                  {clearDataResult.message}
+                </div>
+              )}
+            </div>
+
+            {/* 弹窗按钮 */}
+            <div className="px-5 py-4 border-t border-gray-700 flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowClearDataModal(false);
+                  setClearConfirmText('');
+                  setClearDataResult(null);
+                }}
+                disabled={clearingData}
+              >
+                取消
+              </Button>
+              <Button
+                className="bg-red-500 hover:bg-red-600"
+                onClick={handleClearAllData}
+                disabled={clearConfirmText !== '确认清空所有数据' || clearingData}
+              >
+                {clearingData ? (
+                  <>
+                    <span className="animate-spin mr-2">⏳</span>
+                    清空中...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    确认清空
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
