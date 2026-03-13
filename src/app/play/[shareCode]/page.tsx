@@ -16,6 +16,8 @@ import {
   X,
   Loader2,
   Gem,
+  Gift,
+  Users,
 } from 'lucide-react';
 import { GameViewer } from '@/components/game/GameViewer';
 
@@ -65,6 +67,11 @@ function PlayPageContent() {
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [userBeansBalance, setUserBeansBalance] = useState<number | null>(null);
   
+  // 邀请相关状态
+  const [inviteCode, setInviteCode] = useState<string>('');
+  const [inviteLink, setInviteLink] = useState<string>('');
+  const [inviteCopied, setInviteCopied] = useState(false);
+  
   // 从 URL 参数初始化自动播放
   useEffect(() => {
     const auto = searchParams.get('auto');
@@ -104,6 +111,20 @@ function PlayPageContent() {
             }
           } catch (e) {
             console.error('获取快乐豆余额失败:', e);
+          }
+          
+          // 获取邀请码
+          try {
+            const inviteRes = await fetch(`/api/invite?userId=${visitorId}`);
+            if (inviteRes.ok) {
+              const inviteData = await inviteRes.json();
+              if (inviteData.success && inviteData.inviteCode) {
+                setInviteCode(inviteData.inviteCode);
+                setInviteLink(inviteData.inviteLink);
+              }
+            }
+          } catch (e) {
+            console.error('获取邀请码失败:', e);
           }
         }
       } catch (err) {
@@ -207,9 +228,9 @@ function PlayPageContent() {
     setIsPlaying(true);
   };
 
-  // 获取分享链接
+  // 获取分享链接（带邀请码）
   const shareUrl = typeof window !== 'undefined' 
-    ? `${window.location.origin}/play/${shareCode}?auto=true`
+    ? `${window.location.origin}/play/${shareCode}?auto=true${inviteCode ? `&ref=${inviteCode}` : ''}`
     : '';
 
   // 复制链接
@@ -218,6 +239,18 @@ function PlayPageContent() {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('复制失败:', err);
+    }
+  };
+
+  // 复制邀请链接
+  const handleCopyInviteLink = async () => {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setInviteCopied(true);
+      setTimeout(() => setInviteCopied(false), 2000);
     } catch (err) {
       console.error('复制失败:', err);
     }
@@ -416,6 +449,57 @@ function PlayPageContent() {
             {shareUrl}
           </div>
         </div>
+
+        {/* 邀请奖励 */}
+        {inviteCode && (
+          <div className="bg-gradient-to-r from-amber-900/30 to-orange-900/30 border border-amber-500/30 rounded-xl p-4 mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Gift className="w-5 h-5 text-amber-400" />
+              <h3 className="text-white font-medium">邀请好友赚快乐豆</h3>
+            </div>
+            
+            <div className="bg-gray-900/50 rounded-lg p-3 mb-3">
+              <div className="flex items-center justify-center gap-6">
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <Users className="w-4 h-4 text-purple-400" />
+                    <span className="text-gray-400 text-xs">您</span>
+                  </div>
+                  <span className="text-xl font-bold text-amber-400">+50豆</span>
+                </div>
+                <div className="text-gray-500">+</div>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <Users className="w-4 h-4 text-pink-400" />
+                    <span className="text-gray-400 text-xs">好友</span>
+                  </div>
+                  <span className="text-xl font-bold text-amber-400">+50豆</span>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-gray-400 text-xs mb-3">
+              分享专属链接给好友，双方各得50快乐豆
+            </p>
+            
+            <div className="flex items-center gap-2">
+              <div className="flex-1 bg-gray-900/50 rounded px-3 py-2 text-xs text-gray-300 truncate">
+                {inviteLink}
+              </div>
+              <Button
+                size="sm"
+                onClick={handleCopyInviteLink}
+                className="bg-amber-500 hover:bg-amber-600 text-white"
+              >
+                {inviteCopied ? (
+                  <Check className="w-4 h-4" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* 二维码弹窗 */}
         {showShare && (
