@@ -39,6 +39,7 @@ interface SystemSettings {
   autoApproveThreshold: number;
   // 联系方式设置
   contactWechat: string;
+  contactWechatQrcode: string; // 微信二维码图片URL
   contactEmail: string;
   contactOnlineTime: string;
 }
@@ -70,6 +71,7 @@ export default function AdminSettingsPage() {
     autoApproveThreshold: 0.8,
     // 联系方式设置
     contactWechat: 'CS_Service',
+    contactWechatQrcode: '',
     contactEmail: 'support@cs-interactive.com',
     contactOnlineTime: '工作日 9:00 - 18:00',
   });
@@ -141,6 +143,7 @@ export default function AdminSettingsPage() {
     try {
       const settingsToSave = [
         { key: 'contactWechat', value: systemSettings.contactWechat },
+        { key: 'contactWechatQrcode', value: systemSettings.contactWechatQrcode },
         { key: 'contactEmail', value: systemSettings.contactEmail },
         { key: 'contactOnlineTime', value: systemSettings.contactOnlineTime },
         { key: 'siteName', value: systemSettings.siteName },
@@ -547,7 +550,7 @@ export default function AdminSettingsPage() {
         <div className="p-5 space-y-4">
           <p className="text-gray-400 text-sm">设置前台页面"联系管理员"弹窗中显示的联系方式</p>
           
-          {/* 微信号 */}
+          {/* 微信号和邮箱 */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="text-gray-400 text-sm block mb-2">
@@ -575,6 +578,80 @@ export default function AdminSettingsPage() {
               />
               <p className="text-gray-500 text-xs mt-1">用户邮件联系地址</p>
             </div>
+          </div>
+
+          {/* 微信二维码上传 */}
+          <div>
+            <label className="text-gray-400 text-sm block mb-2">
+              <span className="text-green-400 mr-1">📱</span> 微信二维码
+            </label>
+            <div className="flex items-start gap-4">
+              <div className="flex-1">
+                <input
+                  type="text"
+                  value={systemSettings.contactWechatQrcode}
+                  onChange={(e) => setSystemSettings({ ...systemSettings, contactWechatQrcode: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                  placeholder="输入二维码图片URL或上传图片"
+                />
+                <p className="text-gray-500 text-xs mt-1">上传微信二维码图片，用户可直接扫码添加</p>
+              </div>
+              <div className="flex-shrink-0">
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        try {
+                          const formData = new FormData();
+                          formData.append('file', file);
+                          const response = await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData,
+                          });
+                          if (response.ok) {
+                            const data = await response.json();
+                            setSystemSettings({ ...systemSettings, contactWechatQrcode: data.url });
+                          } else {
+                            alert('上传失败，请重试');
+                          }
+                        } catch (err) {
+                          console.error('上传失败:', err);
+                          alert('上传失败，请重试');
+                        }
+                      }
+                    }}
+                  />
+                  <div className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors">
+                    上传图片
+                  </div>
+                </label>
+              </div>
+            </div>
+            {/* 二维码预览 */}
+            {systemSettings.contactWechatQrcode && (
+              <div className="mt-3 flex items-center gap-4">
+                <div className="w-24 h-24 bg-white rounded-lg p-2 flex items-center justify-center">
+                  <img 
+                    src={systemSettings.contactWechatQrcode} 
+                    alt="微信二维码" 
+                    className="max-w-full max-h-full object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23999"><text x="50%" y="50%" text-anchor="middle" font-size="10">加载失败</text></svg>';
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={() => setSystemSettings({ ...systemSettings, contactWechatQrcode: '' })}
+                  className="text-red-400 hover:text-red-300 text-sm"
+                >
+                  删除
+                </button>
+              </div>
+            )}
           </div>
 
           {/* 在线时间 */}

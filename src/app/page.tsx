@@ -197,6 +197,7 @@ function HomePageContent() {
   // 联系方式设置
   const [contactSettings, setContactSettings] = useState({
     wechat: 'CS_Service',
+    wechatQrcode: '',
     email: 'support@cs-interactive.com',
     onlineTime: '工作日 9:00 - 18:00',
   });
@@ -220,6 +221,7 @@ function HomePageContent() {
         if (data.success && data.settings) {
           setContactSettings({
             wechat: data.settings.contactWechat || 'CS_Service',
+            wechatQrcode: data.settings.contactWechatQrcode || '',
             email: data.settings.contactEmail || 'support@cs-interactive.com',
             onlineTime: data.settings.contactOnlineTime || '工作日 9:00 - 18:00',
           });
@@ -617,10 +619,30 @@ function HomePageContent() {
                   <span className="text-3xl">💬</span>
                 </div>
                 <p className="text-white font-medium mb-1">微信客服</p>
-                <p className="text-zinc-400 text-xs mb-3">扫描二维码或搜索微信号</p>
-                <div className="bg-zinc-600 rounded px-3 py-2 text-center">
-                  <p className="text-white text-sm font-mono">{contactSettings.wechat}</p>
-                </div>
+                <p className="text-zinc-400 text-xs mb-3">
+                  {contactSettings.wechatQrcode ? '扫描二维码添加客服' : '扫描二维码或搜索微信号'}
+                </p>
+                {/* 显示二维码图片或微信号 */}
+                {contactSettings.wechatQrcode ? (
+                  <div className="bg-white rounded-lg p-2 inline-block">
+                    <img 
+                      src={contactSettings.wechatQrcode} 
+                      alt="微信二维码" 
+                      className="w-32 h-32 object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="bg-zinc-600 rounded px-3 py-2 text-center">
+                    <p className="text-white text-sm font-mono">{contactSettings.wechat}</p>
+                  </div>
+                )}
+                {/* 微信号（有二维码时也显示） */}
+                {contactSettings.wechatQrcode && contactSettings.wechat && (
+                  <div className="mt-2 bg-zinc-600 rounded px-3 py-2 text-center">
+                    <p className="text-zinc-400 text-xs">微信号</p>
+                    <p className="text-white text-sm font-mono">{contactSettings.wechat}</p>
+                  </div>
+                )}
               </div>
 
               {/* 邮箱 */}

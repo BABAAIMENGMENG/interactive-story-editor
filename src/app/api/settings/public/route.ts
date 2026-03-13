@@ -9,6 +9,7 @@ export async function GET() {
   // 默认设置
   const defaultSettings = {
     contactWechat: 'CS_Service',
+    contactWechatQrcode: '',
     contactEmail: 'support@cs-interactive.com',
     contactOnlineTime: '工作日 9:00 - 18:00',
     siteName: '全景互动',
@@ -24,6 +25,7 @@ export async function GET() {
       .select('key, value')
       .in('key', [
         'contactWechat',
+        'contactWechatQrcode',
         'contactEmail', 
         'contactOnlineTime',
         'siteName',
