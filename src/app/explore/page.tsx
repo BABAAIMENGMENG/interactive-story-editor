@@ -236,8 +236,8 @@ function ExploreContent() {
         {/* 排序选项 */}
         <div className="flex items-center gap-4 mb-4">
           <div className="flex items-center gap-2">
-            <Filter className="w-3.5 h-3.5 text-zinc-500" />
-            <span className="text-xs text-zinc-500">排序：</span>
+            <Filter className="w-3.5 h-3.5 text-zinc-300" />
+            <span className="text-xs text-zinc-300">排序：</span>
             {SORT_OPTIONS.map((opt) => {
               const Icon = opt.icon;
               return (
@@ -246,8 +246,8 @@ function ExploreContent() {
                   onClick={() => setSelectedSort(opt.id)}
                   className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
                     selectedSort === opt.id
-                      ? 'bg-purple-500/20 text-purple-300'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-purple-500/40 text-white'
+                      : 'text-zinc-300 hover:text-white'
                   }`}
                 >
                   {typeof Icon === 'string' ? Icon : <Icon className="w-3 h-3" />}
@@ -257,19 +257,19 @@ function ExploreContent() {
             })}
           </div>
           
-          <div className="h-4 w-px bg-zinc-700" />
+          <div className="h-4 w-px bg-zinc-600" />
           
           {/* 价格筛选 */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-500">价格：</span>
+            <span className="text-xs text-zinc-300">价格：</span>
             {PRICE_FILTERS.map((filter) => (
               <button
                 key={filter.id}
                 onClick={() => setSelectedPriceFilter(filter.id)}
                 className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
                   selectedPriceFilter === filter.id
-                    ? 'bg-purple-500/20 text-purple-300'
-                    : 'text-zinc-400 hover:text-white'
+                    ? 'bg-purple-500/40 text-white'
+                    : 'text-zinc-300 hover:text-white'
                 }`}
               >
                 {filter.icon}
@@ -294,26 +294,34 @@ function ExploreContent() {
               >
                 {/* 封面 */}
                 <div className="relative h-40 bg-gradient-to-br from-purple-600 to-pink-600">
-                  {project.coverImage && (
+                  {project.coverImage ? (
                     <img
                       src={project.coverImage}
                       alt={project.name}
                       className="h-full w-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
                     />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-purple-600/50 to-pink-600/50">
+                      <Play className="w-10 h-10 text-white/50" />
+                    </div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                   
                   {/* 分类标签 */}
                   <div className="absolute top-2 left-2 flex gap-1">
-                    <Badge className="bg-black/50 text-white text-[10px] px-1.5 py-0">
+                    <Badge className="bg-black/60 text-white text-[10px] px-1.5 py-0.5 border border-white/20">
                       {project.categoryName}
                     </Badge>
                     {project.beansPrice > 0 ? (
-                      <Badge className="bg-amber-500/80 text-white text-[10px] px-1.5 py-0">
+                      <Badge className="bg-amber-500/90 text-white text-[10px] px-1.5 py-0.5 border border-amber-400/50">
                         💎 {project.beansPrice}
                       </Badge>
                     ) : (
-                      <Badge className="bg-green-500/80 text-white text-[10px] px-1.5 py-0">
+                      <Badge className="bg-green-500/90 text-white text-[10px] px-1.5 py-0.5 border border-green-400/50">
                         🆓 免费
                       </Badge>
                     )}
@@ -330,10 +338,10 @@ function ExploreContent() {
                 {/* 项目信息 */}
                 <div className="p-3">
                   <h4 className="font-medium text-white truncate text-sm">{project.name}</h4>
-                  <p className="text-gray-400 text-[10px] line-clamp-2 mb-2">
+                  <p className="text-gray-200 text-[10px] line-clamp-2 mb-2">
                     {project.description || '暂无描述'}
                   </p>
-                  <div className="flex items-center justify-between text-[10px] text-gray-500">
+                  <div className="flex items-center justify-between text-[10px] text-gray-300">
                     <div className="flex items-center gap-3">
                       <span className="flex items-center gap-1">
                         <Eye className="w-3 h-3" />
@@ -343,15 +351,15 @@ function ExploreContent() {
                         onClick={(e) => handleLike(e, project.id)}
                         className={`flex items-center gap-1 transition-colors ${
                           project.isLiked 
-                            ? 'text-pink-500' 
-                            : 'hover:text-pink-400'
+                            ? 'text-pink-400' 
+                            : 'text-gray-300 hover:text-pink-400'
                         }`}
                       >
                         <Heart className={`w-3 h-3 ${project.isLiked ? 'fill-current' : ''}`} />
                         {project.likeCount}
                       </button>
                     </div>
-                    <span className="flex items-center gap-1 text-purple-400">
+                    <span className="flex items-center gap-1 text-purple-300 hover:text-purple-200">
                       <Share2 className="w-3 h-3" />
                       分享
                     </span>
@@ -362,9 +370,9 @@ function ExploreContent() {
           </div>
         ) : (
           <div className="text-center py-20 bg-zinc-800/30 rounded-lg">
-            <Play className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
-            <p className="text-zinc-400 text-sm mb-1">暂无作品</p>
-            <p className="text-zinc-500 text-xs">该分类下还没有公开作品</p>
+            <Play className="w-12 h-12 text-zinc-500 mx-auto mb-3" />
+            <p className="text-zinc-200 text-sm mb-1">暂无作品</p>
+            <p className="text-zinc-400 text-xs">该分类下还没有公开作品</p>
           </div>
         )}
       </main>
