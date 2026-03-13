@@ -46,6 +46,9 @@ interface Project {
   createdAt: string;
   updatedAt: string;
   scenes?: any[];
+  review_status?: 'pending' | 'approved' | 'rejected' | 'revision_needed';
+  review_notes?: string;
+  beans_price?: number;
 }
 
 // 订阅套餐配置
@@ -294,6 +297,37 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('删除项目失败:', error);
+    }
+  };
+
+  // 重新提交审核
+  const handleResubmit = async (projectId: string) => {
+    if (!isAuthenticated) return;
+    
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`/api/projects/${projectId}/resubmit`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        // 更新项目状态
+        setProjects(projects.map(p => 
+          p.id === projectId 
+            ? { ...p, review_status: 'pending', review_notes: '' }
+            : p
+        ));
+        alert('已重新提交审核，请等待管理员审核');
+      } else {
+        const error = await response.json();
+        alert(error.error || '重新提交失败');
+      }
+    } catch (error) {
+      console.error('重新提交审核失败:', error);
+      alert('重新提交失败，请重试');
     }
   };
 
@@ -602,6 +636,42 @@ export default function DashboardPage() {
                       <FolderOpen className="w-8 h-8 text-zinc-600" />
                     </div>
                   )}
+                  
+                  {/* 审核状态标签 */}
+                  {project.review_status && (
+                    <div className="absolute top-1.5 left-1.5">
+                      {project.review_status === 'pending' && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                          待审核
+                        </span>
+                      )}
+                      {project.review_status === 'approved' && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/20 text-green-400 border border-green-500/30">
+                          已通过
+                        </span>
+                      )}
+                      {project.review_status === 'rejected' && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400 border border-red-500/30">
+                          已拒绝
+                        </span>
+                      )}
+                      {project.review_status === 'revision_needed' && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                          需修改
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* 价格标签 */}
+                  {project.beans_price !== undefined && project.beans_price > 0 && (
+                    <div className="absolute top-1.5 right-1.5">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        💎 {project.beans_price}豆
+                      </span>
+                    </div>
+                  )}
+                  
                   {/* 悬停操作 */}
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
                     <Link href={`/create/editor/${project.id}`}>
@@ -625,6 +695,25 @@ export default function DashboardPage() {
                   <p className="text-zinc-500 text-[10px] line-clamp-2 mb-1.5">
                     {project.description || '暂无描述'}
                   </p>
+                  
+                  {/* 审核不通过提示 */}
+                  {(project.review_status === 'rejected' || project.review_status === 'revision_needed') && project.review_notes && (
+                    <div className="mb-2 p-1.5 bg-red-500/10 border border-red-500/30 rounded text-[10px]">
+                      <p className="text-red-300 font-medium mb-0.5">审核意见：</p>
+                      <p className="text-zinc-300">{project.review_notes}</p>
+                      <Button
+                        size="sm"
+                        className="mt-1.5 h-5 text-[10px] px-2 bg-purple-600 hover:bg-purple-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleResubmit(project.id);
+                        }}
+                      >
+                        重新提交审核
+                      </Button>
+                    </div>
+                  )}
+                  
                   <div className="flex items-center justify-between text-[10px] text-zinc-500">
                     <span className="flex items-center gap-0.5">
                       <Calendar className="w-2.5 h-2.5" />
