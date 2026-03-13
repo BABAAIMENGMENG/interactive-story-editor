@@ -42,9 +42,6 @@ interface SystemSettings {
   contactWechatQrcode: string; // 微信二维码图片URL
   contactEmail: string;
   contactOnlineTime: string;
-  // 收款二维码设置
-  paymentWechatQrcode: string; // 微信收款二维码
-  paymentAlipayQrcode: string; // 支付宝收款二维码
 }
 
 export default function AdminSettingsPage() {
@@ -77,9 +74,6 @@ export default function AdminSettingsPage() {
     contactWechatQrcode: '',
     contactEmail: 'support@cs-interactive.com',
     contactOnlineTime: '工作日 9:00 - 18:00',
-    // 收款二维码设置
-    paymentWechatQrcode: '',
-    paymentAlipayQrcode: '',
   });
   const [settingsSaved, setSettingsSaved] = useState(false);
 
@@ -152,8 +146,6 @@ export default function AdminSettingsPage() {
         { key: 'contactWechatQrcode', value: systemSettings.contactWechatQrcode },
         { key: 'contactEmail', value: systemSettings.contactEmail },
         { key: 'contactOnlineTime', value: systemSettings.contactOnlineTime },
-        { key: 'paymentWechatQrcode', value: systemSettings.paymentWechatQrcode },
-        { key: 'paymentAlipayQrcode', value: systemSettings.paymentAlipayQrcode },
         { key: 'siteName', value: systemSettings.siteName },
         { key: 'siteDescription', value: systemSettings.siteDescription },
         { key: 'publishRewardBeans', value: systemSettings.publishRewardBeans },
@@ -675,180 +667,6 @@ export default function AdminSettingsPage() {
               placeholder="工作日 9:00 - 18:00"
             />
             <p className="text-gray-500 text-xs mt-1">显示客服在线时间段</p>
-          </div>
-
-          {/* 保存按钮 */}
-          <div className="flex justify-end border-t border-gray-700 pt-4">
-            <Button
-              onClick={handleSaveSettings}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              {settingsSaved ? (
-                <>
-                  <Check className="w-4 h-4 mr-2" />
-                  已保存
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  保存设置
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* 收款设置 */}
-      <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-700 flex items-center gap-3">
-          <span className="text-xl">💰</span>
-          <h2 className="text-white font-medium">收款设置</h2>
-        </div>
-        
-        <div className="p-5 space-y-4">
-          <p className="text-gray-400 text-sm">上传收款二维码，用户充值时扫码付款后由管理员确认到账</p>
-          
-          {/* 微信收款码 */}
-          <div>
-            <label className="text-gray-400 text-sm block mb-2">
-              <span className="text-green-400 mr-1">💚</span> 微信收款码
-            </label>
-            <div className="flex items-start gap-4">
-              <div className="flex-1">
-                <input
-                  type="text"
-                  value={systemSettings.paymentWechatQrcode}
-                  onChange={(e) => setSystemSettings({ ...systemSettings, paymentWechatQrcode: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-                  placeholder="输入收款码图片URL或上传图片"
-                />
-                <p className="text-gray-500 text-xs mt-1">用户使用微信扫码付款</p>
-              </div>
-              <div className="flex-shrink-0">
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        try {
-                          const formData = new FormData();
-                          formData.append('file', file);
-                          const response = await fetch('/api/upload', {
-                            method: 'POST',
-                            body: formData,
-                          });
-                          if (response.ok) {
-                            const data = await response.json();
-                            setSystemSettings({ ...systemSettings, paymentWechatQrcode: data.url });
-                          } else {
-                            alert('上传失败，请重试');
-                          }
-                        } catch (err) {
-                          console.error('上传失败:', err);
-                          alert('上传失败，请重试');
-                        }
-                      }
-                    }}
-                  />
-                  <div className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors">
-                    上传图片
-                  </div>
-                </label>
-              </div>
-            </div>
-            {/* 预览 */}
-            {systemSettings.paymentWechatQrcode && (
-              <div className="mt-3 flex items-center gap-4">
-                <div className="w-24 h-24 bg-white rounded-lg p-2 flex items-center justify-center">
-                  <img 
-                    src={systemSettings.paymentWechatQrcode} 
-                    alt="微信收款码" 
-                    className="max-w-full max-h-full object-contain"
-                  />
-                </div>
-                <button
-                  onClick={() => setSystemSettings({ ...systemSettings, paymentWechatQrcode: '' })}
-                  className="text-red-400 hover:text-red-300 text-sm"
-                >
-                  删除
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 支付宝收款码 */}
-          <div>
-            <label className="text-gray-400 text-sm block mb-2">
-              <span className="text-blue-400 mr-1">💙</span> 支付宝收款码
-            </label>
-            <div className="flex items-start gap-4">
-              <div className="flex-1">
-                <input
-                  type="text"
-                  value={systemSettings.paymentAlipayQrcode}
-                  onChange={(e) => setSystemSettings({ ...systemSettings, paymentAlipayQrcode: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-                  placeholder="输入收款码图片URL或上传图片"
-                />
-                <p className="text-gray-500 text-xs mt-1">用户使用支付宝扫码付款</p>
-              </div>
-              <div className="flex-shrink-0">
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        try {
-                          const formData = new FormData();
-                          formData.append('file', file);
-                          const response = await fetch('/api/upload', {
-                            method: 'POST',
-                            body: formData,
-                          });
-                          if (response.ok) {
-                            const data = await response.json();
-                            setSystemSettings({ ...systemSettings, paymentAlipayQrcode: data.url });
-                          } else {
-                            alert('上传失败，请重试');
-                          }
-                        } catch (err) {
-                          console.error('上传失败:', err);
-                          alert('上传失败，请重试');
-                        }
-                      }
-                    }}
-                  />
-                  <div className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors">
-                    上传图片
-                  </div>
-                </label>
-              </div>
-            </div>
-            {/* 预览 */}
-            {systemSettings.paymentAlipayQrcode && (
-              <div className="mt-3 flex items-center gap-4">
-                <div className="w-24 h-24 bg-white rounded-lg p-2 flex items-center justify-center">
-                  <img 
-                    src={systemSettings.paymentAlipayQrcode} 
-                    alt="支付宝收款码" 
-                    className="max-w-full max-h-full object-contain"
-                  />
-                </div>
-                <button
-                  onClick={() => setSystemSettings({ ...systemSettings, paymentAlipayQrcode: '' })}
-                  className="text-red-400 hover:text-red-300 text-sm"
-                >
-                  删除
-                </button>
-              </div>
-            )}
           </div>
 
           {/* 保存按钮 */}
