@@ -28,6 +28,7 @@ interface Work {
   viewCount: number;
   likeCount: number;
   createdAt: string;
+  approvedAt?: string; // 通过时间
   coverImage?: string;
 }
 
@@ -86,6 +87,7 @@ export default function AdminWorksPage() {
         viewCount: 2156,
         likeCount: 256,
         createdAt: '2024-01-14T08:00:00Z',
+        approvedAt: '2024-01-14T10:30:00Z',
       },
       {
         id: '3',
@@ -110,6 +112,7 @@ export default function AdminWorksPage() {
         viewCount: 3421,
         likeCount: 412,
         createdAt: '2024-01-12T15:00:00Z',
+        approvedAt: '2024-01-12T18:00:00Z',
       },
       {
         id: '5',
@@ -122,6 +125,7 @@ export default function AdminWorksPage() {
         viewCount: 1567,
         likeCount: 189,
         createdAt: '2024-01-11T09:00:00Z',
+        approvedAt: '2024-01-11T14:00:00Z',
       },
     ];
     setWorks(mockWorks);
@@ -140,7 +144,7 @@ export default function AdminWorksPage() {
   // 审核操作
   const handleApprove = (workId: string) => {
     setWorks(works.map((w) =>
-      w.id === workId ? { ...w, status: 'approved' as const } : w
+      w.id === workId ? { ...w, status: 'approved' as const, approvedAt: new Date().toISOString() } : w
     ));
   };
 
@@ -167,8 +171,9 @@ export default function AdminWorksPage() {
   // 批量审核
   const handleBatchApprove = () => {
     if (selectedWorks.length === 0) return;
+    const now = new Date().toISOString();
     setWorks(works.map((w) =>
-      selectedWorks.includes(w.id) ? { ...w, status: 'approved' as const } : w
+      selectedWorks.includes(w.id) ? { ...w, status: 'approved' as const, approvedAt: now } : w
     ));
     setSelectedWorks([]);
   };
@@ -306,6 +311,7 @@ export default function AdminWorksPage() {
                 <th className="px-4 py-3 text-left text-gray-400 text-xs font-medium">作者</th>
                 <th className="px-4 py-3 text-left text-gray-400 text-xs font-medium">分类</th>
                 <th className="px-4 py-3 text-left text-gray-400 text-xs font-medium">状态</th>
+                <th className="px-4 py-3 text-left text-gray-400 text-xs font-medium">通过时间</th>
                 <th className="px-4 py-3 text-left text-gray-400 text-xs font-medium">数据</th>
                 <th className="px-4 py-3 text-left text-gray-400 text-xs font-medium">操作</th>
               </tr>
@@ -350,6 +356,21 @@ export default function AdminWorksPage() {
                       <span className="ml-1 px-1.5 py-0.5 bg-gray-600 text-gray-300 rounded text-xs">
                         已下架
                       </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {work.approvedAt ? (
+                      <span className="text-gray-300 text-xs">
+                        {new Date(work.approvedAt).toLocaleString('zh-CN', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    ) : (
+                      <span className="text-gray-600 text-xs">-</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
