@@ -234,48 +234,50 @@ function ExploreContent() {
         </div>
 
         {/* 排序选项 */}
-        <div className="flex items-center gap-4 mb-4">
-          <div className="flex items-center gap-2">
-            <Filter className="w-3.5 h-3.5 text-white/80" />
-            <span className="text-xs text-white/80">排序：</span>
-            {SORT_OPTIONS.map((opt) => {
-              const Icon = opt.icon;
-              return (
+        <div className="p-3 bg-white/10 rounded-lg mb-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Filter className="w-3.5 h-3.5 text-white" />
+              <span className="text-xs text-white">排序：</span>
+              {SORT_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => setSelectedSort(opt.id)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                      selectedSort === opt.id
+                        ? 'bg-white text-gray-900'
+                        : 'bg-white/20 text-white hover:bg-white/30'
+                    }`}
+                  >
+                    {typeof Icon === 'string' ? Icon : <Icon className="w-3 h-3" />}
+                    {opt.name}
+                  </button>
+                );
+              })}
+            </div>
+            
+            <div className="h-4 w-px bg-white/30" />
+            
+            {/* 价格筛选 */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white">价格：</span>
+              {PRICE_FILTERS.map((filter) => (
                 <button
-                  key={opt.id}
-                  onClick={() => setSelectedSort(opt.id)}
+                  key={filter.id}
+                  onClick={() => setSelectedPriceFilter(filter.id)}
                   className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
-                    selectedSort === opt.id
-                      ? 'bg-purple-500 text-white'
-                      : 'text-white/70 hover:text-white'
+                    selectedPriceFilter === filter.id
+                      ? 'bg-white text-gray-900'
+                      : 'bg-white/20 text-white hover:bg-white/30'
                   }`}
                 >
-                  {typeof Icon === 'string' ? Icon : <Icon className="w-3 h-3" />}
-                  {opt.name}
+                  {filter.icon}
+                  {filter.name}
                 </button>
-              );
-            })}
-          </div>
-          
-          <div className="h-4 w-px bg-white/20" />
-          
-          {/* 价格筛选 */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-white/80">价格：</span>
-            {PRICE_FILTERS.map((filter) => (
-              <button
-                key={filter.id}
-                onClick={() => setSelectedPriceFilter(filter.id)}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
-                  selectedPriceFilter === filter.id
-                    ? 'bg-purple-500 text-white'
-                    : 'text-white/70 hover:text-white'
-                }`}
-              >
-                {filter.icon}
-                {filter.name}
-              </button>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 
@@ -313,15 +315,15 @@ function ExploreContent() {
                   
                   {/* 分类标签 */}
                   <div className="absolute top-2 left-2 flex gap-1">
-                    <Badge className="bg-white/90 text-gray-900 text-[10px] px-1.5 py-0.5 border border-gray-200">
+                    <Badge className="bg-white text-gray-900 text-[10px] px-1.5 py-0.5">
                       {project.categoryName}
                     </Badge>
                     {project.beansPrice > 0 ? (
-                      <Badge className="bg-amber-400 text-gray-900 text-[10px] px-1.5 py-0.5 border border-amber-300">
+                      <Badge className="bg-amber-400 text-gray-900 text-[10px] px-1.5 py-0.5">
                         💎 {project.beansPrice}
                       </Badge>
                     ) : (
-                      <Badge className="bg-green-400 text-gray-900 text-[10px] px-1.5 py-0.5 border border-green-300">
+                      <Badge className="bg-green-400 text-gray-900 text-[10px] px-1.5 py-0.5">
                         🆓 免费
                       </Badge>
                     )}
@@ -336,12 +338,12 @@ function ExploreContent() {
                 </div>
 
                 {/* 项目信息 */}
-                <div className="p-3">
-                  <h4 className="font-medium text-white truncate text-sm">{project.name}</h4>
-                  <p className="text-white/80 text-[10px] line-clamp-2 mb-2">
+                <div className="p-3 bg-white">
+                  <h4 className="font-medium text-gray-900 truncate text-sm">{project.name}</h4>
+                  <p className="text-gray-600 text-[10px] line-clamp-2 mb-2">
                     {project.description || '暂无描述'}
                   </p>
-                  <div className="flex items-center justify-between text-[10px] text-white/70">
+                  <div className="flex items-center justify-between text-[10px] text-gray-500">
                     <div className="flex items-center gap-3">
                       <span className="flex items-center gap-1">
                         <Eye className="w-3 h-3" />
@@ -351,15 +353,15 @@ function ExploreContent() {
                         onClick={(e) => handleLike(e, project.id)}
                         className={`flex items-center gap-1 transition-colors ${
                           project.isLiked 
-                            ? 'text-pink-400' 
-                            : 'text-white/70 hover:text-pink-400'
+                            ? 'text-pink-500' 
+                            : 'text-gray-500 hover:text-pink-500'
                         }`}
                       >
                         <Heart className={`w-3 h-3 ${project.isLiked ? 'fill-current' : ''}`} />
                         {project.likeCount}
                       </button>
                     </div>
-                    <span className="flex items-center gap-1 text-purple-300 hover:text-purple-200">
+                    <span className="flex items-center gap-1 text-purple-600 hover:text-purple-700">
                       <Share2 className="w-3 h-3" />
                       分享
                     </span>
@@ -369,10 +371,10 @@ function ExploreContent() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-20 bg-zinc-800/30 rounded-lg">
-            <Play className="w-12 h-12 text-zinc-500 mx-auto mb-3" />
-            <p className="text-zinc-200 text-sm mb-1">暂无作品</p>
-            <p className="text-zinc-400 text-xs">该分类下还没有公开作品</p>
+          <div className="text-center py-20 bg-white/10 rounded-lg">
+            <Play className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+            <p className="text-white text-sm mb-1">暂无作品</p>
+            <p className="text-gray-300 text-xs">该分类下还没有公开作品</p>
           </div>
         )}
       </main>
