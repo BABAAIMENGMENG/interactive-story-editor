@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { getAuthToken } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1026,10 +1027,16 @@ export default function EditorPage() {
     };
     
     try {
+      // 获取授权 token
+      const token = getAuthToken();
+      
       // 尝试保存到数据库
       const response = await fetch(`/api/projects/${projectId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           name: projectName,
           projectData: {
@@ -1079,10 +1086,16 @@ export default function EditorPage() {
       // 先保存项目
       await saveProject();
       
+      // 获取授权 token
+      const token = getAuthToken();
+      
       // 更新公开状态和价格
       const response = await fetch(`/api/projects/${projectId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           isPublic: true,
           beansPrice: beansPrice,
@@ -1096,12 +1109,16 @@ export default function EditorPage() {
       });
 
       if (response.ok) {
+        const data = await response.json();
         setIsPublic(true);
-        setShareLink(`${window.location.origin}/preview/${projectId}`);
+        // 使用 share_code 生成链接
+        const shareCode = data.project?.share_code || projectId;
+        setShareLink(`${window.location.origin}/play/${shareCode}`);
         setShowPublishDialog(false);
         setShowShareDialog(true);
       } else {
-        alert('发布失败，请稍后重试');
+        const error = await response.json();
+        alert(error.error || '发布失败，请稍后重试');
       }
     } catch (error) {
       console.error('发布失败:', error);
@@ -1121,8 +1138,15 @@ export default function EditorPage() {
   // 加载项目
   const loadProject = useCallback(async () => {
     try {
+      // 获取授权 token
+      const token = getAuthToken();
+      
       // 尝试从数据库加载
-      const response = await fetch(`/api/projects/${projectId}`);
+      const response = await fetch(`/api/projects/${projectId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
       
       if (response.ok) {
         const data = await response.json();
