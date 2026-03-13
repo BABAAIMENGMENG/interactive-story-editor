@@ -574,6 +574,9 @@ function HomePageContent() {
               <Link href="/pricing" className="text-gray-400 hover:text-white transition-colors flex items-center gap-1">
                 💎 充值中心
               </Link>
+              <Link href="/admin/login" className="text-gray-500 hover:text-gray-300 transition-colors">
+                管理后台
+              </Link>
             </div>
           </div>
         </div>
