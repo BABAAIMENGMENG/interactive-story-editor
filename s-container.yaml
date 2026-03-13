@@ -1,0 +1,54 @@
+edition: 1.0.0
+name: ves-interactive-drama
+access: default
+
+vars:
+  region: cn-hangzhou
+  # 请替换为你的阿里云容器镜像服务地址
+  image: registry.cn-hangzhou.aliyuncs.com/ves-interactive/web:latest
+
+services:
+  ves-web:
+    component: fc
+    props:
+      region: ${vars.region}
+      service:
+        name: ves-interactive
+        description: VES互动短剧 - 360度全景互动体验平台
+        internetAccess: true
+      
+      function:
+        name: web
+        description: Next.js Web 应用
+        runtime: custom-container
+        memorySize: 2048
+        timeout: 60
+        instanceConcurrency: 10
+        customContainerConfig:
+          image: ${vars.image}
+          command: '["node", "server.js"]'
+          port: 9000
+        environmentVariables:
+          NODE_ENV: production
+      
+      triggers:
+        - name: httpTrigger
+          type: http
+          config:
+            authType: anonymous
+            methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - HEAD
+              - PATCH
+              - OPTIONS
+      
+      customDomains:
+        - domainName: auto
+          protocol: HTTP
+          routeConfigs:
+            - path: /*
+              serviceName: ves-interactive
+              functionName: web

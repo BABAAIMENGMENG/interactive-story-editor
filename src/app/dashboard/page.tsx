@@ -1,0 +1,671 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Plus,
+  FolderOpen,
+  Trash2,
+  Edit3,
+  Play,
+  LogOut,
+  User,
+  Crown,
+  Settings,
+  Search,
+  Calendar,
+  MoreVertical,
+  Cloud,
+  HardDrive,
+  Database,
+  RefreshCw,
+  Check,
+  AlertCircle,
+  Coins,
+} from 'lucide-react';
+import Link from 'next/link';
+import { indexedDBStorage, type ProjectData } from '@/lib/storage';
+import { 
+  syncAllProjects, 
+  pullFromCloud, 
+  getSyncStatus, 
+  subscribeSyncStatus,
+  type SyncStatus 
+} from '@/lib/auto-sync';
+
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  coverImage?: string;
+  isPublic: boolean;
+  viewCount: number;
+  createdAt: string;
+  updatedAt: string;
+  scenes?: any[];
+}
+
+// 订阅套餐配置
+const SUBSCRIPTION_PLANS = {
+  free: {
+    name: '免费版',
+    maxProjects: 3,
+    maxScenes: 10,
+    features: ['3个项目', '10个场景', '基础组件', '有水印'],
+  },
+  pro: {
+    name: '专业版',
+    maxProjects: 50,
+    maxScenes: 100,
+    features: ['无限项目', '100个场景', '高级组件', '无水印', '优先支持'],
+  },
+  enterprise: {
+    name: '企业版',
+    maxProjects: -1,
+    maxScenes: -1,
+    features: ['无限项目', '无限场景', '全部功能', 'API接口', '专属客服'],
+  },
+};
+
+export default function DashboardPage() {
+  const { user, isLoading, isAuthenticated, signOut } = useAuth();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [storageInfo, setStorageInfo] = useState<{ usage: number; quota: number }>({ usage: 0, quota: 0 });
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(getSyncStatus());
+  const [isManualSyncing, setIsManualSyncing] = useState(false);
+  const [beansBalance, setBeansBalance] = useState<number>(0);
+
+  const router = useRouter();
+
+  // 订阅同步状态变化
+  useEffect(() => {
+    const unsubscribe = subscribeSyncStatus(setSyncStatus);
+    return unsubscribe;
+  }, []);
+
+  // 加载存储使用情况
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      indexedDBStorage.getStorageEstimate().then((info) => {
+        setStorageInfo(info);
+      });
+    }
+  }, [isLoading, isAuthenticated]);
+
+  // 加载项目列表（云端或本地）
+  useEffect(() => {
+    if (!isLoading) {
+      if (isAuthenticated) {
+        fetchCloudProjects();
+        fetchBeansBalance();
+      } else {
+        fetchLocalProjects();
+      }
+    }
+  }, [isLoading, isAuthenticated]);
+
+  // 从云端加载项目
+  const fetchCloudProjects = async () => {
+    try {
+      const response = await fetch('/api/projects');
+      if (response.ok) {
+        const data = await response.json();
+        setProjects(data.projects || []);
+      }
+    } catch (error) {
+      console.error('加载云端项目失败:', error);
+      // 降级到本地项目
+      fetchLocalProjects();
+    } finally {
+      setIsLoadingProjects(false);
+    }
+  };
+
+  // 获取快乐豆余额
+  const fetchBeansBalance = async () => {
+    try {
+      const response = await fetch('/api/user/beans');
+      if (response.ok) {
+        const data = await response.json();
+        setBeansBalance(data.balance || 0);
+      }
+    } catch (error) {
+      console.error('获取快乐豆余额失败:', error);
+    }
+  };
+
+  // 从本地加载项目 (使用 IndexedDB)
+  const fetchLocalProjects = async () => {
+    try {
+      setIsLoadingProjects(true);
+      const savedProjects = await indexedDBStorage.getAllProjects();
+      const projectList = savedProjects.map((project) => ({
+        id: project.id,
+        name: project.name || '未命名项目',
+        description: project.description || '',
+        coverImage: undefined,
+        isPublic: false,
+        viewCount: 0,
+        createdAt: new Date(project.createdAt).toISOString(),
+        updatedAt: new Date(project.updatedAt).toISOString(),
+        scenes: project.scenes || [],
+      }));
+      setProjects(projectList);
+      
+      // 同时检查 localStorage 是否有旧数据需要迁移
+      const oldData = localStorage.getItem('interactive-stories');
+      if (oldData && savedProjects.length === 0) {
+        // 迁移旧数据到 IndexedDB
+        await migrateFromLocalStorage();
+      }
+    } catch (error) {
+      console.error('加载本地项目失败:', error);
+      setProjects([]);
+    } finally {
+      setIsLoadingProjects(false);
+    }
+  };
+
+  // 从 localStorage 迁移数据到 IndexedDB
+  const migrateFromLocalStorage = async () => {
+    try {
+      const savedProjects = JSON.parse(localStorage.getItem('interactive-stories') || '{}');
+      for (const [id, data] of Object.entries(savedProjects) as [string, any][]) {
+        const project: ProjectData = {
+          id,
+          name: data.name || '未命名项目',
+          description: data.description || '',
+          canvasWidth: data.canvasWidth || 1920,
+          canvasHeight: data.canvasHeight || 1080,
+          scenes: data.scenes || [],
+          globalVariables: data.globalVariables || [],
+          createdAt: new Date(data.createdAt || Date.now()).getTime(),
+          updatedAt: new Date(data.updatedAt || Date.now()).getTime(),
+        };
+        await indexedDBStorage.saveProject(project);
+      }
+      // 迁移完成后清除旧数据
+      localStorage.removeItem('interactive-stories');
+      // 重新加载项目
+      fetchLocalProjects();
+      console.log('数据迁移完成');
+    } catch (error) {
+      console.error('数据迁移失败:', error);
+    }
+  };
+
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) return;
+
+    setIsCreating(true);
+    try {
+      if (isAuthenticated) {
+        // 云端创建
+        const response = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: newProjectName,
+            projectData: {
+              scenes: [],
+              mediaResources: [],
+            },
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          router.push(`/create/editor/${data.project.id}`);
+        }
+      } else {
+        // 本地创建 (使用 IndexedDB)
+        const projectId = `local-${Date.now()}`;
+        const now = Date.now();
+        const newProject: ProjectData = {
+          id: projectId,
+          name: newProjectName,
+          description: '',
+          canvasWidth: 1920,
+          canvasHeight: 1080,
+          scenes: [],
+          globalVariables: [],
+          createdAt: now,
+          updatedAt: now,
+        };
+        
+        await indexedDBStorage.saveProject(newProject);
+        router.push(`/create/editor/${projectId}`);
+      }
+    } catch (error) {
+      console.error('创建项目失败:', error);
+    } finally {
+      setIsCreating(false);
+      setShowNewProjectDialog(false);
+      setNewProjectName('');
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm('确定要删除这个项目吗？此操作不可撤销。')) return;
+
+    try {
+      if (isAuthenticated) {
+        const response = await fetch(`/api/projects/${projectId}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          setProjects(projects.filter(p => p.id !== projectId));
+        }
+      } else {
+        // 本地删除 (使用 IndexedDB)
+        await indexedDBStorage.deleteProject(projectId);
+        setProjects(projects.filter(p => p.id !== projectId));
+      }
+    } catch (error) {
+      console.error('删除项目失败:', error);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/');
+  };
+
+  // 手动同步所有项目到云端
+  const handleManualSync = async () => {
+    if (!isAuthenticated || isManualSyncing) return;
+    
+    setIsManualSyncing(true);
+    try {
+      await syncAllProjects();
+      // 同步完成后重新加载项目列表
+      await fetchCloudProjects();
+    } catch (error) {
+      console.error('手动同步失败:', error);
+    } finally {
+      setIsManualSyncing(false);
+    }
+  };
+
+  // 过滤项目
+  const filteredProjects = projects.filter(p =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // 获取用户套餐信息
+  const userPlan = SUBSCRIPTION_PLANS[user?.subscriptionTier || 'free'];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-zinc-900 text-sm">
+      {/* 顶部导航 */}
+      <header className="bg-zinc-800/80 backdrop-blur border-b border-zinc-700 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
+          <div className="flex items-center justify-between h-10">
+            {/* Logo */}
+            <Link href="/" className="flex items-center gap-1.5">
+              <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-md flex items-center justify-center">
+                <Play className="w-3.5 h-3.5 text-white" />
+              </div>
+              <span className="text-base font-bold text-white">全景互动</span>
+            </Link>
+
+            {/* 用户信息 */}
+            <div className="flex items-center gap-2">
+              {/* 快乐豆余额 */}
+              {isAuthenticated && (
+                <Link href="/pricing" className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-yellow-500 to-amber-500 text-white text-[10px] font-medium hover:opacity-90 transition-opacity">
+                  <span>💎</span>
+                  <span>{beansBalance}</span>
+                </Link>
+              )}
+              
+              {/* 订阅状态 */}
+              <div className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                user?.subscriptionTier === 'pro' || user?.subscriptionTier === 'enterprise'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+                  : 'bg-zinc-700 text-zinc-300'
+              }`}>
+                {user?.subscriptionTier === 'pro' || user?.subscriptionTier === 'enterprise' ? (
+                  <span className="flex items-center gap-0.5">
+                    <Crown className="w-3 h-3" />
+                    {userPlan.name}
+                  </span>
+                ) : isAuthenticated ? (
+                  <Link href="/pricing" className="hover:text-white">升级专业版</Link>
+                ) : null}
+              </div>
+
+              {/* 用户菜单 */}
+              {isAuthenticated ? (
+                <div className="relative group">
+                  <button className="flex items-center gap-1 p-1 rounded hover:bg-zinc-700 transition-colors">
+                    <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center">
+                      <User className="w-3.5 h-3.5 text-white" />
+                    </div>
+                    <span className="text-white hidden sm:block text-xs">{user?.name}</span>
+                  </button>
+
+                  {/* 下拉菜单 */}
+                  <div className="absolute right-0 top-full mt-0.5 w-36 bg-zinc-800 border border-zinc-700 rounded-md shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all text-xs">
+                    <Link
+                      href="/settings"
+                      className="flex items-center gap-1.5 px-2 py-1.5 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                    >
+                      <Settings className="w-3 h-3" />
+                      设置
+                    </Link>
+                    <button
+                      onClick={handleSignOut}
+                      className="w-full flex items-center gap-1.5 px-2 py-1.5 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                    >
+                      <LogOut className="w-3 h-3" />
+                      退出登录
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <Link href="/auth">
+                  <Button size="sm" className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 h-7 text-xs">
+                    登录
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* 主内容区 */}
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4">
+        {/* 已登录提示 - 自动云备份状态 */}
+        {isAuthenticated && (
+          <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 border border-purple-500/30 rounded-lg p-3 mb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Cloud className="w-4 h-4 text-purple-400" />
+                <div>
+                  <p className="text-white font-medium text-xs flex items-center gap-1.5">
+                    云端自动同步
+                    {syncStatus.isSyncing || isManualSyncing ? (
+                      <span className="text-purple-300">
+                        <RefreshCw className="w-3 h-3 inline animate-spin" />
+                        同步中...
+                      </span>
+                    ) : syncStatus.lastSyncTime ? (
+                      <span className="text-zinc-400 font-normal">
+                        <Check className="w-3 h-3 inline text-green-400" />
+                        已同步
+                      </span>
+                    ) : (
+                      <span className="text-zinc-400 font-normal">已启用</span>
+                    )}
+                  </p>
+                  <p className="text-zinc-300 text-[10px]">
+                    {syncStatus.lastSyncTime 
+                      ? `最后同步: ${new Date(syncStatus.lastSyncTime).toLocaleString('zh-CN')}`
+                      : '保存项目时自动同步到云端'
+                    }
+                    {syncStatus.error && (
+                      <span className="text-red-400 ml-1">
+                        <AlertCircle className="w-3 h-3 inline" />
+                        {syncStatus.error}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleManualSync}
+                  disabled={isManualSyncing || syncStatus.isSyncing}
+                  className="bg-zinc-700 border-zinc-600 text-white hover:bg-zinc-600 h-7 text-xs"
+                >
+                  <RefreshCw className={`w-3 h-3 mr-1 ${(isManualSyncing || syncStatus.isSyncing) ? 'animate-spin' : ''}`} />
+                  手动同步
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 未登录提示 - 本地存储模式 */}
+        {!isAuthenticated && (
+          <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 border border-blue-500/30 rounded-lg p-3 mb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-blue-400" />
+                <div>
+                  <p className="text-white font-medium text-xs">本地存储模式</p>
+                  <p className="text-zinc-300 text-[10px]">
+                    项目和媒体文件保存在本地浏览器，支持大容量存储
+                    {storageInfo.quota > 0 && (
+                      <span className="ml-1 text-blue-400">
+                        (已用 {indexedDBStorage.formatBytes(storageInfo.usage)} / 可用 {indexedDBStorage.formatBytes(storageInfo.quota)})
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <Link href="/auth">
+                <Button
+                  size="sm"
+                  className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white h-7 text-xs"
+                >
+                  <Cloud className="w-3 h-3 mr-1" />
+                  登录同步
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* 欢迎区域 */}
+        <div className="mb-4">
+          <h1 className="text-lg font-bold text-white mb-0.5">
+            {isAuthenticated ? `你好，${user?.name}` : '我的项目'}
+          </h1>
+          <p className="text-zinc-400 text-xs">
+            {isAuthenticated ? '管理你的互动项目，创建沉浸式体验' : '管理本地项目，创建沉浸式互动体验'}
+          </p>
+        </div>
+
+        {/* 操作栏 */}
+        <div className="flex flex-col sm:flex-row gap-2 mb-4">
+          {/* 搜索框 */}
+          <div className="relative flex-1">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+            <Input
+              type="text"
+              placeholder="搜索项目..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-7 bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 h-7 text-xs"
+            />
+          </div>
+
+          {/* 新建项目按钮 */}
+          <Button
+            size="sm"
+            onClick={() => setShowNewProjectDialog(true)}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white h-7 text-xs"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            新建项目
+          </Button>
+        </div>
+
+        {/* 使用量提示 */}
+        {isAuthenticated && user?.subscriptionTier === 'free' && (
+          <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 border border-purple-500/30 rounded-lg p-2 mb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white font-medium text-xs">免费版限制</p>
+                <p className="text-zinc-300 text-[10px]">
+                  已使用 {projects.length}/{userPlan.maxProjects} 个项目
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-purple-500 text-purple-300 hover:bg-purple-500/20 h-6 text-[10px] px-2"
+                onClick={() => router.push('/pricing')}
+              >
+                升级专业版
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* 项目列表 */}
+        {isLoadingProjects ? (
+          <div className="flex items-center justify-center py-10">
+            <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : filteredProjects.length === 0 ? (
+          <div className="text-center py-10">
+            <FolderOpen className="w-10 h-10 text-zinc-600 mx-auto mb-2" />
+            <h3 className="text-sm font-medium text-zinc-400 mb-1">
+              {searchQuery ? '没有找到项目' : '还没有项目'}
+            </h3>
+            <p className="text-zinc-500 text-xs mb-3">
+              {searchQuery ? '尝试其他搜索词' : '创建你的第一个互动项目吧'}
+            </p>
+            {!searchQuery && (
+              <Button
+                size="sm"
+                onClick={() => setShowNewProjectDialog(true)}
+                className="bg-purple-600 hover:bg-purple-700 h-7 text-xs"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                新建项目
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filteredProjects.map((project) => (
+              <div
+                key={project.id}
+                className="bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden hover:border-purple-500/50 transition-all group"
+              >
+                {/* 封面图 */}
+                <div className="aspect-video bg-zinc-700 relative">
+                  {project.coverImage ? (
+                    <img
+                      src={project.coverImage}
+                      alt={project.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <FolderOpen className="w-8 h-8 text-zinc-600" />
+                    </div>
+                  )}
+                  {/* 悬停操作 */}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                    <Link href={`/create/editor/${project.id}`}>
+                      <Button size="sm" className="bg-purple-600 hover:bg-purple-700 h-6 text-[10px] px-2">
+                        <Edit3 className="w-3 h-3 mr-0.5" />
+                        编辑
+                      </Button>
+                    </Link>
+                    <Link href={`/preview/${project.id}`} target="_blank">
+                      <Button size="sm" variant="outline" className="border-white/30 text-white hover:bg-white/20 h-6 text-[10px] px-2">
+                        <Play className="w-3 h-3 mr-0.5" />
+                        预览
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* 项目信息 */}
+                <div className="p-2">
+                  <h3 className="font-medium text-white truncate text-xs">{project.name}</h3>
+                  <p className="text-zinc-500 text-[10px] line-clamp-2 mb-1.5">
+                    {project.description || '暂无描述'}
+                  </p>
+                  <div className="flex items-center justify-between text-[10px] text-zinc-500">
+                    <span className="flex items-center gap-0.5">
+                      <Calendar className="w-2.5 h-2.5" />
+                      {new Date(project.updatedAt).toLocaleDateString()}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteProject(project.id)}
+                      className="text-red-400 hover:text-red-300"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* 新建项目对话框 */}
+      {showNewProjectDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3">
+          <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-4 w-full max-w-xs">
+            <h2 className="text-sm font-bold text-white mb-3">新建项目</h2>
+            <div className="space-y-2">
+              <div>
+                <label className="block text-[10px] font-medium text-zinc-300 mb-1">
+                  项目名称
+                </label>
+                <Input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="输入项目名称"
+                  className="bg-zinc-700 border-zinc-600 text-white h-7 text-xs"
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 border-zinc-600 text-zinc-300 h-7 text-xs"
+                  onClick={() => {
+                    setShowNewProjectDialog(false);
+                    setNewProjectName('');
+                  }}
+                >
+                  取消
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 bg-purple-600 hover:bg-purple-700"
+                  onClick={handleCreateProject}
+                  disabled={!newProjectName.trim() || isCreating}
+                >
+                  {isCreating ? '创建中...' : '创建'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
