@@ -262,32 +262,32 @@ function HomePageContent() {
             核心特性
           </h3>
           <div className="grid gap-3 md:grid-cols-3">
-            <div className="border-white/10 bg-white/5 backdrop-blur-sm rounded-lg p-4">
+            <div className="bg-white rounded-lg p-4 shadow-lg">
               <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-md bg-purple-500/20">
-                <Play className="h-4 w-4 text-purple-400" />
+                <Play className="h-4 w-4 text-purple-600" />
               </div>
-              <h4 className="text-white text-sm font-medium">全景场景</h4>
-              <p className="text-gray-400 text-xs mt-1">
+              <h4 className="text-gray-900 text-sm font-medium">全景场景</h4>
+              <p className="text-gray-600 text-xs mt-1">
                 360度沉浸式场景，自由探索每一个角落
               </p>
             </div>
 
-            <div className="border-white/10 bg-white/5 backdrop-blur-sm rounded-lg p-4">
+            <div className="bg-white rounded-lg p-4 shadow-lg">
               <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-md bg-pink-500/20">
-                <Users className="h-4 w-4 text-pink-400" />
+                <Users className="h-4 w-4 text-pink-600" />
               </div>
-              <h4 className="text-white text-sm font-medium">互动角色</h4>
-              <p className="text-gray-400 text-xs mt-1">
+              <h4 className="text-gray-900 text-sm font-medium">互动角色</h4>
+              <p className="text-gray-600 text-xs mt-1">
                 与生动的角色对话，影响他们的命运
               </p>
             </div>
 
-            <div className="border-white/10 bg-white/5 backdrop-blur-sm rounded-lg p-4">
+            <div className="bg-white rounded-lg p-4 shadow-lg">
               <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-md bg-blue-500/20">
-                <Clock className="h-4 w-4 text-blue-400" />
+                <Clock className="h-4 w-4 text-blue-600" />
               </div>
-              <h4 className="text-white text-sm font-medium">多结局</h4>
-              <p className="text-gray-400 text-xs mt-1">
+              <h4 className="text-gray-900 text-sm font-medium">多结局</h4>
+              <p className="text-gray-600 text-xs mt-1">
                 你的选择决定故事走向，解锁不同结局
               </p>
             </div>
