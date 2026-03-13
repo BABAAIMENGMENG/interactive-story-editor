@@ -68,6 +68,105 @@ interface PublicProject {
   isLiked?: boolean;
 }
 
+// 项目卡片组件 - 处理图片加载状态
+function ProjectCard({ 
+  project, 
+  visitorId, 
+  onLike 
+}: { 
+  project: PublicProject; 
+  visitorId: string;
+  onLike: (projectId: string, currentLiked: boolean) => void;
+}) {
+  const [imageError, setImageError] = useState(false);
+
+  const handleLike = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onLike(project.id, project.isLiked || false);
+  };
+
+  const showPlaceholder = !project.coverImage || imageError;
+
+  return (
+    <Link
+      href={`/play/${project.shareCode}`}
+      className="group overflow-hidden border border-gray-200 bg-white rounded-lg transition-all hover:shadow-lg hover:border-purple-300"
+    >
+      {/* 封面 */}
+      <div className={`relative h-40 ${showPlaceholder ? 'bg-gradient-to-br from-purple-500 to-pink-500' : 'bg-gray-100'}`}>
+        {project.coverImage && !imageError ? (
+          <img
+            src={project.coverImage}
+            alt={project.name}
+            className="h-full w-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center">
+            <Play className="w-10 h-10 text-white/70" />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+        
+        {/* 分类标签 */}
+        <div className="absolute top-2 left-2 flex gap-1">
+          <Badge className="bg-white text-gray-900 text-[10px] px-1.5 py-0.5">
+            {project.categoryName}
+          </Badge>
+          {project.beansPrice > 0 ? (
+            <Badge className="bg-amber-400 text-gray-900 text-[10px] px-1.5 py-0.5">
+              💎 {project.beansPrice}
+            </Badge>
+          ) : (
+            <Badge className="bg-green-400 text-gray-900 text-[10px] px-1.5 py-0.5">
+              🆓 免费
+            </Badge>
+          )}
+        </div>
+        
+        {/* 播放按钮 */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center shadow-lg">
+            <Play className="w-5 h-5 text-purple-600 ml-1" />
+          </div>
+        </div>
+      </div>
+
+      {/* 项目信息 */}
+      <div className="p-3 bg-white">
+        <h4 className="font-medium text-gray-900 truncate text-sm">{project.name}</h4>
+        <p className="text-gray-600 text-[10px] line-clamp-2 mb-2">
+          {project.description || '暂无描述'}
+        </p>
+        <div className="flex items-center justify-between text-[10px] text-gray-500">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <Eye className="w-3 h-3" />
+              {project.viewCount}
+            </span>
+            <button
+              onClick={handleLike}
+              className={`flex items-center gap-1 transition-colors ${
+                project.isLiked 
+                  ? 'text-pink-500' 
+                  : 'text-gray-500 hover:text-pink-500'
+              }`}
+            >
+              <Heart className={`w-3 h-3 ${project.isLiked ? 'fill-current' : ''}`} />
+              {project.likeCount}
+            </button>
+          </div>
+          <span className="flex items-center gap-1 text-purple-600 hover:text-purple-700">
+            <Share2 className="w-3 h-3" />
+            分享
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function ExploreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -141,10 +240,7 @@ function ExploreContent() {
   }, [selectedCategory, selectedSort, searchQuery, router]);
 
   // 点赞处理
-  const handleLike = async (e: React.MouseEvent, projectId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
+  const handleLike = async (projectId: string, currentLiked: boolean) => {
     try {
       const response = await fetch(`/api/projects/${projectId}/like`, {
         method: 'POST',
@@ -289,85 +385,12 @@ function ExploreContent() {
         ) : publicProjects.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {publicProjects.map((project) => (
-              <Link
+              <ProjectCard
                 key={project.id}
-                href={`/play/${project.shareCode}`}
-                className="group overflow-hidden border border-white/10 bg-white/5 backdrop-blur-sm rounded-lg transition-all hover:border-purple-500/50 hover:bg-white/10"
-              >
-                {/* 封面 */}
-                <div className="relative h-40 bg-gradient-to-br from-purple-600 to-pink-600">
-                  {project.coverImage ? (
-                    <img
-                      src={project.coverImage}
-                      alt={project.name}
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-purple-600/50 to-pink-600/50">
-                      <Play className="w-10 h-10 text-white/50" />
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                  
-                  {/* 分类标签 */}
-                  <div className="absolute top-2 left-2 flex gap-1">
-                    <Badge className="bg-white text-gray-900 text-[10px] px-1.5 py-0.5">
-                      {project.categoryName}
-                    </Badge>
-                    {project.beansPrice > 0 ? (
-                      <Badge className="bg-amber-400 text-gray-900 text-[10px] px-1.5 py-0.5">
-                        💎 {project.beansPrice}
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-green-400 text-gray-900 text-[10px] px-1.5 py-0.5">
-                        🆓 免费
-                      </Badge>
-                    )}
-                  </div>
-                  
-                  {/* 播放按钮 */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center">
-                      <Play className="w-5 h-5 text-purple-600 ml-1" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 项目信息 */}
-                <div className="p-3 bg-white">
-                  <h4 className="font-medium text-gray-900 truncate text-sm">{project.name}</h4>
-                  <p className="text-gray-600 text-[10px] line-clamp-2 mb-2">
-                    {project.description || '暂无描述'}
-                  </p>
-                  <div className="flex items-center justify-between text-[10px] text-gray-500">
-                    <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-1">
-                        <Eye className="w-3 h-3" />
-                        {project.viewCount}
-                      </span>
-                      <button
-                        onClick={(e) => handleLike(e, project.id)}
-                        className={`flex items-center gap-1 transition-colors ${
-                          project.isLiked 
-                            ? 'text-pink-500' 
-                            : 'text-gray-500 hover:text-pink-500'
-                        }`}
-                      >
-                        <Heart className={`w-3 h-3 ${project.isLiked ? 'fill-current' : ''}`} />
-                        {project.likeCount}
-                      </button>
-                    </div>
-                    <span className="flex items-center gap-1 text-purple-600 hover:text-purple-700">
-                      <Share2 className="w-3 h-3" />
-                      分享
-                    </span>
-                  </div>
-                </div>
-              </Link>
+                project={project}
+                visitorId={visitorId}
+                onLike={(projectId, currentLiked) => handleLike(projectId, currentLiked)}
+              />
             ))}
           </div>
         ) : (
