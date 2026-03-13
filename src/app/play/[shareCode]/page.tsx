@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,6 +20,7 @@ import {
   Users,
 } from 'lucide-react';
 import { GameViewer } from '@/components/game/GameViewer';
+import QRCode from 'qrcode';
 
 interface ProjectData {
   id: string;
@@ -57,6 +58,7 @@ function PlayPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
   const [visitorId, setVisitorId] = useState<string>('');
@@ -257,9 +259,31 @@ function PlayPageContent() {
   };
 
   // 微信分享
-  const handleWechatShare = () => {
-    // 生成二维码或调用微信分享
-    setShowShare(true);
+  const handleWechatShare = useCallback(async () => {
+    if (!shareUrl) return;
+    
+    try {
+      // 生成二维码
+      const qrDataUrl = await QRCode.toDataURL(shareUrl, {
+        width: 256,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff',
+        },
+      });
+      setQrCodeDataUrl(qrDataUrl);
+      setShowShare(true);
+    } catch (error) {
+      console.error('生成二维码失败:', error);
+      // 降级：仍然显示弹窗，但使用占位符
+      setShowShare(true);
+    }
+  }, [shareUrl]);
+
+  // 关闭分享弹窗
+  const handleCloseShare = () => {
+    setShowShare(false);
   };
 
   // QQ分享
@@ -505,12 +529,31 @@ function PlayPageContent() {
         {showShare && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 rounded-xl p-6 max-w-xs w-full">
-              <h3 className="text-white font-medium mb-4 text-center">微信扫码分享</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-medium text-center flex-1">微信扫码分享</h3>
+                <button
+                  onClick={handleCloseShare}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
               
-              {/* 二维码占位 */}
+              {/* 二维码 */}
               <div className="bg-white p-4 rounded-lg mb-4">
-                <div className="w-48 h-48 mx-auto flex items-center justify-center text-gray-500">
-                  <QrCode className="w-32 h-32 text-gray-400" />
+                <div className="w-48 h-48 mx-auto flex items-center justify-center">
+                  {qrCodeDataUrl ? (
+                    <img 
+                      src={qrCodeDataUrl} 
+                      alt="分享二维码" 
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-gray-400">
+                      <Loader2 className="w-12 h-12 animate-spin mb-2" />
+                      <span className="text-xs">生成中...</span>
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -520,7 +563,7 @@ function PlayPageContent() {
               
               <Button
                 variant="outline"
-                onClick={() => setShowShare(false)}
+                onClick={handleCloseShare}
                 className="w-full"
               >
                 关闭
