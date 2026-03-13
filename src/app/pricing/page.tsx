@@ -7,15 +7,16 @@ import { Badge } from '@/components/ui/badge';
 import {
   Coins,
   Check,
-  Sparkles,
-  Crown,
-  Zap,
   Gift,
   Shield,
   ArrowLeft,
   Loader2,
   CheckCircle,
   XCircle,
+  Upload,
+  Clock,
+  AlertCircle,
+  QrCode,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -65,9 +66,24 @@ const BEANS_PACKAGES = [
 
 // 支付方式
 const PAYMENT_METHODS = [
-  { id: 'wechat', name: '微信支付', icon: '💚' },
-  { id: 'alipay', name: '支付宝', icon: '💙' },
+  { id: 'wechat', name: '微信支付', icon: '💚', color: 'green' },
+  { id: 'alipay', name: '支付宝', icon: '💙', color: 'blue' },
 ];
+
+interface PaymentSettings {
+  paymentWechatQrcode: string;
+  paymentAlipayQrcode: string;
+}
+
+interface RechargeOrder {
+  id: string;
+  beans_amount: number;
+  price: number;
+  status: 'pending' | 'approved' | 'rejected';
+  payment_method: string;
+  payment_proof: string;
+  created_at: string;
+}
 
 export default function PricingPage() {
   const { user, isAuthenticated } = useAuth();
@@ -76,12 +92,27 @@ export default function PricingPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [beansBalance, setBeansBalance] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentResult, setPaymentResult] = useState<'success' | 'failed' | null>(null);
+  const [paymentResult, setPaymentResult] = useState<'success' | 'failed' | 'submitted' | null>(null);
+  
+  // 收款设置
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({
+    paymentWechatQrcode: '',
+    paymentAlipayQrcode: '',
+  });
+  
+  // 付款凭证
+  const [paymentProof, setPaymentProof] = useState<string>('');
+  const [isUploading, setIsUploading] = useState(false);
+  
+  // 我的充值订单
+  const [myOrders, setMyOrders] = useState<RechargeOrder[]>([]);
 
-  // 获取用户快乐豆余额
+  // 获取用户快乐豆余额和设置
   useEffect(() => {
     if (isAuthenticated && user) {
       fetchBeansBalance();
+      fetchPaymentSettings();
+      fetchMyOrders();
     }
   }, [isAuthenticated, user]);
 
@@ -97,25 +128,87 @@ export default function PricingPage() {
     }
   };
 
+  const fetchPaymentSettings = async () => {
+    try {
+      const response = await fetch('/api/settings/public');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.settings) {
+          setPaymentSettings({
+            paymentWechatQrcode: data.settings.paymentWechatQrcode || '',
+            paymentAlipayQrcode: data.settings.paymentAlipayQrcode || '',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('获取支付设置失败:', error);
+    }
+  };
+
+  const fetchMyOrders = async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/recharge/orders', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setMyOrders(data.orders || []);
+      }
+    } catch (error) {
+      console.error('获取订单失败:', error);
+    }
+  };
+
   const handlePurchase = (packageId: string) => {
     if (!isAuthenticated) {
-      // 未登录提示
       alert('请先登录');
       return;
     }
     setSelectedPackage(packageId);
     setShowPaymentModal(true);
     setPaymentResult(null);
+    setPaymentProof('');
   };
 
-  const handleConfirmPayment = async () => {
-    if (!selectedPackage) return;
-    
+  // 上传付款凭证
+  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPaymentProof(data.url);
+      } else {
+        alert('上传失败，请重试');
+      }
+    } catch (error) {
+      console.error('上传失败:', error);
+      alert('上传失败，请重试');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // 提交充值订单
+  const handleSubmitOrder = async () => {
+    if (!selectedPackage || !paymentProof) {
+      alert('请先上传付款凭证');
+      return;
+    }
+
     setIsProcessing(true);
-    
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch('/api/user/beans', {
+      const response = await fetch('/api/recharge/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -124,21 +217,20 @@ export default function PricingPage() {
         body: JSON.stringify({
           packageId: selectedPackage,
           paymentMethod: selectedPayment,
+          paymentProof,
         }),
       });
 
       const data = await response.json();
       
       if (data.success) {
-        setPaymentResult('success');
-        setBeansBalance(data.balance);
-        // 刷新余额
-        fetchBeansBalance();
+        setPaymentResult('submitted');
+        fetchMyOrders();
       } else {
         setPaymentResult('failed');
       }
     } catch (error) {
-      console.error('支付失败:', error);
+      console.error('提交失败:', error);
       setPaymentResult('failed');
     } finally {
       setIsProcessing(false);
@@ -149,9 +241,13 @@ export default function PricingPage() {
     setShowPaymentModal(false);
     setSelectedPackage(null);
     setPaymentResult(null);
+    setPaymentProof('');
   };
 
   const selectedPackageInfo = BEANS_PACKAGES.find(p => p.id === selectedPackage);
+  const currentQrcode = selectedPayment === 'wechat' 
+    ? paymentSettings.paymentWechatQrcode 
+    : paymentSettings.paymentAlipayQrcode;
 
   return (
     <div className="min-h-screen bg-zinc-900 text-white">
@@ -252,6 +348,53 @@ export default function PricingPage() {
           ))}
         </div>
 
+        {/* 我的充值订单 */}
+        {isAuthenticated && myOrders.length > 0 && (
+          <div className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-6 mb-8">
+            <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-purple-400" />
+              我的充值订单
+            </h3>
+            <div className="space-y-3">
+              {myOrders.slice(0, 5).map((order) => (
+                <div
+                  key={order.id}
+                  className="flex items-center justify-between p-3 bg-zinc-700/50 rounded-lg"
+                >
+                  <div>
+                    <div className="text-sm">
+                      {order.beans_amount.toLocaleString()} 快乐豆 - ¥{order.price}
+                    </div>
+                    <div className="text-xs text-zinc-500">
+                      {new Date(order.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    {order.status === 'pending' && (
+                      <Badge className="bg-yellow-500/20 text-yellow-400">
+                        <Clock className="w-3 h-3 mr-1" />
+                        待审核
+                      </Badge>
+                    )}
+                    {order.status === 'approved' && (
+                      <Badge className="bg-green-500/20 text-green-400">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        已到账
+                      </Badge>
+                    )}
+                    {order.status === 'rejected' && (
+                      <Badge className="bg-red-500/20 text-red-400">
+                        <XCircle className="w-3 h-3 mr-1" />
+                        已拒绝
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 使用说明 */}
         <div className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-6 mb-8">
           <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
@@ -322,31 +465,31 @@ export default function PricingPage() {
       {/* 支付弹窗 */}
       {showPaymentModal && selectedPackageInfo && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-800 border border-zinc-700 rounded-xl max-w-md w-full p-6">
-            {/* 支付成功 */}
-            {paymentResult === 'success' ? (
+          <div className="bg-zinc-800 border border-zinc-700 rounded-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+            {/* 提交成功 */}
+            {paymentResult === 'submitted' ? (
               <div className="text-center py-8">
-                <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle className="w-8 h-8 text-green-400" />
+                <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Clock className="w-8 h-8 text-blue-400" />
                 </div>
-                <h3 className="text-xl font-bold text-green-400 mb-2">充值成功！</h3>
+                <h3 className="text-xl font-bold text-blue-400 mb-2">已提交！</h3>
                 <p className="text-zinc-400 text-sm mb-2">
-                  已充值 {selectedPackageInfo.beans.toLocaleString()} 快乐豆
+                  订单已提交，等待管理员审核
                 </p>
                 <p className="text-zinc-500 text-xs mb-6">
-                  当前余额：{beansBalance.toLocaleString()} 豆
+                  审核通过后快乐豆将自动到账
                 </p>
-                <Button onClick={handleCloseModal} className="bg-green-600 hover:bg-green-700">
+                <Button onClick={handleCloseModal} className="bg-blue-600 hover:bg-blue-700">
                   完成
                 </Button>
               </div>
             ) : paymentResult === 'failed' ? (
-              /* 支付失败 */
+              /* 提交失败 */
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                   <XCircle className="w-8 h-8 text-red-400" />
                 </div>
-                <h3 className="text-xl font-bold text-red-400 mb-2">支付失败</h3>
+                <h3 className="text-xl font-bold text-red-400 mb-2">提交失败</h3>
                 <p className="text-zinc-400 text-sm mb-6">
                   请稍后重试或联系客服
                 </p>
@@ -362,25 +505,40 @@ export default function PricingPage() {
             ) : (
               /* 支付流程 */
               <>
-                <div className="text-center mb-6">
-                  <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Coins className="w-8 h-8 text-white" />
+                <div className="text-center mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <Coins className="w-6 h-6 text-white" />
                   </div>
-                  <h3 className="text-xl font-bold">购买 {selectedPackageInfo.beans.toLocaleString()} 快乐豆</h3>
-                  <p className="text-zinc-400 text-sm">支付 ¥{selectedPackageInfo.price}</p>
+                  <h3 className="text-lg font-bold">购买 {selectedPackageInfo.beans.toLocaleString()} 快乐豆</h3>
+                  <p className="text-purple-400 font-bold">¥{selectedPackageInfo.price}</p>
+                </div>
+
+                {/* 步骤提示 */}
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4">
+                  <p className="text-blue-300 text-xs">
+                    📋 支付流程：选择支付方式 → 扫码付款 → 上传凭证 → 等待审核
+                  </p>
                 </div>
 
                 {/* 支付方式选择 */}
-                <div className="flex gap-3 mb-6">
+                <div className="flex gap-3 mb-4">
                   {PAYMENT_METHODS.map((method) => (
                     <button
                       key={method.id}
                       onClick={() => setSelectedPayment(method.id)}
                       className={`flex-1 py-3 px-4 rounded-lg border transition-all ${
                         selectedPayment === method.id
-                          ? 'border-purple-500 bg-purple-500/20'
+                          ? `border-${method.color}-500 bg-${method.color}-500/20`
                           : 'border-zinc-700 hover:border-zinc-600'
                       }`}
+                      style={{
+                        borderColor: selectedPayment === method.id 
+                          ? (method.color === 'green' ? '#22c55e' : '#3b82f6')
+                          : undefined,
+                        backgroundColor: selectedPayment === method.id 
+                          ? (method.color === 'green' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(59, 130, 246, 0.2)')
+                          : undefined,
+                      }}
                     >
                       <div className="text-2xl mb-1">{method.icon}</div>
                       <div className="text-xs">{method.name}</div>
@@ -388,13 +546,79 @@ export default function PricingPage() {
                   ))}
                 </div>
 
-                {/* 模拟支付提示 */}
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 mb-6">
-                  <p className="text-amber-300 text-xs text-center">
-                    ⚠️ 演示模式：点击确认即可完成充值
-                  </p>
+                {/* 收款二维码 */}
+                {currentQrcode ? (
+                  <div className="mb-4">
+                    <p className="text-sm text-zinc-400 mb-2 text-center">扫描下方二维码付款</p>
+                    <div className="bg-white rounded-lg p-4 w-48 h-48 mx-auto flex items-center justify-center">
+                      <img 
+                        src={currentQrcode} 
+                        alt={`${selectedPayment === 'wechat' ? '微信' : '支付宝'}收款码`}
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                    <p className="text-xs text-zinc-500 text-center mt-2">
+                      请使用{selectedPayment === 'wechat' ? '微信' : '支付宝'}扫码支付 ¥{selectedPackageInfo.price}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mb-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-center">
+                    <AlertCircle className="w-6 h-6 text-yellow-400 mx-auto mb-2" />
+                    <p className="text-yellow-300 text-xs">
+                      管理员尚未配置收款二维码
+                    </p>
+                    <p className="text-yellow-400 text-xs mt-1">
+                      请联系客服获取付款方式
+                    </p>
+                  </div>
+                )}
+
+                {/* 上传付款凭证 */}
+                <div className="mb-4">
+                  <label className="text-sm text-zinc-400 block mb-2">
+                    上传付款凭证截图
+                  </label>
+                  {paymentProof ? (
+                    <div className="relative">
+                      <div className="bg-white rounded-lg p-2 w-32 h-32 mx-auto">
+                        <img 
+                          src={paymentProof} 
+                          alt="付款凭证"
+                          className="max-w-full max-h-full object-contain mx-auto"
+                        />
+                      </div>
+                      <button
+                        onClick={() => setPaymentProof('')}
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white text-xs"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="block">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleUploadProof}
+                        disabled={isUploading}
+                      />
+                      <div className="border-2 border-dashed border-zinc-600 rounded-lg p-6 text-center cursor-pointer hover:border-purple-500 transition-colors">
+                        {isUploading ? (
+                          <Loader2 className="w-8 h-8 text-purple-400 mx-auto animate-spin" />
+                        ) : (
+                          <>
+                            <Upload className="w-8 h-8 text-zinc-500 mx-auto mb-2" />
+                            <p className="text-xs text-zinc-400">点击上传付款截图</p>
+                            <p className="text-[10px] text-zinc-500 mt-1">支持 JPG、PNG 格式</p>
+                          </>
+                        )}
+                      </div>
+                    </label>
+                  )}
                 </div>
 
+                {/* 操作按钮 */}
                 <div className="flex gap-3">
                   <Button
                     onClick={handleCloseModal}
@@ -405,17 +629,17 @@ export default function PricingPage() {
                     取消
                   </Button>
                   <Button
-                    onClick={handleConfirmPayment}
+                    onClick={handleSubmitOrder}
                     className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-                    disabled={isProcessing}
+                    disabled={isProcessing || !paymentProof}
                   >
                     {isProcessing ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        处理中...
+                        提交中...
                       </>
                     ) : (
-                      `确认支付 ¥${selectedPackageInfo.price}`
+                      '提交订单'
                     )}
                   </Button>
                 </div>

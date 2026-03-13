@@ -14,6 +14,8 @@ export async function GET() {
     contactOnlineTime: '工作日 9:00 - 18:00',
     siteName: '全景互动',
     siteDescription: '创建沉浸式互动短剧和全景体验',
+    paymentWechatQrcode: '',
+    paymentAlipayQrcode: '',
   };
 
   try {
@@ -29,7 +31,9 @@ export async function GET() {
         'contactEmail', 
         'contactOnlineTime',
         'siteName',
-        'siteDescription'
+        'siteDescription',
+        'paymentWechatQrcode',
+        'paymentAlipayQrcode',
       ]);
 
     if (error) {
