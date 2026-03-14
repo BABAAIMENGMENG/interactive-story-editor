@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Plus,
@@ -8,6 +8,7 @@ import {
   Trash2,
   GripVertical,
   Save,
+  Loader2,
 } from 'lucide-react';
 
 interface Category {
@@ -17,19 +18,19 @@ interface Category {
   slug: string;
   sortOrder: number;
   isActive: boolean;
-  workCount: number;
+  workCount?: number;
 }
 
 const DEFAULT_CATEGORIES: Category[] = [
-  { id: '1', name: '言情', icon: '💕', slug: 'romance', sortOrder: 1, isActive: true, workCount: 23 },
-  { id: '2', name: '悬疑', icon: '🔍', slug: 'suspense', sortOrder: 2, isActive: true, workCount: 18 },
-  { id: '3', name: '科幻', icon: '🚀', slug: 'scifi', sortOrder: 3, isActive: true, workCount: 15 },
-  { id: '4', name: '奇幻', icon: '✨', slug: 'fantasy', sortOrder: 4, isActive: true, workCount: 12 },
-  { id: '5', name: '冒险', icon: '🗺️', slug: 'adventure', sortOrder: 5, isActive: true, workCount: 8 },
-  { id: '6', name: '校园', icon: '🎓', slug: 'campus', sortOrder: 6, isActive: true, workCount: 10 },
-  { id: '7', name: '普法', icon: '⚖️', slug: 'legal', sortOrder: 7, isActive: true, workCount: 5 },
-  { id: '8', name: '喜剧', icon: '😄', slug: 'comedy', sortOrder: 8, isActive: true, workCount: 14 },
-  { id: '9', name: '其他', icon: '📖', slug: 'other', sortOrder: 99, isActive: true, workCount: 7 },
+  { id: '1', name: '言情', icon: '💕', slug: 'romance', sortOrder: 1, isActive: true, workCount: 0 },
+  { id: '2', name: '悬疑', icon: '🔍', slug: 'suspense', sortOrder: 2, isActive: true, workCount: 0 },
+  { id: '3', name: '科幻', icon: '🚀', slug: 'scifi', sortOrder: 3, isActive: true, workCount: 0 },
+  { id: '4', name: '奇幻', icon: '✨', slug: 'fantasy', sortOrder: 4, isActive: true, workCount: 0 },
+  { id: '5', name: '冒险', icon: '🗺️', slug: 'adventure', sortOrder: 5, isActive: true, workCount: 0 },
+  { id: '6', name: '校园', icon: '🎓', slug: 'campus', sortOrder: 6, isActive: true, workCount: 0 },
+  { id: '7', name: '普法', icon: '⚖️', slug: 'legal', sortOrder: 7, isActive: true, workCount: 0 },
+  { id: '8', name: '喜剧', icon: '😄', slug: 'comedy', sortOrder: 8, isActive: true, workCount: 0 },
+  { id: '9', name: '其他', icon: '📖', slug: 'other', sortOrder: 99, isActive: true, workCount: 0 },
 ];
 
 export default function AdminCategoriesPage() {
@@ -37,6 +38,9 @@ export default function AdminCategoriesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<Category>>({});
   const [isAdding, setIsAdding] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [newCategory, setNewCategory] = useState<Partial<Category>>({
     name: '',
     icon: '📁',
@@ -44,6 +48,49 @@ export default function AdminCategoriesPage() {
     sortOrder: 0,
     isActive: true,
   });
+
+  // 从数据库加载分类
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/categories');
+        const data = await response.json();
+        if (data.success && data.categories) {
+          setCategories(data.categories);
+        }
+      } catch (error) {
+        console.error('加载分类失败:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  // 保存分类到数据库
+  const saveToDatabase = async (updatedCategories: Category[]) => {
+    setIsSaving(true);
+    setSaveMessage(null);
+    try {
+      const response = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categories: updatedCategories }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSaveMessage({ type: 'success', text: '保存成功' });
+        setTimeout(() => setSaveMessage(null), 3000);
+      } else {
+        setSaveMessage({ type: 'error', text: '保存失败' });
+      }
+    } catch (error) {
+      console.error('保存分类失败:', error);
+      setSaveMessage({ type: 'error', text: '保存失败' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // 开始编辑
   const handleEdit = (category: Category) => {
@@ -54,11 +101,13 @@ export default function AdminCategoriesPage() {
   // 保存编辑
   const handleSave = () => {
     if (!editingId) return;
-    setCategories(categories.map((c) =>
+    const updatedCategories = categories.map((c) =>
       c.id === editingId ? { ...c, ...editForm } : c
-    ));
+    );
+    setCategories(updatedCategories);
     setEditingId(null);
     setEditForm({});
+    saveToDatabase(updatedCategories);
   };
 
   // 取消编辑
@@ -75,7 +124,9 @@ export default function AdminCategoriesPage() {
       return;
     }
     if (confirm('确定要删除这个分类吗？')) {
-      setCategories(categories.filter((c) => c.id !== id));
+      const updatedCategories = categories.filter((c) => c.id !== id);
+      setCategories(updatedCategories);
+      saveToDatabase(updatedCategories);
     }
   };
 
@@ -95,7 +146,8 @@ export default function AdminCategoriesPage() {
       isActive: newCategory.isActive ?? true,
       workCount: 0,
     };
-    setCategories([...categories, newCat]);
+    const updatedCategories = [...categories, newCat];
+    setCategories(updatedCategories);
     setIsAdding(false);
     setNewCategory({
       name: '',
@@ -104,13 +156,16 @@ export default function AdminCategoriesPage() {
       sortOrder: 0,
       isActive: true,
     });
+    saveToDatabase(updatedCategories);
   };
 
   // 切换状态
   const handleToggleActive = (id: string) => {
-    setCategories(categories.map((c) =>
+    const updatedCategories = categories.map((c) =>
       c.id === id ? { ...c, isActive: !c.isActive } : c
-    ));
+    );
+    setCategories(updatedCategories);
+    saveToDatabase(updatedCategories);
   };
 
   // 上移
@@ -124,6 +179,7 @@ export default function AdminCategoriesPage() {
       c.sortOrder = i + 1;
     });
     setCategories(newCategories);
+    saveToDatabase(newCategories);
   };
 
   // 下移
@@ -137,15 +193,29 @@ export default function AdminCategoriesPage() {
       c.sortOrder = i + 1;
     });
     setCategories(newCategories);
+    saveToDatabase(newCategories);
   };
 
   return (
     <div className="space-y-4">
       {/* 头部 */}
       <div className="flex justify-between items-center">
-        <p className="text-gray-400 text-sm">
-          管理作品分类，拖拽调整排序
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-gray-400 text-sm">
+            管理作品分类，拖拽调整排序
+          </p>
+          {isSaving && (
+            <span className="flex items-center gap-1 text-yellow-400 text-xs">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              保存中...
+            </span>
+          )}
+          {saveMessage && (
+            <span className={`text-xs ${saveMessage.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+              {saveMessage.text}
+            </span>
+          )}
+        </div>
         <Button
           onClick={() => setIsAdding(true)}
           className="bg-purple-600 hover:bg-purple-700"
@@ -154,6 +224,14 @@ export default function AdminCategoriesPage() {
           添加分类
         </Button>
       </div>
+
+      {/* 加载状态 */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+          <span className="ml-2 text-gray-400">加载中...</span>
+        </div>
+      )}
 
       {/* 添加新分类 */}
       {isAdding && (
@@ -206,6 +284,7 @@ export default function AdminCategoriesPage() {
       )}
 
       {/* 分类列表 */}
+      {!isLoading && (
       <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-700/50">
@@ -320,7 +399,7 @@ export default function AdminCategoriesPage() {
                           onClick={() => handleDelete(category.id)}
                           className="p-1.5 text-red-400 hover:bg-red-500/20 rounded"
                           title="删除"
-                          disabled={category.workCount > 0}
+                          disabled={(category.workCount || 0) > 0}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -332,6 +411,7 @@ export default function AdminCategoriesPage() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

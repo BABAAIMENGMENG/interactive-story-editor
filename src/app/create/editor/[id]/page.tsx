@@ -821,6 +821,25 @@ export default function EditorPage() {
   const [projectCategory, setProjectCategory] = useState('other');
   const [projectDescription, setProjectDescription] = useState('');
   const [showPublishDialog, setShowPublishDialog] = useState(false);
+  
+  // 分类列表（从API动态获取）
+  const [categories, setCategories] = useState<{id: string; name: string; icon: string; slug: string}[]>([]);
+  
+  // 获取分类列表
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/categories');
+        const data = await response.json();
+        if (data.success && data.categories) {
+          setCategories(data.categories);
+        }
+      } catch (error) {
+        console.error('获取分类失败:', error);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   // 拖拽状态
   const [draggingElementType, setDraggingElementType] = useState<ElementType | null>(null);
@@ -9908,16 +9927,15 @@ export default function EditorPage() {
                   <SelectValue placeholder="选择分类" />
                 </SelectTrigger>
                 <SelectContent className="bg-zinc-700 border-zinc-600">
-                  <SelectItem value="horror">恐怖</SelectItem>
-                  <SelectItem value="adventure">冒险</SelectItem>
-                  <SelectItem value="campus">校园</SelectItem>
-                  <SelectItem value="legal">普法</SelectItem>
-                  <SelectItem value="romance">言情</SelectItem>
-                  <SelectItem value="suspense">悬疑</SelectItem>
-                  <SelectItem value="scifi">科幻</SelectItem>
-                  <SelectItem value="fantasy">奇幻</SelectItem>
-                  <SelectItem value="comedy">喜剧</SelectItem>
-                  <SelectItem value="other">其他</SelectItem>
+                  {categories.length > 0 ? (
+                    categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.slug}>
+                        {cat.icon} {cat.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="other">其他</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -10029,7 +10047,9 @@ export default function EditorPage() {
             {/* 分类信息 */}
             <div className="flex items-center justify-between p-3 bg-zinc-700/50 rounded-lg">
               <span className="text-zinc-300">作品分类</span>
-              <span className="text-zinc-300 capitalize">{projectCategory}</span>
+              <span className="text-zinc-300">
+                {categories.find(c => c.slug === projectCategory)?.name || projectCategory}
+              </span>
             </div>
             
             {/* 预览链接 */}
