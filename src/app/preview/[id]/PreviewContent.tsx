@@ -313,66 +313,35 @@ const executeActions = async (
     setScenes?: React.Dispatch<React.SetStateAction<Scene[]>>;
   }
 ) => {
-  console.log('[executeActions] 开始执行动作序列', { 
-    actionsCount: actions.length, 
-    actions: JSON.stringify(actions),
-    elementsCount: context.elements.length,
-    healthBars: context.elements.filter(e => e.type === 'healthBar').map(e => ({ id: e.id, healthValue: e.healthValue }))
-  });
-  
   for (const action of actions) {
     // 支持两种格式：{ type, config } 和 { type, targetSceneId, ... }
     const actionType = action.type;
     const config = action.config || action;
     
-    console.log('[executeActions] 处理动作', { 
-      actionType, 
-      config: JSON.stringify(config),
-      targetElementId: config.targetElementId,
-      value: config.value
-    });
-    
     switch (actionType) {
       case 'addHealth':
         // 加血
-        console.log('[executeActions] addHealth 动作', { 
-          targetElementId: config.targetElementId, 
-          value: config.value,
-          hasTarget: !!config.targetElementId,
-          hasValue: !!config.value
-        });
         if (config.targetElementId && config.value) {
           const targetEl = context.elements.find(el => el.id === config.targetElementId);
-          console.log('[executeActions] 找到目标元素?', { 
-            found: !!targetEl, 
-            targetEl: targetEl ? { id: targetEl.id, type: targetEl.type, healthValue: targetEl.healthValue } : null
-          });
           if (targetEl) {
             const currentHealth = targetEl.healthValue ?? 100;
             const maxHealth = targetEl.maxHealth ?? 100;
             const newHealth = Math.min(maxHealth, currentHealth + config.value);
-            console.log('[executeActions] 计算新血量', { currentHealth, maxHealth, addValue: config.value, newHealth });
             context.updateElements(
               context.elements.map(el =>
                 el.id === config.targetElementId ? { ...el, healthValue: newHealth } : el
               )
             );
-            console.log('[executeActions] 已调用 updateElements 更新血量');
           }
         }
         break;
       case 'reduceHealth':
         // 减血
-        console.log('[executeActions] reduceHealth 动作', { 
-          targetElementId: config.targetElementId, 
-          value: config.value
-        });
         if (config.targetElementId && config.value) {
           const targetEl = context.elements.find(el => el.id === config.targetElementId);
           if (targetEl) {
             const currentHealth = targetEl.healthValue ?? 100;
             const newHealth = Math.max(0, currentHealth - config.value);
-            console.log('[executeActions] 减血计算', { currentHealth, reduceValue: config.value, newHealth });
             context.updateElements(
               context.elements.map(el =>
                 el.id === config.targetElementId ? { ...el, healthValue: newHealth } : el
@@ -383,16 +352,11 @@ const executeActions = async (
         break;
       case 'setHealth':
         // 设置血量
-        console.log('[executeActions] setHealth 动作', { 
-          targetElementId: config.targetElementId, 
-          value: config.value
-        });
         if (config.targetElementId && config.value !== undefined) {
           const targetEl = context.elements.find(el => el.id === config.targetElementId);
           if (targetEl) {
             const maxHealth = targetEl.maxHealth ?? 100;
             const newHealth = Math.max(0, Math.min(maxHealth, config.value));
-            console.log('[executeActions] 设置血量', { maxHealth, setValue: config.value, newHealth });
             context.updateElements(
               context.elements.map(el =>
                 el.id === config.targetElementId ? { ...el, healthValue: newHealth } : el
@@ -674,6 +638,8 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
   const [error, setError] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('互动体验');
   const [selectedChoices, setSelectedChoices] = useState<Set<string>>(new Set());
+  // 已执行过动作的选择项（每个选择项只执行一次）
+  const [executedChoices, setExecutedChoices] = useState<Set<string>>(new Set());
   
   const sceneContainerRef = useRef<HTMLDivElement>(null);
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
@@ -1055,11 +1021,6 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
             onClick={async (e) => {
               handleClick(e);
               
-              console.log('[choiceItem] 点击选择项', { 
-                elementId: element.id, 
-                clickActions: element.clickActions 
-              });
-              
               // 切换选中状态
               setSelectedChoices(prev => {
                 const newSet = new Set(prev);
@@ -1071,24 +1032,17 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
                 return newSet;
               });
               
-              // 执行点击动作序列
-              const actions = element.clickActions || [];
-              
-              console.log('[choiceItem] 准备执行动作', { 
-                actionsLength: actions.length,
-                actions: JSON.stringify(actions)
-              });
-              
-              if (actions.length > 0) {
-                console.log('[choiceItem] 调用 executeActions', { 
-                  contextElements: eventContext.elements.length,
-                  healthBars: eventContext.elements.filter(el => el.type === 'healthBar').map(el => ({ id: el.id, healthValue: el.healthValue }))
-                });
-                await executeActions(actions, {
-                  ...eventContext,
-                  setScenes,
-                });
-                console.log('[choiceItem] executeActions 执行完成');
+              // 只有首次点击时才执行动作
+              if (!executedChoices.has(element.id)) {
+                const actions = element.clickActions || [];
+                if (actions.length > 0) {
+                  await executeActions(actions, {
+                    ...eventContext,
+                    setScenes,
+                  });
+                  // 标记为已执行
+                  setExecutedChoices(prev => new Set(prev).add(element.id));
+                }
               }
             }}
             onMouseEnter={handleMouseEnter}

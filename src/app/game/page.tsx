@@ -431,6 +431,8 @@ function GamePageContent() {
   const [storyId, setStoryId] = useState('demo');
   const [initialSceneId, setInitialSceneId] = useState<string | null>(null);
   const [selectedChoices, setSelectedChoices] = useState<Set<string>>(new Set());
+  // 已执行过动作的选择项（每个选择项只执行一次）
+  const [executedChoices, setExecutedChoices] = useState<Set<string>>(new Set());
   
   // 从 URL 参数初始化
   useEffect(() => {
@@ -993,47 +995,37 @@ function GamePageContent() {
 
   // 事件执行器 - 处理元素的各种交互动作
   const executeEventActions = async (actions: any[], sourceElement?: any) => {
-    console.log('executeEventActions called with actions:', actions);
     for (const action of actions) {
-      console.log('Processing action:', action);
       // 如果动作有目标元素ID，先找到目标元素
       const targetElement = action.targetElementId 
         ? currentEditorScene?.elements.find((el: any) => el.id === action.targetElementId)
         : sourceElement;
-      
-      console.log('targetElement:', targetElement);
 
       switch (action.type) {
         case 'addHealth':
           // 加血
-          console.log('addHealth action, targetElementId:', action.targetElementId, 'value:', action.value);
           if (action.targetElementId && action.value !== undefined) {
             const currentHealth = targetElement?.healthValue ?? 100;
             const maxHealth = targetElement?.maxHealth ?? 100;
             const newHealth = Math.min(maxHealth, currentHealth + action.value);
-            console.log('Updating health from', currentHealth, 'to', newHealth);
             updateEditorElement(action.targetElementId, { healthValue: newHealth });
           }
           break;
 
         case 'reduceHealth':
           // 减血
-          console.log('reduceHealth action, targetElementId:', action.targetElementId, 'value:', action.value);
           if (action.targetElementId && action.value !== undefined) {
             const currentHealth = targetElement?.healthValue ?? 100;
             const newHealth = Math.max(0, currentHealth - action.value);
-            console.log('Updating health from', currentHealth, 'to', newHealth);
             updateEditorElement(action.targetElementId, { healthValue: newHealth });
           }
           break;
 
         case 'setHealth':
           // 设置血量
-          console.log('setHealth action, targetElementId:', action.targetElementId, 'value:', action.value);
           if (action.targetElementId && action.value !== undefined) {
             const maxHealth = targetElement?.maxHealth ?? 100;
             const newHealth = Math.max(0, Math.min(maxHealth, action.value));
-            console.log('Setting health to', newHealth);
             updateEditorElement(action.targetElementId, { healthValue: newHealth });
           }
           break;
@@ -1605,15 +1597,6 @@ function GamePageContent() {
                   {/* 渲染元素 - 跳过热点类型（热点由 PanoramaViewer 处理） */}
                   {currentEditorScene.elements.map((el, originalIndex) => {
             
-            // 调试：输出场景中所有元素
-            console.log('[场景元素]', { 
-              index: originalIndex,
-              id: el.id, 
-              type: el.type, 
-              visible: el.visible,
-              content: el.content?.substring?.(0, 20)
-            });
-            
             // 检查该元素是否会被某个时间触发器显示（如果是，则初始隐藏）
             const willBeShownByTrigger = currentEditorScene.elements.some(
               (otherEl) => otherEl.type === 'video' && 
@@ -1627,17 +1610,6 @@ function GamePageContent() {
             // 音频和热点类型不渲染
             if (el.type === 'hotspot' || el.type === 'audio') return null;
             
-            // 调试：输出所有元素类型
-            if (el.type === 'choiceItem') {
-              console.log('[渲染] 发现 choiceItem', { 
-                id: el.id, 
-                type: el.type, 
-                visible: el.visible, 
-                willBeShownByTrigger,
-                clickActions: el.clickActions 
-              });
-            }
-            
             // 如果元素会被触发器显示，检查是否已被触发
             if (willBeShownByTrigger) {
               // 等待触发器显示的元素：只有在 triggeredShownElements 中才渲染
@@ -1647,15 +1619,7 @@ function GamePageContent() {
             
             // 普通元素或已被触发的元素：检查 visible 属性
             // 如果 visible 为 false，不渲染（不占用空间，不与鼠标交互）
-            if (!el.visible) {
-              console.log('[渲染] 元素不可见，跳过', { id: el.id, type: el.type });
-              return null;
-            }
-            
-            // choiceItem 通过可见性检查
-            if (el.type === 'choiceItem') {
-              console.log('[渲染] choiceItem 将被渲染', { id: el.id, content: el.content });
-            }
+            if (!el.visible) return null;
             
             // 图片和视频元素如果没有有效的 src，不渲染（避免遮挡其他元素）
             if (el.type === 'image' && (!el.src || !validateVideoUrl(el.src).isValid)) return null;
@@ -1953,12 +1917,6 @@ function GamePageContent() {
                     transition: 'background-color 0.2s, border-color 0.2s',
                   }}
                   onClick={() => {
-                    console.log('[choiceItem] 点击选择项', { 
-                      elementId: el.id, 
-                      clickActions: el.clickActions,
-                      clickActionsLength: el.clickActions?.length || 0
-                    });
-                    
                     // 切换选中状态
                     setSelectedChoices(prev => {
                       const newSet = new Set(prev);
@@ -1970,13 +1928,14 @@ function GamePageContent() {
                       return newSet;
                     });
                     
-                    // 执行点击动作
-                    const actions = el.clickActions || [];
-                    console.log('[choiceItem] 准备执行动作', { actionsLength: actions.length, actions });
-                    if (actions.length > 0) {
-                      executeEventActions(actions, el);
-                    } else {
-                      console.log('[choiceItem] 没有配置点击动作');
+                    // 只有首次点击时才执行动作
+                    if (!executedChoices.has(el.id)) {
+                      const actions = el.clickActions || [];
+                      if (actions.length > 0) {
+                        executeEventActions(actions, el);
+                        // 标记为已执行
+                        setExecutedChoices(prev => new Set(prev).add(el.id));
+                      }
                     }
                   }}
                 >
