@@ -5018,6 +5018,10 @@ export default function EditorPage() {
                       if (el.type === 'audio') {
                         return 'transparent';
                       }
+                      // 选择项透明 - 背景由内层div控制
+                      if (el.type === 'choiceItem') {
+                        return 'transparent';
+                      }
                       // 视频、面板直接使用背景色（带透明度）
                       if (el.type === 'video' || el.type === 'panel') {
                         const bgColor = el.backgroundColor || 'transparent';
@@ -5045,7 +5049,7 @@ export default function EditorPage() {
                     fontSize: el.fontSize,
                     borderRadius: el.isMaximized ? 0 : el.borderRadius,
                     opacity: el.opacity,
-                    border: el.isMaximized || el.type === 'audio' ? 'none' : (el.borderWidth ? `${el.borderWidth}px ${el.borderStyle || 'solid'} ${el.borderColor}` : 'none'),
+                    border: el.isMaximized || el.type === 'audio' || el.type === 'choiceItem' ? 'none' : (el.borderWidth ? `${el.borderWidth}px ${el.borderStyle || 'solid'} ${el.borderColor}` : 'none'),
                     boxShadow: el.isMaximized ? 'none' : el.boxShadow,
                     outline: selectedId === el.id && !el.isMaximized && el.type !== 'text' ? '2px solid #8B5CF6' : 'none',
                     outlineOffset: selectedId === el.id && !el.isMaximized && el.type !== 'text' ? '2px' : '0',
@@ -5057,7 +5061,7 @@ export default function EditorPage() {
                     visibility: el.visible ? 'visible' : 'hidden',
                     fontWeight: el.fontWeight || '500',
                     fontFamily: el.fontFamily || 'inherit',
-                    padding: el.isMaximized ? 0 : (el.type === 'text' ? '8px' : el.type === 'video' || el.type === 'image' || el.type === 'audio' ? 0 : '0 16px'),
+                    padding: el.isMaximized ? 0 : (el.type === 'text' ? '8px' : el.type === 'video' || el.type === 'image' || el.type === 'audio' || el.type === 'choiceItem' ? 0 : '0 16px'),
                     transition: 'transform 0.15s ease, background-color 0.2s ease',
                     gap: el.iconName ? '8px' : '0',
                     // z-index 基于元素在数组中的位置，索引越大越在上层（列表底部 = 画布最上层）
@@ -5378,9 +5382,8 @@ export default function EditorPage() {
                   )}
                   {/* 选择项组件 */}
                   {el.type === 'choiceItem' && (() => {
-                    // 内框圆角不能超过外层容器的圆角
+                    // 内框圆角匹配外层容器的圆角
                     const outerRadius = el.borderRadius || 8;
-                    const innerRadius = Math.min(8, outerRadius - 2); // 减去边框宽度2px
                     return (
                       <div 
                         className={`w-full h-full flex items-center justify-center px-4 gap-2 transition-colors border-2 ${
@@ -5388,7 +5391,7 @@ export default function EditorPage() {
                             ? 'bg-purple-500/30 border-purple-500' 
                             : 'bg-white/10 hover:bg-white/20 border-white/30'
                         }`}
-                        style={{ borderRadius: innerRadius }}
+                        style={{ borderRadius: outerRadius }}
                       >
                         <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${
                           el.isSelected 
