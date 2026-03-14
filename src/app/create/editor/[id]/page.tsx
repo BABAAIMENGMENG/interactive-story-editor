@@ -1377,6 +1377,16 @@ export default function EditorPage() {
         const dy = pos.y - offsetY;
         elementDom.style.transition = 'none';
         elementDom.style.transform = `translate(${dx}px, ${dy}px)`;
+        
+        // 同时移动所有子元素
+        const allChildren = getAllChildren(elementId, currentScene?.elements || []);
+        allChildren.forEach(child => {
+          const childDom = document.querySelector(`[data-element-id="${child.id}"]`) as HTMLElement;
+          if (childDom) {
+            childDom.style.transition = 'none';
+            childDom.style.transform = `translate(${dx}px, ${dy}px)`;
+          }
+        });
       } else {
         // 降级到状态更新
         setPathPreviewState({ elementId, x: pos.x, y: pos.y });
@@ -1401,9 +1411,19 @@ export default function EditorPage() {
         elementDom.style.transition = 'transform 0.3s ease';
         elementDom.style.transform = '';
       }
+      
+      // 恢复所有子元素的位置
+      const allChildren = getAllChildren(elementId, currentScene?.elements || []);
+      allChildren.forEach(child => {
+        const childDom = document.querySelector(`[data-element-id="${child.id}"]`) as HTMLElement;
+        if (childDom) {
+          childDom.style.transition = 'transform 0.3s ease';
+          childDom.style.transform = '';
+        }
+      });
     }
     setPathPreviewState(null);
-  }, []);
+  }, [currentScene?.elements]);
 
   // 移动元素层级（上移=更靠近顶层=z-index更大=数组索引变大=列表位置变低）
   const moveElementUp = (elementId: string) => {

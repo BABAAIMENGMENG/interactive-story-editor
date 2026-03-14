@@ -361,6 +361,16 @@ const checkHealthTriggersForElement = (element: Element, newHealth: number, cont
   });
 };
 
+// 获取元素的所有子元素（递归）
+const getAllChildren = (elementId: string, elements: Element[]): Element[] => {
+  const directChildren = elements.filter(e => e.parentId === elementId);
+  const allChildren: Element[] = [...directChildren];
+  directChildren.forEach(child => {
+    allChildren.push(...getAllChildren(child.id, elements));
+  });
+  return allChildren;
+};
+
 // 事件执行器
 const executeActions = async (
   actions: Array<any>,
@@ -705,12 +715,23 @@ const executeActions = async (
                 progress = 1;
                 // 动画结束，设置到终点
                 const finalPoint = points[points.length - 1];
+                const deltaX = finalPoint.x - pathElement.x;
+                const deltaY = finalPoint.y - pathElement.y;
+                const allChildren = getAllChildren(pathElement.id, context.elements);
+                
                 if (context.setScenes) {
                   context.setScenes(prev => prev.map(scene => ({
                     ...scene,
-                    elements: scene.elements.map(el => 
-                      el.id === pathElement.id ? { ...el, x: finalPoint.x, y: finalPoint.y } : el
-                    )
+                    elements: scene.elements.map(el => {
+                      if (el.id === pathElement.id) {
+                        return { ...el, x: finalPoint.x, y: finalPoint.y };
+                      }
+                      // 如果是子元素，也移动相同的增量
+                      if (allChildren.some(child => child.id === el.id)) {
+                        return { ...el, x: el.x + deltaX, y: el.y + deltaY };
+                      }
+                      return el;
+                    })
                   })));
                 }
                 return;
@@ -737,13 +758,27 @@ const executeActions = async (
             // 计算当前位置
             const pos = getPointOnPath(easedProgress);
             
-            // 更新元素位置
+            // 计算移动增量
+            const deltaX = pos.x - pathElement.x;
+            const deltaY = pos.y - pathElement.y;
+            
+            // 获取所有子元素
+            const allChildren = getAllChildren(pathElement.id, context.elements);
+            
+            // 更新元素位置（包括子元素）
             if (context.setScenes) {
               context.setScenes(prev => prev.map(scene => ({
                 ...scene,
-                elements: scene.elements.map(el => 
-                  el.id === pathElement.id ? { ...el, x: pos.x, y: pos.y } : el
-                )
+                elements: scene.elements.map(el => {
+                  if (el.id === pathElement.id) {
+                    return { ...el, x: pos.x, y: pos.y };
+                  }
+                  // 如果是子元素，也移动相同的增量
+                  if (allChildren.some(child => child.id === el.id)) {
+                    return { ...el, x: el.x + deltaX, y: el.y + deltaY };
+                  }
+                  return el;
+                })
               })));
             }
             
