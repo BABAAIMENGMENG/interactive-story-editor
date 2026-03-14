@@ -993,37 +993,47 @@ function GamePageContent() {
 
   // 事件执行器 - 处理元素的各种交互动作
   const executeEventActions = async (actions: any[], sourceElement?: any) => {
+    console.log('executeEventActions called with actions:', actions);
     for (const action of actions) {
+      console.log('Processing action:', action);
       // 如果动作有目标元素ID，先找到目标元素
       const targetElement = action.targetElementId 
         ? currentEditorScene?.elements.find((el: any) => el.id === action.targetElementId)
         : sourceElement;
+      
+      console.log('targetElement:', targetElement);
 
       switch (action.type) {
         case 'addHealth':
           // 加血
-          if (action.targetElementId && action.value) {
+          console.log('addHealth action, targetElementId:', action.targetElementId, 'value:', action.value);
+          if (action.targetElementId && action.value !== undefined) {
             const currentHealth = targetElement?.healthValue ?? 100;
             const maxHealth = targetElement?.maxHealth ?? 100;
             const newHealth = Math.min(maxHealth, currentHealth + action.value);
+            console.log('Updating health from', currentHealth, 'to', newHealth);
             updateEditorElement(action.targetElementId, { healthValue: newHealth });
           }
           break;
 
         case 'reduceHealth':
           // 减血
-          if (action.targetElementId && action.value) {
+          console.log('reduceHealth action, targetElementId:', action.targetElementId, 'value:', action.value);
+          if (action.targetElementId && action.value !== undefined) {
             const currentHealth = targetElement?.healthValue ?? 100;
             const newHealth = Math.max(0, currentHealth - action.value);
+            console.log('Updating health from', currentHealth, 'to', newHealth);
             updateEditorElement(action.targetElementId, { healthValue: newHealth });
           }
           break;
 
         case 'setHealth':
           // 设置血量
+          console.log('setHealth action, targetElementId:', action.targetElementId, 'value:', action.value);
           if (action.targetElementId && action.value !== undefined) {
             const maxHealth = targetElement?.maxHealth ?? 100;
             const newHealth = Math.max(0, Math.min(maxHealth, action.value));
+            console.log('Setting health to', newHealth);
             updateEditorElement(action.targetElementId, { healthValue: newHealth });
           }
           break;
