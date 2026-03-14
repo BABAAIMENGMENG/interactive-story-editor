@@ -991,44 +991,21 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
   
   // 自动播放路径动画
   useEffect(() => {
-    console.log('路径动画 useEffect 触发:', {
-      currentSceneId,
-      scenesLength: scenes.length,
-      currentScene: currentScene ? 'exists' : 'null',
-      elementsCount: currentScene?.elements?.length || 0,
-      animationRefsSize: pathAnimationRefs.current.size
-    });
-    
     // 确保 currentScene 存在且有元素
     if (!currentScene || !currentScene.elements || currentScene.elements.length === 0) {
-      console.log('路径动画跳过 - 场景未加载或无元素');
       return;
     }
     
     // 如果已经有动画在运行，跳过
     if (pathAnimationRefs.current.size > 0) {
-      console.log('路径动画跳过 - 已有动画运行中');
       return;
     }
     
     const cleanupFns: (() => void)[] = [];
     
-    console.log('路径动画初始化 - 场景:', currentSceneId, '元素数:', currentScene.elements.length);
-    console.log('路径动画检查 - 当前场景元素:', currentScene.elements.map(el => ({
-      id: el.id,
-      type: el.type,
-      name: el.name,
-      hasPath: !!el.path,
-      pathEnabled: el.path?.enabled,
-      pathAutoPlay: el.path?.autoPlay,
-      pathPoints: el.path?.points?.length
-    })));
-    
     currentScene.elements.forEach(element => {
       const path = element.path;
       if (!path || !path.enabled || !path.autoPlay || path.points.length < 2) return;
-      
-      console.log('路径动画启动 - 元素:', element.name, '路径点数:', path.points.length);
       
       const delay = path.delay || 0;
       const duration = path.duration || 3000;
@@ -1051,8 +1028,7 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
         return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3;
       };
       
-      const getPointOnPath = (progress: number): { x: number; y: number } => {
-        const points = path.points;
+      const getPointOnPath = (progress: number, points: typeof path.points): { x: number; y: number } => {
         if (points.length === 0) return { x: element.x, y: element.y };
         if (points.length === 1) return { x: points[0].x, y: points[0].y };
         
@@ -1079,32 +1055,36 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
         };
       };
       
+      // 预计算所有路径点（60fps）
+      const totalFrames = Math.ceil(duration / 16.67);
+      const precomputedPoints: { x: number; y: number }[] = [];
+      for (let i = 0; i <= totalFrames; i++) {
+        const progress = i / totalFrames;
+        const easedProgress = easingFn(progress);
+        precomputedPoints.push(getPointOnPath(easedProgress, path.points));
+      }
+      
       // 获取所有子元素
       const allChildren = getAllChildren(element.id, currentScene.elements);
-      const initialPositions = new Map<string, { x: number; y: number }>();
-      initialPositions.set(element.id, { x: element.x, y: element.y });
-      allChildren.forEach(child => {
-        initialPositions.set(child.id, { x: child.x, y: child.y });
-      });
       
       const elementCenterX = element.x + element.width / 2;
       const elementCenterY = element.y + element.height / 2;
       
-      let animationStarted = false;
-      let animationId = 0;
+      // 预先获取 DOM 元素引用
+      const elementDom = document.getElementById(`element-${element.id}`) as HTMLElement;
+      const childDoms = allChildren.map(child => document.getElementById(`element-${child.id}`) as HTMLElement).filter(Boolean);
       
-      const animate = () => {
-        const now = Date.now();
-        
-        if (!animationStarted) {
-          animationStarted = true;
-          pathAnimationRefs.current.set(element.id, { animationFrame: animationId, startTime: now });
+      if (!elementDom) return;
+      
+      let animationId = 0;
+      let startTime = 0;
+      
+      const animate = (timestamp: number) => {
+        if (startTime === 0) {
+          startTime = timestamp + delay;
         }
         
-        const ref = pathAnimationRefs.current.get(element.id);
-        if (!ref) return;
-        
-        const elapsed = now - ref.startTime - delay;
+        const elapsed = timestamp - startTime;
         
         if (elapsed < 0) {
           animationId = requestAnimationFrame(animate);
@@ -1126,49 +1106,23 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
           }
         }
         
-        const easedProgress = easingFn(progress);
-        const pos = getPointOnPath(easedProgress);
+        // 使用预计算的路径点
+        let currentFrame = Math.floor(progress * totalFrames);
+        if (currentFrame > totalFrames) currentFrame = totalFrames;
+        
+        const pos = precomputedPoints[currentFrame];
         
         // 计算位移
         const deltaX = pos.x - elementCenterX;
         const deltaY = pos.y - elementCenterY;
         
-        // 调试日志
-        if (Math.random() < 0.05) { // 5% 概率打印，避免日志过多
-          console.log('路径动画更新:', {
-            elementName: element.name,
-            progress: easedProgress,
-            pos,
-            deltaX,
-            deltaY,
-            currentSceneId
-          });
-        }
+        // 直接操作 DOM 移动元素（使用 transform 性能更好）
+        elementDom.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
         
-        // 更新元素位置 - 使用函数式更新确保获取最新的 sceneId
-        setScenes(prev => {
-          const targetSceneId = currentSceneId;
-          return prev.map(scene => {
-            if (scene.id !== targetSceneId) return scene;
-            return {
-              ...scene,
-              elements: scene.elements.map(el => {
-                if (el.id === element.id) {
-                  const initial = initialPositions.get(el.id);
-                  if (!initial) return el;
-                  return { ...el, x: initial.x + deltaX, y: initial.y + deltaY };
-                }
-                // 移动子元素
-                if (allChildren.some(c => c.id === el.id)) {
-                  const initial = initialPositions.get(el.id);
-                  if (!initial) return el;
-                  return { ...el, x: initial.x + deltaX, y: initial.y + deltaY };
-                }
-                return el;
-              })
-            };
-          });
-        });
+        // 移动子元素
+        for (const childDom of childDoms) {
+          childDom.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+        }
         
         if (!finished) {
           animationId = requestAnimationFrame(animate);
