@@ -5382,16 +5382,30 @@ export default function EditorPage() {
                   )}
                   {/* 选择项组件 */}
                   {el.type === 'choiceItem' && (() => {
-                    // 内框圆角匹配外层容器的圆角
+                    // 使用元素自身的背景色和边框设置
                     const outerRadius = el.borderRadius || 8;
+                    const bgColor = el.backgroundColor || '#6B21A8';
+                    const bgOpacity = el.backgroundOpacity ?? 1;
+                    const borderColor = el.borderColor || '#9333EA';
+                    const borderWidth = el.borderWidth ?? 2;
+                    
+                    // 计算背景色（带透明度）
+                    const actualBgColor = (() => {
+                      if (bgColor === 'transparent' || bgOpacity === 0) return 'transparent';
+                      if (bgOpacity === 1) return bgColor;
+                      return hexToRgba(bgColor, bgOpacity);
+                    })();
+                    
                     return (
                       <div 
-                        className={`w-full h-full flex items-center justify-center px-4 gap-2 transition-colors border-2 ${
-                          el.isSelected 
-                            ? 'bg-purple-500/30 border-purple-500' 
-                            : 'bg-white/10 hover:bg-white/20 border-white/30'
+                        className={`w-full h-full flex items-center justify-center px-4 gap-2 transition-colors ${
+                          el.isSelected ? 'bg-purple-500/30' : ''
                         }`}
-                        style={{ borderRadius: outerRadius }}
+                        style={{ 
+                          borderRadius: outerRadius,
+                          backgroundColor: el.isSelected ? undefined : actualBgColor,
+                          border: `${borderWidth}px solid ${el.isSelected ? '#9333EA' : borderColor}`,
+                        }}
                       >
                         <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${
                           el.isSelected 
