@@ -2633,7 +2633,7 @@ export default function EditorPage() {
   // 渲染动作配置界面
   const renderActionConfig = (eventIndex: number, action: EventAction) => {
     const currentScene = scenes.find(s => s.id === currentSceneId);
-    const availableElements = currentScene?.elements.filter(e => e.id !== selectedElement?.id) || [];
+    const availableElements = currentScene?.elements || [];
 
     switch (action.type) {
       case 'jumpScene':
@@ -7175,7 +7175,7 @@ export default function EditorPage() {
                                               <SelectValue placeholder="选择元素" />
                                             </SelectTrigger>
                                             <SelectContent className="bg-zinc-700 border-zinc-600">
-                                              {currentScene?.elements.filter(e => e.id !== displayElement.id).map(e => (
+                                              {currentScene?.elements.map(e => (
                                                 <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
                                               ))}
                                             </SelectContent>
@@ -8547,13 +8547,11 @@ export default function EditorPage() {
                                                 <SelectValue placeholder="选择元素" />
                                               </SelectTrigger>
                                               <SelectContent>
-                                                {currentScene?.elements
-                                                  .filter(e => e.id !== displayElement.id)
-                                                  .map(e => (
-                                                    <SelectItem key={e.id} value={e.id}>
-                                                      {e.name} ({e.type})
-                                                    </SelectItem>
-                                                  ))}
+                                                {currentScene?.elements.map(e => (
+                                                  <SelectItem key={e.id} value={e.id}>
+                                                    {e.name} ({e.type})
+                                                  </SelectItem>
+                                                ))}
                                               </SelectContent>
                                             </Select>
                                           )}
