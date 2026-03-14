@@ -6152,7 +6152,22 @@ export default function EditorPage() {
               
               {/* 帧率信息 */}
               <div className="flex items-center gap-2 text-xs text-zinc-500">
-                <span>帧: {Math.round((videoTimes[selectedElement.id]?.currentTime || 0) * (videoTimes[selectedElement.id]?.fps || 30))}</span>
+                <span>帧:</span>
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  className="h-5 w-14 bg-zinc-700 border-zinc-600 text-xs text-white px-1"
+                  value={Math.round((videoTimes[selectedElement.id]?.currentTime || 0) * (videoTimes[selectedElement.id]?.fps || 30))}
+                  onChange={(e) => {
+                    const frame = parseInt(e.target.value) || 0;
+                    const fps = videoTimes[selectedElement.id]?.fps || 30;
+                    const video = videoRefs.current.get(selectedElement.id);
+                    if (video) {
+                      video.currentTime = frame / fps;
+                    }
+                  }}
+                />
                 <span className="text-zinc-600">|</span>
                 <span>FPS: {videoTimes[selectedElement.id]?.fps || 30}</span>
                 <span className="text-zinc-600">|</span>
