@@ -1003,138 +1003,151 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
     
     const cleanupFns: (() => void)[] = [];
     
-    currentScene.elements.forEach(element => {
-      const path = element.path;
-      if (!path || !path.enabled || !path.autoPlay || path.points.length < 2) return;
-      
-      const delay = path.delay || 0;
-      const duration = path.duration || 3000;
-      const easing = path.easing || 'easeInOut';
-      const loopMode = path.loopMode || 'none';
-      
-      // 缓动函数
-      const easingFunctions: Record<string, (t: number) => number> = {
-        linear: (t) => t,
-        ease: (t) => t * t * (3 - 2 * t),
-        easeIn: (t) => t * t,
-        easeOut: (t) => t * (2 - t),
-        easeInOut: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
-      };
-      const easingFn = easingFunctions[easing] || easingFunctions.linear;
-      
-      // 三次贝塞尔曲线计算
-      const cubicBezier = (p0: number, p1: number, p2: number, p3: number, t: number): number => {
-        const mt = 1 - t;
-        return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3;
-      };
-      
-      const getPointOnPath = (progress: number, points: typeof path.points): { x: number; y: number } => {
-        if (points.length === 0) return { x: element.x, y: element.y };
-        if (points.length === 1) return { x: points[0].x, y: points[0].y };
+    // 延迟执行，确保 DOM 已渲染
+    const timeoutId = setTimeout(() => {
+      currentScene.elements.forEach(element => {
+        const path = element.path;
+        if (!path || !path.enabled || !path.autoPlay || path.points.length < 2) return;
         
-        const totalSegments = points.length - 1;
-        const segmentProgress = progress * totalSegments;
-        const segmentIndex = Math.min(Math.floor(segmentProgress), totalSegments - 1);
-        const t = segmentProgress - segmentIndex;
-        
-        const p0 = points[segmentIndex];
-        const p3 = points[segmentIndex + 1];
-        
-        // 自动计算控制点（如果未定义）
-        const autoControlOffset = 50;
-        const p1 = p0.controlOut 
-          ? { x: p0.x + p0.controlOut.x, y: p0.y + p0.controlOut.y }
-          : { x: p0.x + autoControlOffset, y: p0.y };
-        const p2 = p3.controlIn 
-          ? { x: p3.x + p3.controlIn.x, y: p3.y + p3.controlIn.y }
-          : { x: p3.x - autoControlOffset, y: p3.y };
-        
-        return {
-          x: cubicBezier(p0.x, p1.x, p2.x, p3.x, t),
-          y: cubicBezier(p0.y, p1.y, p2.y, p3.y, t),
-        };
-      };
-      
-      // 预计算所有路径点（60fps）
-      const totalFrames = Math.ceil(duration / 16.67);
-      const precomputedPoints: { x: number; y: number }[] = [];
-      for (let i = 0; i <= totalFrames; i++) {
-        const progress = i / totalFrames;
-        const easedProgress = easingFn(progress);
-        precomputedPoints.push(getPointOnPath(easedProgress, path.points));
-      }
-      
-      // 获取所有子元素
-      const allChildren = getAllChildren(element.id, currentScene.elements);
-      
-      const elementCenterX = element.x + element.width / 2;
-      const elementCenterY = element.y + element.height / 2;
-      
-      // 预先获取 DOM 元素引用
-      const elementDom = document.getElementById(`element-${element.id}`) as HTMLElement;
-      const childDoms = allChildren.map(child => document.getElementById(`element-${child.id}`) as HTMLElement).filter(Boolean);
-      
-      if (!elementDom) return;
-      
-      let animationId = 0;
-      let startTime = 0;
-      
-      const animate = (timestamp: number) => {
-        if (startTime === 0) {
-          startTime = timestamp + delay;
-        }
-        
-        const elapsed = timestamp - startTime;
-        
-        if (elapsed < 0) {
-          animationId = requestAnimationFrame(animate);
+        // 预先获取 DOM 元素
+        const elementDom = document.getElementById(`element-${element.id}`) as HTMLElement;
+        if (!elementDom) {
+          console.log('路径动画跳过 - 找不到元素:', element.id, element.name);
           return;
         }
         
-        let progress = elapsed / duration;
-        let finished = false;
+        const delay = path.delay || 0;
+        const duration = path.duration || 3000;
+        const easing = path.easing || 'easeInOut';
+        const loopMode = path.loopMode || 'none';
         
-        if (progress >= 1) {
-          if (loopMode === 'loop') {
-            progress = progress % 1;
-          } else if (loopMode === 'alternate') {
-            const loopCount = Math.floor(progress);
-            progress = loopCount % 2 === 0 ? progress % 1 : 1 - (progress % 1);
-          } else {
-            progress = 1;
-            finished = true;
+        // 缓动函数
+        const easingFunctions: Record<string, (t: number) => number> = {
+          linear: (t) => t,
+          ease: (t) => t * t * (3 - 2 * t),
+          easeIn: (t) => t * t,
+          easeOut: (t) => t * (2 - t),
+          easeInOut: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+        };
+        const easingFn = easingFunctions[easing] || easingFunctions.linear;
+        
+        // 三次贝塞尔曲线计算
+        const cubicBezier = (p0: number, p1: number, p2: number, p3: number, t: number): number => {
+          const mt = 1 - t;
+          return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3;
+        };
+        
+        const getPointOnPath = (progress: number, points: typeof path.points): { x: number; y: number } => {
+          if (points.length === 0) return { x: element.x, y: element.y };
+          if (points.length === 1) return { x: points[0].x, y: points[0].y };
+          
+          const totalSegments = points.length - 1;
+          const segmentProgress = progress * totalSegments;
+          const segmentIndex = Math.min(Math.floor(segmentProgress), totalSegments - 1);
+          const t = segmentProgress - segmentIndex;
+          
+          const p0 = points[segmentIndex];
+          const p3 = points[segmentIndex + 1];
+          
+          // 自动计算控制点（如果未定义）
+          const autoControlOffset = 50;
+          const p1 = p0.controlOut 
+            ? { x: p0.x + p0.controlOut.x, y: p0.y + p0.controlOut.y }
+            : { x: p0.x + autoControlOffset, y: p0.y };
+          const p2 = p3.controlIn 
+            ? { x: p3.x + p3.controlIn.x, y: p3.y + p3.controlIn.y }
+            : { x: p3.x - autoControlOffset, y: p3.y };
+          
+          return {
+            x: cubicBezier(p0.x, p1.x, p2.x, p3.x, t),
+            y: cubicBezier(p0.y, p1.y, p2.y, p3.y, t),
+          };
+        };
+        
+        // 预计算所有路径点（60fps）
+        const totalFrames = Math.ceil(duration / 16.67);
+        const precomputedPoints: { x: number; y: number }[] = [];
+        for (let i = 0; i <= totalFrames; i++) {
+          const progress = i / totalFrames;
+          const easedProgress = easingFn(progress);
+          precomputedPoints.push(getPointOnPath(easedProgress, path.points));
+        }
+        
+        // 获取所有子元素
+        const allChildren = getAllChildren(element.id, currentScene.elements);
+        const childDoms = allChildren.map(child => document.getElementById(`element-${child.id}`) as HTMLElement).filter(Boolean);
+        
+        const elementCenterX = element.x + element.width / 2;
+        const elementCenterY = element.y + element.height / 2;
+        
+        // 保存原始 transform（rotation 和 scale）
+        const originalTransform = elementDom.style.transform || '';
+        const childOriginalTransforms = childDoms.map(dom => dom.style.transform || '');
+        
+        let animationId = 0;
+        let startTime = 0;
+        
+        const animate = (timestamp: number) => {
+          if (startTime === 0) {
+            startTime = timestamp + delay;
           }
-        }
+          
+          const elapsed = timestamp - startTime;
+          
+          if (elapsed < 0) {
+            animationId = requestAnimationFrame(animate);
+            return;
+          }
+          
+          let progress = elapsed / duration;
+          let finished = false;
+          
+          if (progress >= 1) {
+            if (loopMode === 'loop') {
+              progress = progress % 1;
+            } else if (loopMode === 'alternate') {
+              const loopCount = Math.floor(progress);
+              progress = loopCount % 2 === 0 ? progress % 1 : 1 - (progress % 1);
+            } else {
+              progress = 1;
+              finished = true;
+            }
+          }
+          
+          // 使用预计算的路径点
+          let currentFrame = Math.floor(progress * totalFrames);
+          if (currentFrame > totalFrames) currentFrame = totalFrames;
+          
+          const pos = precomputedPoints[currentFrame];
+          
+          // 计算位移
+          const deltaX = pos.x - elementCenterX;
+          const deltaY = pos.y - elementCenterY;
+          
+          // 组合 transform：translate + 原始的 rotation/scale
+          elementDom.style.transform = `translate(${deltaX}px, ${deltaY}px) ${originalTransform}`;
+          
+          // 移动子元素
+          childDoms.forEach((childDom, index) => {
+            childDom.style.transform = `translate(${deltaX}px, ${deltaY}px) ${childOriginalTransforms[index]}`;
+          });
+          
+          if (!finished) {
+            animationId = requestAnimationFrame(animate);
+          }
+        };
         
-        // 使用预计算的路径点
-        let currentFrame = Math.floor(progress * totalFrames);
-        if (currentFrame > totalFrames) currentFrame = totalFrames;
+        animationId = requestAnimationFrame(animate);
         
-        const pos = precomputedPoints[currentFrame];
-        
-        // 计算位移
-        const deltaX = pos.x - elementCenterX;
-        const deltaY = pos.y - elementCenterY;
-        
-        // 直接操作 DOM 移动元素（使用 transform 性能更好）
-        elementDom.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-        
-        // 移动子元素
-        for (const childDom of childDoms) {
-          childDom.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-        }
-        
-        if (!finished) {
-          animationId = requestAnimationFrame(animate);
-        }
-      };
-      
-      animationId = requestAnimationFrame(animate);
-      
-      cleanupFns.push(() => {
-        cancelAnimationFrame(animationId);
-        pathAnimationRefs.current.delete(element.id);
+        cleanupFns.push(() => {
+          cancelAnimationFrame(animationId);
+          pathAnimationRefs.current.delete(element.id);
+        });
       });
+    }, 100); // 延迟 100ms 等待 DOM 渲染
+    
+    cleanupFns.push(() => {
+      clearTimeout(timeoutId);
     });
     
     return () => {
