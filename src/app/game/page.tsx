@@ -1658,7 +1658,7 @@ function GamePageContent() {
                 top: `${((el.y - offsetY) / canvasH) * 100}%`,
                 width: `${(el.width / canvasW) * 100}%`,
                 height: `${(el.height / canvasH) * 100}%`,
-                backgroundColor: ['video', 'image', 'healthBar', 'choiceItem'].includes(el.type) ? 'transparent' : 
+                backgroundColor: ['video', 'image', 'choiceItem'].includes(el.type) ? 'transparent' : 
                   (el.backgroundColor === '#FFFFFF' || el.backgroundColor === '#ffffff' || el.backgroundColor === 'white' || el.backgroundColor === '#fff' 
                     ? '#6B21A8' // 白色背景强制改为深紫色
                     : (el.backgroundColor || '#6B21A8')),
@@ -1849,10 +1849,10 @@ function GamePageContent() {
               })()}
               {/* 血条组件 */}
               {el.type === 'healthBar' && (
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '0 8px' }}>
+                <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', alignItems: 'center', gap: '8px', padding: '0 8px' }}>
                   {/* 血条背景 */}
                   <div 
-                    style={{ flex: 1, height: '100%', backgroundColor: el.healthBarBgColor || '#374151', borderRadius: 4, overflow: 'hidden', position: 'relative' }}
+                    style={{ flex: 1, height: '100%', minHeight: '4px', backgroundColor: el.healthBarBgColor || '#374151', borderRadius: 4, overflow: 'hidden', position: 'relative' }}
                   >
                     {/* 当前血量 */}
                     <div
