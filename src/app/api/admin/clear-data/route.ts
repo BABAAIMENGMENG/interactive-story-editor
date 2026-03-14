@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
-const supabaseUrl = process.env.COZE_SUPABASE_URL!;
-const supabaseServiceKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
-
 export async function POST(request: Request) {
   try {
+    // 在函数内部读取环境变量
+    const supabaseUrl = process.env.COZE_SUPABASE_URL;
+    const supabaseServiceKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
+
     const body = await request.json();
     const { confirmText } = body;
 
@@ -17,12 +18,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // 检查是否配置了 Service Role Key
-    if (!supabaseServiceKey) {
+    // 检查环境变量
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('环境变量缺失:', { 
+        hasUrl: !!supabaseUrl, 
+        hasKey: !!supabaseServiceKey 
+      });
       return NextResponse.json({
         success: false,
-        message: '未配置 Supabase Service Role Key',
-        error: 'SERVICE_ROLE_KEY_NOT_CONFIGURED',
+        message: '数据库配置缺失，请检查环境变量',
+        error: 'CONFIG_MISSING',
       }, { status: 500 });
     }
 
@@ -48,22 +53,15 @@ export async function POST(request: Request) {
 
     for (const table of tables) {
       try {
-        // 使用 RPC 调用 TRUNCATE（更可靠）
-        const { error } = await supabase.rpc('truncate_table', { table_name: table });
+        // 尝试普通删除
+        const { error: deleteError } = await supabase
+          .from(table)
+          .delete()
+          .gt('created_at', '1970-01-01'); // 删除所有记录
         
-        if (error) {
-          // 如果 RPC 不存在，尝试普通删除
-          const { error: deleteError } = await supabase
-            .from(table)
-            .delete()
-            .gt('created_at', '1970-01-01'); // 删除所有记录
-          
-          if (deleteError) {
-            console.error(`清空表 ${table} 失败:`, deleteError);
-            results.push({ table, success: false, error: deleteError.message });
-          } else {
-            results.push({ table, success: true });
-          }
+        if (deleteError) {
+          console.error(`清空表 ${table} 失败:`, deleteError);
+          results.push({ table, success: false, error: deleteError.message });
         } else {
           results.push({ table, success: true });
         }
@@ -85,7 +83,7 @@ export async function POST(request: Request) {
     } else {
       return NextResponse.json({
         success: false,
-        message: `清空失败: ${failedTables.map(t => t.table).join(', ')}`,
+        message: `清空失败: ${failedTables.map(t => `${t.table}: ${t.error}`).join(', ')}`,
         results,
       }, { status: 500 });
     }
