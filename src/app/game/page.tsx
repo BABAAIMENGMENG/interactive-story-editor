@@ -319,7 +319,8 @@ function VideoElement({
   const videoRef = useRef<HTMLVideoElement>(null);
   const triggeredRef = useRef<Set<string>>(new Set()); // 记录已触发的触发器
   
-  // playOnVisible 默认为 true（显示即播放）
+  // playOnVisible: 调用方已做转换 playOnVisible={el.playOnVisible !== false}
+  // 所以传入的是布尔值：true（播放）或 false（不播放）
   const shouldAutoplay = playOnVisible !== false;
   const shouldLoop = loop === true;
   // 尊重元素的 muted 设置：
@@ -333,6 +334,9 @@ function VideoElement({
 
   // 组件挂载后根据 playOnVisible 设置决定是否自动播放
   useEffect(() => {
+    // 调试日志
+    console.log('VideoElement: playOnVisible=', playOnVisible, ', shouldAutoplay=', shouldAutoplay);
+    
     // 如果 playOnVisible 为 false，不自动播放
     if (!shouldAutoplay) {
       console.log('VideoElement: playOnVisible 为 false，不自动播放');
