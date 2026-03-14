@@ -560,6 +560,14 @@ const executeActions = async (
         const pathElement = context.elements.find(el => el.id === config.targetElementId || el.id === config.elementId);
         const animation = pathElement?.pathAnimations?.find(a => a.id === config.pathAnimationId);
         if (pathElement && animation && animation.pathPoints.length >= 2) {
+          // 记录父元素和所有子元素的初始位置
+          const allChildren = getAllChildren(pathElement.id, context.elements);
+          const initialPositions = new Map<string, { x: number; y: number }>();
+          initialPositions.set(pathElement.id, { x: pathElement.x, y: pathElement.y });
+          allChildren.forEach(child => {
+            initialPositions.set(child.id, { x: child.x, y: child.y });
+          });
+          
           // 使用 requestAnimationFrame 实现路径动画
           const startTime = Date.now() + animation.delay;
           const duration = animation.duration;
@@ -715,20 +723,18 @@ const executeActions = async (
                 progress = 1;
                 // 动画结束，设置到终点
                 const finalPoint = points[points.length - 1];
-                const deltaX = finalPoint.x - pathElement.x;
-                const deltaY = finalPoint.y - pathElement.y;
-                const allChildren = getAllChildren(pathElement.id, context.elements);
+                const parentInitialPos = initialPositions.get(pathElement.id)!;
+                const deltaX = finalPoint.x - parentInitialPos.x;
+                const deltaY = finalPoint.y - parentInitialPos.y;
                 
                 if (context.setScenes) {
                   context.setScenes(prev => prev.map(scene => ({
                     ...scene,
                     elements: scene.elements.map(el => {
-                      if (el.id === pathElement.id) {
-                        return { ...el, x: finalPoint.x, y: finalPoint.y };
-                      }
-                      // 如果是子元素，也移动相同的增量
-                      if (allChildren.some(child => child.id === el.id)) {
-                        return { ...el, x: el.x + deltaX, y: el.y + deltaY };
+                      const initialPos = initialPositions.get(el.id);
+                      if (initialPos) {
+                        // 基于初始位置 + 偏移量计算最终位置
+                        return { ...el, x: initialPos.x + deltaX, y: initialPos.y + deltaY };
                       }
                       return el;
                     })
@@ -758,24 +764,20 @@ const executeActions = async (
             // 计算当前位置
             const pos = getPointOnPath(easedProgress);
             
-            // 计算移动增量
-            const deltaX = pos.x - pathElement.x;
-            const deltaY = pos.y - pathElement.y;
-            
-            // 获取所有子元素
-            const allChildren = getAllChildren(pathElement.id, context.elements);
+            // 基于初始位置计算偏移量
+            const parentInitialPos = initialPositions.get(pathElement.id)!;
+            const deltaX = pos.x - parentInitialPos.x;
+            const deltaY = pos.y - parentInitialPos.y;
             
             // 更新元素位置（包括子元素）
             if (context.setScenes) {
               context.setScenes(prev => prev.map(scene => ({
                 ...scene,
                 elements: scene.elements.map(el => {
-                  if (el.id === pathElement.id) {
-                    return { ...el, x: pos.x, y: pos.y };
-                  }
-                  // 如果是子元素，也移动相同的增量
-                  if (allChildren.some(child => child.id === el.id)) {
-                    return { ...el, x: el.x + deltaX, y: el.y + deltaY };
+                  const initialPos = initialPositions.get(el.id);
+                  if (initialPos) {
+                    // 基于初始位置 + 偏移量计算新位置
+                    return { ...el, x: initialPos.x + deltaX, y: initialPos.y + deltaY };
                   }
                   return el;
                 })
