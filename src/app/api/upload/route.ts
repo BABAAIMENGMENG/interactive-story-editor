@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { S3Storage } from 'coze-coding-dev-sdk';
 
 /**
- * 上传文件到 Supabase Storage
+ * 上传文件到对象存储
  * POST /api/upload
  */
 export async function POST(request: NextRequest) {
@@ -20,15 +20,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '文件大小不能超过 100MB' }, { status: 400 });
     }
 
-    // 初始化 Supabase 客户端
-    const supabaseUrl = process.env.COZE_SUPABASE_URL!;
-    const supabaseKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || process.env.COZE_SUPABASE_ANON_KEY!;
-    
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
+    // 初始化 S3Storage
+    const storage = new S3Storage({
+      endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
+      accessKey: "",
+      secretKey: "",
+      bucketName: process.env.COZE_BUCKET_NAME,
+      region: "cn-beijing",
     });
 
     // 读取文件内容
@@ -37,39 +35,40 @@ export async function POST(request: NextRequest) {
 
     // 生成文件名（使用时间戳避免重复）
     const timestamp = Date.now();
-    const ext = file.name.split('.').pop() || 'jpg';
-    const fileName = `uploads/${timestamp}_${Math.random().toString(36).substring(7)}.${ext}`;
+    const ext = file.name.split('.').pop() || 'bin';
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fileName = `uploads/${timestamp}_${safeName}`;
 
-    // 上传到 Supabase Storage (使用 media 存储桶)
-    const { data, error } = await supabase.storage
-      .from('media')
-      .upload(fileName, fileBuffer, {
-        contentType: file.type,
-        upsert: true,
-      });
+    console.log('[Upload] 开始上传文件:', fileName, '大小:', (file.size / 1024 / 1024).toFixed(2), 'MB');
 
-    if (error) {
-      console.error('上传到 Supabase Storage 失败:', error);
-      return NextResponse.json(
-        { error: '上传失败: ' + error.message },
-        { status: 500 }
-      );
-    }
+    // 上传到对象存储（使用返回的 key）
+    const fileKey = await storage.uploadFile({
+      fileContent: fileBuffer,
+      fileName: fileName,
+      contentType: file.type || 'application/octet-stream',
+    });
 
-    // 获取公开 URL
-    const { data: urlData } = supabase.storage
-      .from('media')
-      .getPublicUrl(data.path);
+    console.log('[Upload] 上传成功, key:', fileKey);
+
+    // 生成签名 URL（有效期 30 天）
+    const url = await storage.generatePresignedUrl({
+      key: fileKey,
+      expireTime: 2592000, // 30 天
+    });
+
+    console.log('[Upload] 生成访问 URL 成功');
 
     return NextResponse.json({
       success: true,
-      url: urlData.publicUrl,
-      key: data.path,
+      url: url,
+      key: fileKey,
+      name: file.name,
+      size: file.size,
     });
   } catch (error) {
-    console.error('上传文件失败:', error);
+    console.error('[Upload] 上传文件失败:', error);
     return NextResponse.json(
-      { error: '上传失败，请重试' },
+      { error: '上传失败: ' + (error instanceof Error ? error.message : '未知错误') },
       { status: 500 }
     );
   }
