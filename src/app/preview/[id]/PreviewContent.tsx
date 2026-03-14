@@ -285,8 +285,22 @@ interface Element {
   // 选择项属性
   isSelected?: boolean;       // 选中状态
   clickActions?: any[]; // 点击时触发的动作序列
-  // 路径动画
+  // 路径动画（新版）
+  path?: ElementPath;
+  // 路径动画（旧版，向后兼容）
   pathAnimations?: PathAnimation[];
+}
+
+// 元素路径配置（新版）
+interface ElementPath {
+  points: PathPoint[];
+  enabled: boolean;
+  duration: number;
+  easing: 'linear' | 'ease' | 'easeIn' | 'easeOut' | 'easeInOut';
+  loopMode: 'none' | 'loop' | 'alternate';
+  autoPlay: boolean;
+  delay: number;
+  orientToPath?: boolean;
 }
 
 // 血量阈值触发器
@@ -835,9 +849,164 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
   
   const sceneContainerRef = useRef<HTMLDivElement>(null);
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+  // 路径动画状态
+  const pathAnimationRefs = useRef<Map<string, { animationFrame: number; startTime: number }>>(new Map());
 
   // 当前场景
   const currentScene = scenes.find(s => s.id === currentSceneId);
+  
+  // 自动播放路径动画
+  useEffect(() => {
+    if (!currentScene) return;
+    
+    const cleanupFns: (() => void)[] = [];
+    
+    currentScene.elements.forEach(element => {
+      const path = element.path;
+      if (!path || !path.enabled || !path.autoPlay || path.points.length < 2) return;
+      
+      const delay = path.delay || 0;
+      const duration = path.duration || 3000;
+      const easing = path.easing || 'easeInOut';
+      const loopMode = path.loopMode || 'none';
+      
+      // 缓动函数
+      const easingFunctions: Record<string, (t: number) => number> = {
+        linear: (t) => t,
+        ease: (t) => t * t * (3 - 2 * t),
+        easeIn: (t) => t * t,
+        easeOut: (t) => t * (2 - t),
+        easeInOut: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+      };
+      const easingFn = easingFunctions[easing] || easingFunctions.linear;
+      
+      // 三次贝塞尔曲线计算
+      const cubicBezier = (p0: number, p1: number, p2: number, p3: number, t: number): number => {
+        const mt = 1 - t;
+        return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3;
+      };
+      
+      const getPointOnPath = (progress: number): { x: number; y: number } => {
+        const points = path.points;
+        if (points.length === 0) return { x: element.x, y: element.y };
+        if (points.length === 1) return { x: points[0].x, y: points[0].y };
+        
+        const totalSegments = points.length - 1;
+        const segmentProgress = progress * totalSegments;
+        const segmentIndex = Math.min(Math.floor(segmentProgress), totalSegments - 1);
+        const t = segmentProgress - segmentIndex;
+        
+        const p0 = points[segmentIndex];
+        const p3 = points[segmentIndex + 1];
+        
+        // 自动计算控制点（如果未定义）
+        const autoControlOffset = 50;
+        const p1 = p0.controlOut 
+          ? { x: p0.x + p0.controlOut.x, y: p0.y + p0.controlOut.y }
+          : { x: p0.x + autoControlOffset, y: p0.y };
+        const p2 = p3.controlIn 
+          ? { x: p3.x + p3.controlIn.x, y: p3.y + p3.controlIn.y }
+          : { x: p3.x - autoControlOffset, y: p3.y };
+        
+        return {
+          x: cubicBezier(p0.x, p1.x, p2.x, p3.x, t),
+          y: cubicBezier(p0.y, p1.y, p2.y, p3.y, t),
+        };
+      };
+      
+      // 获取所有子元素
+      const allChildren = getAllChildren(element.id, currentScene.elements);
+      const initialPositions = new Map<string, { x: number; y: number }>();
+      initialPositions.set(element.id, { x: element.x, y: element.y });
+      allChildren.forEach(child => {
+        initialPositions.set(child.id, { x: child.x, y: child.y });
+      });
+      
+      const elementCenterX = element.x + element.width / 2;
+      const elementCenterY = element.y + element.height / 2;
+      
+      let animationStarted = false;
+      let animationId = 0;
+      
+      const animate = () => {
+        const now = Date.now();
+        
+        if (!animationStarted) {
+          animationStarted = true;
+          pathAnimationRefs.current.set(element.id, { animationFrame: animationId, startTime: now });
+        }
+        
+        const ref = pathAnimationRefs.current.get(element.id);
+        if (!ref) return;
+        
+        const elapsed = now - ref.startTime - delay;
+        
+        if (elapsed < 0) {
+          animationId = requestAnimationFrame(animate);
+          return;
+        }
+        
+        let progress = elapsed / duration;
+        let finished = false;
+        
+        if (progress >= 1) {
+          if (loopMode === 'loop') {
+            progress = progress % 1;
+          } else if (loopMode === 'alternate') {
+            const loopCount = Math.floor(progress);
+            progress = loopCount % 2 === 0 ? progress % 1 : 1 - (progress % 1);
+          } else {
+            progress = 1;
+            finished = true;
+          }
+        }
+        
+        const easedProgress = easingFn(progress);
+        const pos = getPointOnPath(easedProgress);
+        
+        // 计算位移
+        const deltaX = pos.x - elementCenterX;
+        const deltaY = pos.y - elementCenterY;
+        
+        // 更新元素位置
+        setScenes(prev => prev.map(scene => {
+          if (scene.id !== currentSceneId) return scene;
+          return {
+            ...scene,
+            elements: scene.elements.map(el => {
+              if (el.id === element.id) {
+                const initial = initialPositions.get(el.id);
+                if (!initial) return el;
+                return { ...el, x: initial.x + deltaX, y: initial.y + deltaY };
+              }
+              // 移动子元素
+              if (allChildren.some(c => c.id === el.id)) {
+                const initial = initialPositions.get(el.id);
+                if (!initial) return el;
+                return { ...el, x: initial.x + deltaX, y: initial.y + deltaY };
+              }
+              return el;
+            })
+          };
+        }));
+        
+        if (!finished) {
+          animationId = requestAnimationFrame(animate);
+        }
+      };
+      
+      animationId = requestAnimationFrame(animate);
+      
+      cleanupFns.push(() => {
+        cancelAnimationFrame(animationId);
+        pathAnimationRefs.current.delete(element.id);
+      });
+    });
+    
+    return () => {
+      cleanupFns.forEach(fn => fn());
+    };
+  }, [currentSceneId, currentScene?.id]); // 依赖场景ID，场景切换时重新运行
 
   // 加载项目数据
   useEffect(() => {
