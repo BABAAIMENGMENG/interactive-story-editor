@@ -892,6 +892,8 @@ export default function EditorPage() {
   // 视频播放状态
   const [playingVideos, setPlayingVideos] = useState<Set<string>>(new Set());
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+  // 视频时间状态 { elementId: { currentTime, duration } }
+  const [videoTimes, setVideoTimes] = useState<Record<string, { currentTime: number; duration: number }>>({});
 
   // 编辑模式：2D或3D
   const [editorMode, setEditorMode] = useState<'2d' | '3d'>('2d');
@@ -900,6 +902,14 @@ export default function EditorPage() {
   const [isHotspotMode, setIsHotspotMode] = useState(false);
 
   // 生成ID
+  // 格式化时间（秒 -> MM:SS）
+  const formatTime = (seconds: number): string => {
+    if (!seconds || isNaN(seconds)) return '00:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const genId = () => `el-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   // 添加元素
@@ -5193,8 +5203,23 @@ export default function EditorPage() {
                           onError={(e) => {
                             console.warn('[编辑器] 视频资源无法加载:', el.src?.substring(0, 50) + '...');
                           }}
-                          onLoadedData={() => {
-                            console.log('[编辑器] 视频加载成功:', el.name);
+                          onLoadedData={(e) => {
+                            const video = e.currentTarget;
+                            console.log('[编辑器] 视频加载成功:', el.name, '时长:', video.duration);
+                            setVideoTimes(prev => ({
+                              ...prev,
+                              [el.id]: { currentTime: video.currentTime, duration: video.duration }
+                            }));
+                          }}
+                          onTimeUpdate={(e) => {
+                            const video = e.currentTarget;
+                            setVideoTimes(prev => ({
+                              ...prev,
+                              [el.id]: { 
+                                currentTime: video.currentTime, 
+                                duration: prev[el.id]?.duration || video.duration 
+                              }
+                            }));
                           }}
                           onPlay={() => {
                             setPlayingVideos(prev => new Set(prev).add(el.id));
@@ -5209,6 +5234,68 @@ export default function EditorPage() {
                         />
                       );
                     })()
+                  )}
+                  {/* 视频时间线 - 仅在视频元素被选中时显示 */}
+                  {el.type === 'video' && selectedElement?.id === el.id && videoTimes[el.id] && (
+                    <div 
+                      className="absolute bottom-0 left-0 right-0 bg-black/70 px-2 py-1 flex items-center gap-2"
+                      style={{ height: '24px' }}
+                    >
+                      {/* 播放/暂停按钮 */}
+                      <button
+                        className="text-white hover:text-purple-400 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const video = videoRefs.current.get(el.id);
+                          if (video) {
+                            if (video.paused) {
+                              video.play();
+                            } else {
+                              video.pause();
+                            }
+                          }
+                        }}
+                      >
+                        {playingVideos.has(el.id) ? (
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                            <rect x="6" y="4" width="4" height="16" />
+                            <rect x="14" y="4" width="4" height="16" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                            <polygon points="5,3 19,12 5,21" />
+                          </svg>
+                        )}
+                      </button>
+                      {/* 当前时间 */}
+                      <span className="text-[10px] text-white font-mono min-w-[36px]">
+                        {formatTime(videoTimes[el.id].currentTime)}
+                      </span>
+                      {/* 进度条 */}
+                      <div 
+                        className="flex-1 h-1 bg-zinc-600 rounded cursor-pointer relative"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const video = videoRefs.current.get(el.id);
+                          if (video && videoTimes[el.id].duration > 0) {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const percent = (e.clientX - rect.left) / rect.width;
+                            video.currentTime = percent * videoTimes[el.id].duration;
+                          }
+                        }}
+                      >
+                        <div 
+                          className="absolute left-0 top-0 h-full bg-purple-500 rounded"
+                          style={{ 
+                            width: `${(videoTimes[el.id].currentTime / videoTimes[el.id].duration) * 100}%` 
+                          }}
+                        />
+                      </div>
+                      {/* 总时长 */}
+                      <span className="text-[10px] text-zinc-400 font-mono min-w-[36px]">
+                        {formatTime(videoTimes[el.id].duration)}
+                      </span>
+                    </div>
                   )}
                   {/* 音频 - 编辑模式下显示透明标签 */}
                   {el.type === 'audio' && (
