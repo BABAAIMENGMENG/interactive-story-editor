@@ -110,7 +110,9 @@ export default function DashboardPage() {
         fetchCloudProjects();
         fetchBeansBalance();
       } else {
-        fetchLocalProjects();
+        // 未登录时清空项目列表，引导用户登录
+        setProjects([]);
+        setIsLoadingProjects(false);
       }
     }
   }, [isLoading, isAuthenticated]);
@@ -503,31 +505,23 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* 未登录提示 - 本地存储模式 */}
+        {/* 未登录提示 */}
         {!isAuthenticated && (
-          <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 border border-blue-500/30 rounded-lg p-3 mb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Database className="w-4 h-4 text-blue-400" />
-                <div>
-                  <p className="text-white font-medium text-xs">本地存储模式</p>
-                  <p className="text-zinc-300 text-[10px]">
-                    项目和媒体文件保存在本地浏览器，支持大容量存储
-                    {storageInfo.quota > 0 && (
-                      <span className="ml-1 text-blue-400">
-                        (已用 {indexedDBStorage.formatBytes(storageInfo.usage)} / 可用 {indexedDBStorage.formatBytes(storageInfo.quota)})
-                      </span>
-                    )}
-                  </p>
-                </div>
+          <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 border border-blue-500/30 rounded-lg p-4 mb-4 text-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-12 h-12 bg-purple-600/30 rounded-full flex items-center justify-center">
+                <User className="w-6 h-6 text-purple-400" />
+              </div>
+              <div>
+                <p className="text-white font-medium text-sm mb-1">请先登录</p>
+                <p className="text-zinc-400 text-xs">登录后可查看和管理您的项目</p>
               </div>
               <Link href="/auth">
                 <Button
                   size="sm"
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white h-7 text-xs"
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
                 >
-                  <Cloud className="w-3 h-3 mr-1" />
-                  登录同步
+                  登录 / 注册
                 </Button>
               </Link>
             </div>
@@ -535,39 +529,43 @@ export default function DashboardPage() {
         )}
 
         {/* 欢迎区域 */}
-        <div className="mb-4">
-          <h1 className="text-lg font-bold text-white mb-0.5">
-            {isAuthenticated ? `你好，${user?.name}` : '我的项目'}
-          </h1>
-          <p className="text-zinc-400 text-xs">
-            {isAuthenticated ? '管理你的互动项目，创建沉浸式体验' : '管理本地项目，创建沉浸式互动体验'}
-          </p>
-        </div>
+        {isAuthenticated && (
+          <div className="mb-4">
+            <h1 className="text-lg font-bold text-white mb-0.5">
+              你好，{user?.name}
+            </h1>
+            <p className="text-zinc-400 text-xs">
+              管理你的互动项目，创建沉浸式体验
+            </p>
+          </div>
+        )}
 
         {/* 操作栏 */}
-        <div className="flex flex-col sm:flex-row gap-2 mb-4">
-          {/* 搜索框 */}
-          <div className="relative flex-1">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
-            <Input
-              type="text"
-              placeholder="搜索项目..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-7 bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 h-7 text-xs"
-            />
-          </div>
+        {isAuthenticated && (
+          <div className="flex flex-col sm:flex-row gap-2 mb-4">
+            {/* 搜索框 */}
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+              <Input
+                type="text"
+                placeholder="搜索项目..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-7 bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 h-7 text-xs"
+              />
+            </div>
 
-          {/* 新建项目按钮 */}
-          <Button
-            size="sm"
-            onClick={() => setShowNewProjectDialog(true)}
-            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white h-7 text-xs"
-          >
-            <Plus className="w-3.5 h-3.5 mr-1" />
-            新建项目
-          </Button>
-        </div>
+            {/* 新建项目按钮 */}
+            <Button
+              size="sm"
+              onClick={() => setShowNewProjectDialog(true)}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white h-7 text-xs"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1" />
+              新建项目
+            </Button>
+          </div>
+        )}
 
         {/* 使用量提示 */}
         {isAuthenticated && user?.subscriptionTier === 'free' && (
