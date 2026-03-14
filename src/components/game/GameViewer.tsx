@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import TransparentVideo from '@/components/ui/transparent-video';
-import { Check, Heart } from 'lucide-react';
+import { Check, Heart, Palette } from 'lucide-react';
 
 // 辅助函数：将十六进制颜色转换为 rgba
 function hexToRgba(hex: string, alpha: number): string {
@@ -81,6 +81,9 @@ export function GameViewer({
   // 血条状态管理 - 存储每个血条的当前血量
   const [healthValues, setHealthValues] = useState<Record<string, number>>({});
   
+  // 血条颜色状态管理 - 存储每个血条的当前颜色
+  const [healthBarColors, setHealthBarColors] = useState<Record<string, string>>({});
+  
   // 反馈消息
   const [feedbackMessage, setFeedbackMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -89,14 +92,17 @@ export function GameViewer({
   // 初始化血条状态
   useEffect(() => {
     const initialHealth: Record<string, number> = {};
+    const initialColors: Record<string, string> = {};
     scenes.forEach(scene => {
       scene.elements?.forEach((element: any) => {
         if (element.type === 'healthBar') {
           initialHealth[element.id] = element.healthValue ?? element.maxHealth ?? 100;
+          initialColors[element.id] = element.healthBarColor || '#22C55E';
         }
       });
     });
     setHealthValues(initialHealth);
+    setHealthBarColors(initialColors);
   }, [scenes]);
 
   // 处理场景切换
@@ -192,6 +198,16 @@ export function GameViewer({
       }
     }
   }, [handleChoiceClick, executeActions]);
+
+  // 处理颜色选择器点击
+  const handleColorPickerClick = useCallback((colorPicker: any, color: string) => {
+    if (colorPicker.targetHealthBarId) {
+      setHealthBarColors(prev => ({
+        ...prev,
+        [colorPicker.targetHealthBarId]: color,
+      }));
+    }
+  }, []);
 
   // 计算缩放比例
   useEffect(() => {
@@ -414,9 +430,11 @@ export function GameViewer({
                 const maxHealth = element.maxHealth ?? 100;
                 const healthPercent = (currentHealth / maxHealth) * 100;
                 const isLowHealth = healthPercent <= (element.lowHealthThreshold ?? 30);
+                // 使用动态颜色（玩家选择的）或原始配置的颜色
+                const dynamicColor = healthBarColors[element.id] || element.healthBarColor || '#22C55E';
                 const barColor = isLowHealth 
                   ? (element.lowHealthColor || '#EF4444') 
-                  : (element.healthBarColor || '#22C55E');
+                  : dynamicColor;
                 const scale = canvasWidth / 1920; // 缩放比例
                 
                 return (
@@ -505,6 +523,30 @@ export function GameViewer({
                       {element.content || '选项文字'}
                     </span>
                   </button>
+                );
+              })()}
+
+              {/* 颜色选择器 */}
+              {element.type === 'colorPicker' && (() => {
+                const scale = canvasWidth / 1920;
+                const colors = element.colorOptions || ['#22C55E', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+                return (
+                  <div className="w-full h-full flex items-center justify-center gap-2 px-2">
+                    {colors.map((color: string, idx: number) => (
+                      <button
+                        key={idx}
+                        className="rounded-full border-2 border-white/50 cursor-pointer hover:scale-110 transition-transform active:scale-95"
+                        style={{ 
+                          width: `${24 * scale}px`, 
+                          height: `${24 * scale}px`,
+                          backgroundColor: color,
+                          borderWidth: `${2 * scale}px`,
+                        }}
+                        onClick={() => handleColorPickerClick(element, color)}
+                        title={`选择颜色 ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
                 );
               })()}
             </div>

@@ -177,7 +177,7 @@ function getAnimationStyle(element: any, isPreviewing: boolean): React.CSSProper
 // 元素类型
 type ElementType = 
   | 'button' | 'text' | 'image' | 'hotspot' | 'panel' | 'video' | 'audio'
-  | 'divider' | 'tooltip' | 'label' | 'healthBar' | 'choiceItem';
+  | 'divider' | 'tooltip' | 'label' | 'healthBar' | 'choiceItem' | 'colorPicker';
 
 // 标签子类型
 type LabelSubType = 
@@ -488,6 +488,8 @@ interface CanvasElement {
   targetHealthBarId?: string; // 关联的血条ID
   healthChangeOnCorrect?: number; // 答对加血量
   healthChangeOnWrong?: number;   // 答错减血量
+  // 颜色选择器特有属性
+  colorOptions?: string[];        // 可选颜色列表
   // children 通过计算得出，不需要存储
 }
 
@@ -532,6 +534,7 @@ const elementIcons: Record<ElementType, React.ReactNode> = {
   label: <Tag className="w-5 h-5" />,
   healthBar: <Heart className="w-5 h-5" />,
   choiceItem: <Check className="w-5 h-5" />,
+  colorPicker: <Palette className="w-5 h-5" />,
 };
 
 // 标签子类型图标
@@ -582,6 +585,7 @@ const elementNames: Record<ElementType, string> = {
   label: '标签',
   healthBar: '血条',
   choiceItem: '选择项',
+  colorPicker: '颜色选择器',
 };
 
 // 元素默认值
@@ -653,6 +657,8 @@ const defaultElement = {
   targetHealthBarId: '',
   healthChangeOnCorrect: 0,
   healthChangeOnWrong: 0,
+  // 颜色选择器默认属性
+  colorOptions: ['#22C55E', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'],
 };
 
 export default function EditorPage() {
@@ -857,6 +863,7 @@ export default function EditorPage() {
       label: { w: 120, h: 36 },
       healthBar: { w: 200, h: 30 },
       choiceItem: { w: 280, h: 50 },
+      colorPicker: { w: 240, h: 40 },
     };
 
     // 文本元素默认无边框、透明背景
@@ -906,6 +913,7 @@ export default function EditorPage() {
       label: { w: 120, h: 36 },
       healthBar: { w: 200, h: 30 },
       choiceItem: { w: 280, h: 50 },
+      colorPicker: { w: 240, h: 40 },
     };
 
     return {
@@ -3560,6 +3568,7 @@ export default function EditorPage() {
                     [
                       ['healthBar', '血条'],
                       ['choiceItem', '选择项'],
+                      ['colorPicker', '颜色选择器'],
                     ] as const
                   ).map(([type, name]) => (
                     <div
@@ -4725,6 +4734,18 @@ export default function EditorPage() {
                       <span className="text-sm font-medium text-zinc-200 truncate">{el.content || '选项文字'}</span>
                     </div>
                   )}
+                  {/* 颜色选择器组件 */}
+                  {el.type === 'colorPicker' && (
+                    <div className="w-full h-full flex items-center justify-center gap-2 px-2">
+                      {(el.colorOptions || ['#22C55E', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']).map((color, idx) => (
+                        <div
+                          key={idx}
+                          className="w-6 h-6 rounded-full border-2 border-white/50 cursor-pointer hover:scale-110 transition-transform"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                  )}
                   
                   {/* 选中元素的调整手柄 - 文本元素不显示 */}
                   {selectedId === el.id && !el.locked && el.type !== 'text' && (
@@ -5847,6 +5868,75 @@ export default function EditorPage() {
                                 className="h-9 bg-zinc-700 border-zinc-600 text-sm"
                                 placeholder="答错反馈..."
                               />
+                            </div>
+                          </>
+                        )}
+
+                        {/* 颜色选择器属性 */}
+                        {displayElement.type === 'colorPicker' && (
+                          <>
+                            <div className="space-y-2">
+                              <Label className="text-xs text-white flex items-center gap-2">
+                                <Palette className="w-3.5 h-3.5" />
+                                可选颜色
+                              </Label>
+                              <div className="grid grid-cols-6 gap-2">
+                                {(displayElement.colorOptions || ['#22C55E', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']).map((color, idx) => (
+                                  <div key={idx} className="relative group">
+                                    <Input
+                                      type="color"
+                                      value={color}
+                                      onChange={(e) => {
+                                        const newColors = [...(displayElement.colorOptions || ['#22C55E', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'])];
+                                        newColors[idx] = e.target.value;
+                                        updateElement({ colorOptions: newColors });
+                                      }}
+                                      className="w-full h-9 p-1 bg-zinc-700 border-zinc-600"
+                                    />
+                                    <button
+                                      onClick={() => {
+                                        const newColors = (displayElement.colorOptions || ['#22C55E', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']).filter((_, i) => i !== idx);
+                                        updateElement({ colorOptions: newColors });
+                                      }}
+                                      className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white text-xs hidden group-hover:flex items-center justify-center"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ))}
+                                <button
+                                  onClick={() => {
+                                    const newColors = [...(displayElement.colorOptions || []), '#FFFFFF'];
+                                    updateElement({ colorOptions: newColors });
+                                  }}
+                                  className="w-full h-9 bg-zinc-700 border border-dashed border-zinc-500 rounded flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-400"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+
+                            <Separator className="bg-zinc-700" />
+
+                            <div className="space-y-2">
+                              <Label className="text-xs text-white">关联血条</Label>
+                              <Select
+                                value={displayElement.targetHealthBarId || ''}
+                                onValueChange={(v) => updateElement({ targetHealthBarId: v })}
+                              >
+                                <SelectTrigger className="h-9 bg-zinc-700 border-zinc-600 text-sm">
+                                  <SelectValue placeholder="选择血条组件..." />
+                                </SelectTrigger>
+                                <SelectContent className="bg-zinc-800 border-zinc-600 z-[200]">
+                                  {currentScene?.elements
+                                    .filter(el => el.type === 'healthBar')
+                                    .map(el => (
+                                      <SelectItem key={el.id} value={el.id}>
+                                        {el.name}
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
                             </div>
                           </>
                         )}
