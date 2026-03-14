@@ -8519,9 +8519,12 @@ export default function EditorPage() {
                                   <Input
                                     type="number"
                                     value={displayElement.path.duration || 3000}
-                                    onChange={(e) => updateElement({ 
-                                      path: { ...displayElement.path!, duration: parseInt(e.target.value) || 3000 } 
-                                    })}
+                                    onChange={(e) => {
+                                      stopPathPreview();
+                                      updateElement({ 
+                                        path: { ...displayElement.path!, duration: parseInt(e.target.value) || 3000 } 
+                                      });
+                                    }}
                                     className="h-7 text-xs bg-zinc-700 border-zinc-600"
                                   />
                                 </div>
@@ -8529,9 +8532,12 @@ export default function EditorPage() {
                                   <Label className="text-[10px] text-zinc-400">缓动</Label>
                                   <Select
                                     value={displayElement.path.easing || 'easeInOut'}
-                                    onValueChange={(v) => updateElement({ 
-                                      path: { ...displayElement.path!, easing: v as any } 
-                                    })}
+                                    onValueChange={(v) => {
+                                      stopPathPreview();
+                                      updateElement({ 
+                                        path: { ...displayElement.path!, easing: v as any } 
+                                      });
+                                    }}
                                   >
                                     <SelectTrigger className="h-7 text-xs bg-zinc-700 border-zinc-600">
                                       <SelectValue />
@@ -8552,9 +8558,12 @@ export default function EditorPage() {
                                   <Label className="text-[10px] text-zinc-400">循环模式</Label>
                                   <Select
                                     value={displayElement.path.loopMode || 'none'}
-                                    onValueChange={(v) => updateElement({ 
-                                      path: { ...displayElement.path!, loopMode: v as any } 
-                                    })}
+                                    onValueChange={(v) => {
+                                      stopPathPreview();
+                                      updateElement({ 
+                                        path: { ...displayElement.path!, loopMode: v as any } 
+                                      });
+                                    }}
                                   >
                                     <SelectTrigger className="h-7 text-xs bg-zinc-700 border-zinc-600">
                                       <SelectValue />
@@ -8571,9 +8580,12 @@ export default function EditorPage() {
                                   <Input
                                     type="number"
                                     value={displayElement.path.delay || 0}
-                                    onChange={(e) => updateElement({ 
-                                      path: { ...displayElement.path!, delay: parseInt(e.target.value) || 0 } 
-                                    })}
+                                    onChange={(e) => {
+                                      stopPathPreview();
+                                      updateElement({ 
+                                        path: { ...displayElement.path!, delay: parseInt(e.target.value) || 0 } 
+                                      });
+                                    }}
                                     className="h-7 text-xs bg-zinc-700 border-zinc-600"
                                   />
                                 </div>
@@ -8583,9 +8595,12 @@ export default function EditorPage() {
                                 <div className="flex items-center gap-2">
                                   <Switch
                                     checked={displayElement.path.autoPlay || false}
-                                    onCheckedChange={(v) => updateElement({ 
-                                      path: { ...displayElement.path!, autoPlay: v } 
-                                    })}
+                                    onCheckedChange={(v) => {
+                                      stopPathPreview();
+                                      updateElement({ 
+                                        path: { ...displayElement.path!, autoPlay: v } 
+                                      });
+                                    }}
                                   />
                                   <Label className="text-xs text-zinc-300">自动播放</Label>
                                 </div>
