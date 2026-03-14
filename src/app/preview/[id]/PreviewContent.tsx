@@ -282,14 +282,7 @@ interface Element {
   lowHealthColor?: string;
   showHealthText?: boolean;
   // 选择项属性
-  isCorrectChoice?: boolean;
-  correctFeedback?: string;
-  wrongFeedback?: string;
-  targetHealthBarId?: string;
-  healthChangeOnCorrect?: number;
-  healthChangeOnWrong?: number;
-  correctActions?: any[]; // 答对时触发的动作序列
-  wrongActions?: any[];   // 答错时触发的动作序列
+  clickActions?: any[]; // 点击时触发的动作序列
   // 路径动画
   pathAnimations?: PathAnimation[];
 }
@@ -977,38 +970,14 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
             onClick={async (e) => {
               handleClick(e);
               
-              // 执行答对或答错的动作序列
-              const actions = element.isCorrectChoice 
-                ? (element.correctActions || [])
-                : (element.wrongActions || []);
+              // 执行点击动作序列
+              const actions = element.clickActions || [];
               
               if (actions.length > 0) {
                 await executeActions(actions, {
                   ...eventContext,
                   setScenes,
                 });
-              }
-              
-              // 兼容旧版：如果有关联血条且没有配置新动作，更新血量
-              if (element.targetHealthBarId && actions.length === 0) {
-                const healthChange = element.isCorrectChoice 
-                  ? (element.healthChangeOnCorrect || 0)
-                  : (element.healthChangeOnWrong || 0);
-                if (healthChange !== 0) {
-                  setScenes(prev => prev.map(scene => ({
-                    ...scene,
-                    elements: scene.elements.map(el => {
-                      if (el.id === element.targetHealthBarId) {
-                        const newHealth = Math.max(0, Math.min(
-                          el.maxHealth || 100,
-                          (el.healthValue || 100) + healthChange
-                        ));
-                        return { ...el, healthValue: newHealth };
-                      }
-                      return el;
-                    })
-                  })));
-                }
               }
             }}
             onMouseEnter={handleMouseEnter}
@@ -1024,9 +993,7 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
-            >
-              {/* 可以添加选中状态 */}
-            </div>
+            />
             {/* 选项文字 */}
             <span style={{ flex: 1 }}>
               {element.content || element.text || '选项'}

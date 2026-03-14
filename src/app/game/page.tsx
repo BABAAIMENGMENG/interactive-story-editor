@@ -155,14 +155,7 @@ interface CanvasElement {
   lowHealthColor?: string;
   showHealthText?: boolean;
   // 选择项属性
-  isCorrectChoice?: boolean;
-  correctFeedback?: string;
-  wrongFeedback?: string;
-  targetHealthBarId?: string;
-  healthChangeOnCorrect?: number;
-  healthChangeOnWrong?: number;
-  correctActions?: any[];
-  wrongActions?: any[];
+  clickActions?: any[];
 }
 
 // 编辑器场景类型
@@ -1875,9 +1868,7 @@ function GamePageContent() {
               {/* 选择项组件 */}
               {el.type === 'choiceItem' && (
                 <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `0 ${16 * scaleToFit}px`, gap: `${8 * scaleToFit}px`, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 8 * scaleToFit, border: `${2 * scaleToFit}px solid rgba(255,255,255,0.3)` }}>
-                  <div style={{ width: 16 * scaleToFit, height: 16 * scaleToFit, borderRadius: 4 * scaleToFit, border: `${2 * scaleToFit}px solid ${el.isCorrectChoice ? '#4ADE80' : '#A1A1AA'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {el.isCorrectChoice && <Check style={{ width: 12, height: 12, color: '#4ADE80' }} />}
-                  </div>
+                  <div style={{ width: 16 * scaleToFit, height: 16 * scaleToFit, borderRadius: 4 * scaleToFit, border: `${2 * scaleToFit}px solid rgba(255,255,255,0.5)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} />
                   <span style={{ fontSize: `${14 * scaleToFit}px`, fontWeight: 500, color: '#E4E4E7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.content || '选项文字'}</span>
                 </div>
               )}

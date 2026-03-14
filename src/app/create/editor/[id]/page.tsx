@@ -510,15 +510,7 @@ interface CanvasElement {
   lowHealthColor?: string;    // 低血量颜色
   showHealthText?: boolean;   // 是否显示血量文字
   // 选择项特有属性
-  isCorrectChoice?: boolean;  // 是否是正确答案
-  correctFeedback?: string;   // 答对反馈文字
-  wrongFeedback?: string;     // 答错反馈文字
-  targetHealthBarId?: string; // 关联的血条ID（兼容旧版）
-  healthChangeOnCorrect?: number; // 答对加血量（兼容旧版）
-  healthChangeOnWrong?: number;   // 答错减血量（兼容旧版）
-  // 选择项事件动作
-  correctActions?: EventAction[]; // 答对时触发的动作序列
-  wrongActions?: EventAction[];   // 答错时触发的动作序列
+  clickActions?: EventAction[]; // 点击时触发的动作序列
   // 路径动画
   pathAnimations?: PathAnimation[]; // 元素的路径动画列表
   // children 通过计算得出，不需要存储
@@ -680,12 +672,7 @@ const defaultElement = {
   lowHealthColor: '#EF4444', // 红色
   showHealthText: true,
   // 选择项默认属性
-  isCorrectChoice: false,
-  correctFeedback: '回答正确！',
-  wrongFeedback: '回答错误！',
-  targetHealthBarId: '',
-  healthChangeOnCorrect: 0,
-  healthChangeOnWrong: 0,
+  clickActions: [],
 };
 
 export default function EditorPage() {
@@ -761,7 +748,7 @@ export default function EditorPage() {
   const [showSceneDialog, setShowSceneDialog] = useState(false);
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [showMediaDialog, setShowMediaDialog] = useState(false);
-  const [showChoiceActionDialog, setShowChoiceActionDialog] = useState<{ type: 'correct' | 'wrong'; elementId: string } | null>(null);
+  const [showChoiceActionDialog, setShowChoiceActionDialog] = useState<{ elementId: string } | null>(null);
   const [showPathAnimationEditor, setShowPathAnimationEditor] = useState<{ animationId: string; elementId: string } | null>(null);
   const [newSceneName, setNewSceneName] = useState('');
   const [mediaType, setMediaType] = useState<'image' | 'video' | 'panorama' | 'panoramaVideo' | 'audio'>('image');
@@ -4763,11 +4750,7 @@ export default function EditorPage() {
                   {/* 选择项组件 */}
                   {el.type === 'choiceItem' && (
                     <div className="w-full h-full flex items-center justify-center px-4 gap-2 bg-white/10 hover:bg-white/20 transition-colors rounded-lg border-2 border-white/30">
-                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
-                        el.isCorrectChoice ? 'border-green-400' : 'border-zinc-400'
-                      }`}>
-                        {el.isCorrectChoice && <Check className="w-3 h-3 text-green-400" />}
-                      </div>
+                      <div className="w-4 h-4 rounded border-2 border-zinc-400 flex items-center justify-center shrink-0" />
                       <span className="text-sm font-medium text-zinc-200 truncate">{el.content || '选项文字'}</span>
                     </div>
                   )}
@@ -5709,48 +5692,32 @@ export default function EditorPage() {
 
                             <Separator className="bg-zinc-700" />
 
-                            <div className="space-y-2">
-                              <Label className="text-xs text-white flex items-center gap-2">
-                                <Check className="w-3.5 h-3.5" />
-                                答案设置
-                              </Label>
-                              <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-700/50">
-                                <span className="text-sm text-zinc-300">正确答案</span>
-                                <Switch
-                                  checked={displayElement.isCorrectChoice || false}
-                                  onCheckedChange={(v) => updateElement({ isCorrectChoice: v })}
-                                />
-                              </div>
-                            </div>
-
-                            <Separator className="bg-zinc-700" />
-
-                            {/* 答对时执行的动作 */}
+                            {/* 点击后执行的动作 */}
                             <div className="space-y-2">
                               <div className="flex items-center justify-between">
-                                <Label className="text-xs text-green-400 flex items-center gap-2">
-                                  <Check className="w-3.5 h-3.5" />
-                                  答对时执行
+                                <Label className="text-xs text-purple-400 flex items-center gap-2">
+                                  <MousePointerClick className="w-3.5 h-3.5" />
+                                  点击后执行
                                 </Label>
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="h-7 text-xs border-green-500/50 text-green-400 hover:bg-green-500/20"
-                                  onClick={() => setShowChoiceActionDialog({ type: 'correct', elementId: displayElement.id })}
+                                  className="h-7 text-xs border-purple-500/50 text-purple-400 hover:bg-purple-500/20"
+                                  onClick={() => setShowChoiceActionDialog({ elementId: displayElement.id })}
                                 >
                                   <Plus className="w-3 h-3 mr-1" />
                                   配置动作
                                 </Button>
                               </div>
-                              {(displayElement.correctActions || []).length > 0 ? (
+                              {(displayElement.clickActions || []).length > 0 ? (
                                 <div className="space-y-1">
-                                  {(displayElement.correctActions || []).map((action, idx) => (
+                                  {(displayElement.clickActions || []).map((action, idx) => (
                                     <div key={idx} className="flex items-center justify-between p-2 rounded bg-zinc-700/50 text-xs">
                                       <span className="text-zinc-300">
                                         {action.type === 'addHealth' && `加血 ${action.value || 0}`}
                                         {action.type === 'reduceHealth' && `减血 ${action.value || 0}`}
                                         {action.type === 'setHealth' && `设置血量 ${action.value || 0}`}
-                                        {action.type === 'jumpScene' && '跳转场景'}
+                                        {action.type === 'jumpScene' && `跳转场景`}
                                         {action.type === 'showElement' && '显示元素'}
                                         {action.type === 'hideElement' && '隐藏元素'}
                                         {action.type === 'playAudio' && '播放音频'}
@@ -5764,8 +5731,8 @@ export default function EditorPage() {
                                         variant="ghost"
                                         className="h-5 w-5 p-0 text-red-400 hover:text-red-300"
                                         onClick={() => {
-                                          const newActions = (displayElement.correctActions || []).filter((_, i) => i !== idx);
-                                          updateElement({ correctActions: newActions });
+                                          const newActions = (displayElement.clickActions || []).filter((_, i) => i !== idx);
+                                          updateElement({ clickActions: newActions });
                                         }}
                                       >
                                         ×
@@ -5776,79 +5743,6 @@ export default function EditorPage() {
                               ) : (
                                 <p className="text-xs text-zinc-500">暂无动作，点击"配置动作"添加</p>
                               )}
-                            </div>
-
-                            <Separator className="bg-zinc-700" />
-
-                            {/* 答错时执行的动作 */}
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-xs text-red-400 flex items-center gap-2">
-                                  <X className="w-3.5 h-3.5" />
-                                  答错时执行
-                                </Label>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 text-xs border-red-500/50 text-red-400 hover:bg-red-500/20"
-                                  onClick={() => setShowChoiceActionDialog({ type: 'wrong', elementId: displayElement.id })}
-                                >
-                                  <Plus className="w-3 h-3 mr-1" />
-                                  配置动作
-                                </Button>
-                              </div>
-                              {(displayElement.wrongActions || []).length > 0 ? (
-                                <div className="space-y-1">
-                                  {(displayElement.wrongActions || []).map((action, idx) => (
-                                    <div key={idx} className="flex items-center justify-between p-2 rounded bg-zinc-700/50 text-xs">
-                                      <span className="text-zinc-300">
-                                        {action.type === 'addHealth' && `加血 ${action.value || 0}`}
-                                        {action.type === 'reduceHealth' && `减血 ${action.value || 0}`}
-                                        {action.type === 'setHealth' && `设置血量 ${action.value || 0}`}
-                                        {action.type === 'jumpScene' && '跳转场景'}
-                                        {action.type === 'showElement' && '显示元素'}
-                                        {action.type === 'hideElement' && '隐藏元素'}
-                                        {action.type === 'playAudio' && '播放音频'}
-                                        {action.type === 'playVideo' && '播放视频'}
-                                        {action.type === 'delay' && `延迟 ${action.delay || 0}ms`}
-                                        {action.type === 'setOpacity' && `设置透明度 ${Math.round((action.value || 1) * 100)}%`}
-                                        {!['addHealth', 'reduceHealth', 'setHealth', 'jumpScene', 'showElement', 'hideElement', 'playAudio', 'playVideo', 'delay', 'setOpacity'].includes(action.type) && action.type}
-                                      </span>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-5 w-5 p-0 text-red-400 hover:text-red-300"
-                                        onClick={() => {
-                                          const newActions = (displayElement.wrongActions || []).filter((_, i) => i !== idx);
-                                          updateElement({ wrongActions: newActions });
-                                        }}
-                                      >
-                                        ×
-                                      </Button>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-xs text-zinc-500">暂无动作，点击"配置动作"添加</p>
-                              )}
-                            </div>
-
-                            <Separator className="bg-zinc-700" />
-
-                            <div className="space-y-2">
-                              <Label className="text-xs text-white">反馈文字</Label>
-                              <Input
-                                value={displayElement.correctFeedback || '回答正确！'}
-                                onChange={(e) => updateElement({ correctFeedback: e.target.value })}
-                                className="h-9 bg-zinc-700 border-zinc-600 text-sm mb-2"
-                                placeholder="答对反馈..."
-                              />
-                              <Input
-                                value={displayElement.wrongFeedback || '回答错误！'}
-                                onChange={(e) => updateElement({ wrongFeedback: e.target.value })}
-                                className="h-9 bg-zinc-700 border-zinc-600 text-sm"
-                                placeholder="答错反馈..."
-                              />
                             </div>
                           </>
                         )}
@@ -7915,7 +7809,7 @@ export default function EditorPage() {
         <DialogContent className="bg-zinc-800 border-zinc-600 max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white">
-              {showChoiceActionDialog?.type === 'correct' ? '配置答对时的动作' : '配置答错时的动作'}
+              配置点击后执行的动作
             </DialogTitle>
             <DialogDescription className="text-zinc-300">
               选择该选项被点击后执行的动作序列
@@ -7926,9 +7820,7 @@ export default function EditorPage() {
             {/* 当前动作列表 */}
             {(() => {
               const element = currentScene?.elements.find(el => el.id === showChoiceActionDialog?.elementId);
-              const actions = showChoiceActionDialog?.type === 'correct' 
-                ? (element?.correctActions || []) 
-                : (element?.wrongActions || []);
+              const actions = element?.clickActions || [];
               
               // 获取场景中的血条元素列表
               const healthBars = currentScene?.elements.filter(el => el.type === 'healthBar') || [];
@@ -7939,11 +7831,10 @@ export default function EditorPage() {
               
               // 更新动作的辅助函数
               const updateAction = (actionIdx: number, updates: Partial<EventAction>) => {
-                const key = showChoiceActionDialog?.type === 'correct' ? 'correctActions' : 'wrongActions';
-                const currentActions = element?.[key] || [];
+                const currentActions = element?.clickActions || [];
                 const newActions = [...currentActions];
                 newActions[actionIdx] = { ...newActions[actionIdx], ...updates };
-                updateElement({ [key]: newActions });
+                updateElement({ clickActions: newActions });
               };
               
               return actions.length > 0 ? (
@@ -7979,10 +7870,9 @@ export default function EditorPage() {
                           variant="ghost"
                           className="h-6 text-red-400 hover:text-red-300"
                           onClick={() => {
-                            const key = showChoiceActionDialog?.type === 'correct' ? 'correctActions' : 'wrongActions';
-                            const currentActions = element?.[key] || [];
+                            const currentActions = element?.clickActions || [];
                             const newActions = currentActions.filter((_, i) => i !== idx);
-                            updateElement({ [key]: newActions });
+                            updateElement({ clickActions: newActions });
                           }}
                         >
                           删除
@@ -8153,14 +8043,13 @@ export default function EditorPage() {
                     size="sm"
                     className={`${color} text-white text-xs`}
                     onClick={() => {
-                      const key = showChoiceActionDialog?.type === 'correct' ? 'correctActions' : 'wrongActions';
                       const element = currentScene?.elements.find(el => el.id === showChoiceActionDialog?.elementId);
-                      const currentActions = element?.[key] || [];
+                      const currentActions = element?.clickActions || [];
                       const newAction: EventAction = {
                         id: genId(),
                         type: type as EventActionType,
                       };
-                      updateElement({ [key]: [...currentActions, newAction] });
+                      updateElement({ clickActions: [...currentActions, newAction] });
                     }}
                   >
                     {label}
