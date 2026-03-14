@@ -331,71 +331,93 @@ function VideoElement({
   // 验证 URL 有效性（包括流媒体网站检测）
   const validation = validateVideoUrl(src);
 
-  // 组件挂载后立即尝试播放视频
+  // 组件挂载后立即尝试播放视频 - 强制播放
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !shouldAutoplay) {
-      console.log('VideoElement: 跳过播放 - video存在:', !!video, 'shouldAutoplay:', shouldAutoplay);
+    if (!video) {
+      console.log('VideoElement: video ref 不存在');
       return;
     }
     
-    console.log('VideoElement: 开始尝试播放视频');
+    console.log('VideoElement: 开始设置视频播放');
     console.log('VideoElement: src=', src?.substring(0, 50));
+    console.log('VideoElement: shouldAutoplay=', shouldAutoplay);
     
-    // 确保视频静音（浏览器策略要求）
+    // 强制静音并尝试播放
     video.muted = true;
+    video.volume = 0;
     
     // 尝试播放的函数
     const tryPlay = () => {
-      console.log('VideoElement: 调用 play(), readyState=', video.readyState);
+      console.log('VideoElement: 尝试播放, readyState=', video.readyState, 'paused=', video.paused);
       video.play().then(() => {
-        console.log('VideoElement: ✅ 视频自动播放成功');
+        console.log('VideoElement: ✅ 播放成功');
       }).catch((err) => {
-        console.log('VideoElement: ❌ 视频自动播放失败:', err.message);
-        // 确保静音后重试
+        console.log('VideoElement: ❌ 播放失败:', err.name, err.message);
+        // 再次尝试
         video.muted = true;
-        video.play().catch(() => {});
+        video.volume = 0;
+        setTimeout(() => {
+          video.play().catch(() => {});
+        }, 100);
       });
     };
     
-    // 监听视频可以播放
+    // 监听事件
     const handleCanPlay = () => {
-      console.log('VideoElement: canplay 事件');
+      console.log('VideoElement: canplay 事件触发');
       tryPlay();
     };
     
-    // 监听视频加载完成
     const handleLoadedData = () => {
-      console.log('VideoElement: loadeddata 事件');
+      console.log('VideoElement: loadeddata 事件触发');
       tryPlay();
+    };
+    
+    const handlePlay = () => {
+      console.log('VideoElement: play 事件触发');
+    };
+    
+    const handlePlaying = () => {
+      console.log('VideoElement: playing 事件触发 - 视频正在播放');
+    };
+    
+    const handleError = (e: Event) => {
+      console.log('VideoElement: error 事件触发', e);
     };
     
     video.addEventListener('canplay', handleCanPlay);
     video.addEventListener('loadeddata', handleLoadedData);
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('playing', handlePlaying);
+    video.addEventListener('error', handleError);
     
-    // 立即尝试播放（如果视频已经准备好）
-    if (video.readyState >= 3) {
-      console.log('VideoElement: 视频已准备好 (readyState>=3)');
-      tryPlay();
-    } else if (video.readyState >= 2) {
-      console.log('VideoElement: 视频已加载部分数据 (readyState>=2)');
+    // 立即尝试播放
+    if (video.readyState >= 2) {
+      console.log('VideoElement: 视频已准备好，立即播放');
       tryPlay();
     }
     
-    // 延迟重试（解决某些情况下的时序问题）
-    const timeoutId = setTimeout(() => {
-      if (video.readyState >= 2) {
-        console.log('VideoElement: 延迟重试播放');
-        tryPlay();
-      }
-    }, 100);
+    // 多次延迟重试
+    const timeouts = [100, 300, 500, 1000, 2000];
+    const timeoutIds = timeouts.map(delay => 
+      setTimeout(() => {
+        if (video.readyState >= 2 && video.paused) {
+          console.log(`VideoElement: ${delay}ms 延迟重试`);
+          tryPlay();
+        }
+      }, delay)
+    );
     
     return () => {
       video.removeEventListener('canplay', handleCanPlay);
       video.removeEventListener('loadeddata', handleLoadedData);
-      clearTimeout(timeoutId);
+      video.removeEventListener('play', handlePlay);
+      video.removeEventListener('playing', handlePlaying);
+      video.removeEventListener('error', handleError);
+      timeoutIds.forEach(id => clearTimeout(id));
     };
-  }, [src, shouldAutoplay]);
+  }, [src]);
 
   // 处理时间触发器
   useEffect(() => {
