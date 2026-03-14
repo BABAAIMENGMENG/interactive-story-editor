@@ -1604,6 +1604,16 @@ function GamePageContent() {
                 >
                   {/* 渲染元素 - 跳过热点类型（热点由 PanoramaViewer 处理） */}
                   {currentEditorScene.elements.map((el, originalIndex) => {
+            
+            // 调试：输出场景中所有元素
+            console.log('[场景元素]', { 
+              index: originalIndex,
+              id: el.id, 
+              type: el.type, 
+              visible: el.visible,
+              content: el.content?.substring?.(0, 20)
+            });
+            
             // 检查该元素是否会被某个时间触发器显示（如果是，则初始隐藏）
             const willBeShownByTrigger = currentEditorScene.elements.some(
               (otherEl) => otherEl.type === 'video' && 
@@ -1617,6 +1627,17 @@ function GamePageContent() {
             // 音频和热点类型不渲染
             if (el.type === 'hotspot' || el.type === 'audio') return null;
             
+            // 调试：输出所有元素类型
+            if (el.type === 'choiceItem') {
+              console.log('[渲染] 发现 choiceItem', { 
+                id: el.id, 
+                type: el.type, 
+                visible: el.visible, 
+                willBeShownByTrigger,
+                clickActions: el.clickActions 
+              });
+            }
+            
             // 如果元素会被触发器显示，检查是否已被触发
             if (willBeShownByTrigger) {
               // 等待触发器显示的元素：只有在 triggeredShownElements 中才渲染
@@ -1626,7 +1647,15 @@ function GamePageContent() {
             
             // 普通元素或已被触发的元素：检查 visible 属性
             // 如果 visible 为 false，不渲染（不占用空间，不与鼠标交互）
-            if (!el.visible) return null;
+            if (!el.visible) {
+              console.log('[渲染] 元素不可见，跳过', { id: el.id, type: el.type });
+              return null;
+            }
+            
+            // choiceItem 通过可见性检查
+            if (el.type === 'choiceItem') {
+              console.log('[渲染] choiceItem 将被渲染', { id: el.id, content: el.content });
+            }
             
             // 图片和视频元素如果没有有效的 src，不渲染（避免遮挡其他元素）
             if (el.type === 'image' && (!el.src || !validateVideoUrl(el.src).isValid)) return null;
