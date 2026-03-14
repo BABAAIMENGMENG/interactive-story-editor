@@ -3094,6 +3094,16 @@ export default function EditorPage() {
       ];
     }
 
+    // 血条和选择项 - 使用"内容"标签
+    if (['healthBar', 'choiceItem'].includes(selectedElement.type)) {
+      return [
+        { id: 'source', label: '内容', icon: <Type className="w-4 h-4" /> },
+        { id: 'style', label: '样式', icon: <Palette className="w-4 h-4" /> },
+        { id: 'behavior', label: '行为', icon: <Settings className="w-4 h-4" /> },
+        { id: 'event', label: '事件', icon: <Sparkles className="w-4 h-4" /> },
+      ];
+    }
+
     // 热点、面板和其他元素
     return baseTabs;
   };
