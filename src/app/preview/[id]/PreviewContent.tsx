@@ -164,6 +164,13 @@ function VideoElement({
 
     const triggers: VideoTimeTrigger[] = element.timeTriggers;
     const FPS = 30; // 默认帧率
+    
+    console.log('VideoElement 时间触发器初始化:', {
+      elementId: element.id,
+      elementName: element.name,
+      triggersCount: triggers.length,
+      triggers: triggers.map(t => ({ id: t.id, frame: t.frame, time: t.time, actionsCount: t.actions?.length }))
+    });
 
     const handleTimeUpdate = () => {
       const currentTime = video.currentTime;
@@ -176,9 +183,18 @@ function VideoElement({
         const hasTriggered = triggerStatesRef.current.get(triggerKey);
         
         // 检查是否应该触发（允许1帧误差）
-        if (Math.abs(currentFrame - triggerFrame) <= 1 && (!hasTriggered || !trigger.once)) {
+        const frameDiff = Math.abs(currentFrame - triggerFrame);
+        if (frameDiff <= 1 && (!hasTriggered || !trigger.once)) {
           // 如果是单次触发且已经触发过，跳过
           if (hasTriggered && trigger.once) return;
+          
+          console.log('VideoElement 时间触发器触发:', {
+            currentFrame,
+            triggerFrame,
+            frameDiff,
+            triggerKey,
+            actions: trigger.actions
+          });
           
           // 标记为已触发
           triggerStatesRef.current.set(triggerKey, true);
