@@ -5091,10 +5091,10 @@ export default function EditorPage() {
                   )}
                   {el.type === 'video' && (
                     (() => {
-                      // 使用新的验证函数检查视频URL
-                      const validation = validateVideoUrl(el.src);
+                      // 放宽URL验证：只要有src且不是blob就尝试显示（与图片一致）
+                      const isValidUrl = el.src && !el.src.startsWith('blob:');
                       
-                      return validation.isValid ? (
+                      return isValidUrl ? (
                         <TransparentVideo
                           src={el.src!}
                           style={{ 
@@ -5114,13 +5114,8 @@ export default function EditorPage() {
                           <div className="text-center px-2 pointer-events-none">
                             <PlayCircle className="w-8 h-8 mx-auto text-zinc-400 mb-1" />
                             <span className="text-xs text-zinc-400">
-                              {validation.errorMessage || '视频'}
+                              {el.src?.startsWith('blob:') ? '无效链接' : el.src ? '加载中...' : '视频'}
                             </span>
-                            {validation.errorType === 'streaming_site' && (
-                              <span className="text-xs text-amber-400 block mt-1">
-                                请使用直链视频地址
-                              </span>
-                            )}
                           </div>
                         </div>
                       );
