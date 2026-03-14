@@ -1658,7 +1658,7 @@ function GamePageContent() {
                 top: `${((el.y - offsetY) / canvasH) * 100}%`,
                 width: `${(el.width / canvasW) * 100}%`,
                 height: `${(el.height / canvasH) * 100}%`,
-                backgroundColor: ['video', 'image'].includes(el.type) ? 'transparent' : 
+                backgroundColor: ['video', 'image', 'healthBar', 'choiceItem'].includes(el.type) ? 'transparent' : 
                   (el.backgroundColor === '#FFFFFF' || el.backgroundColor === '#ffffff' || el.backgroundColor === 'white' || el.backgroundColor === '#fff' 
                     ? '#6B21A8' // 白色背景强制改为深紫色
                     : (el.backgroundColor || '#6B21A8')),
@@ -1672,7 +1672,7 @@ function GamePageContent() {
                 alignItems: 'center',
                 justifyContent: el.type === 'text' ? (el.textAlign === 'left' ? 'flex-start' : el.textAlign === 'right' ? 'flex-end' : 'center') : 'center',
                 fontWeight: el.fontWeight || '500',
-                padding: el.type === 'text' ? `${8 * scaleToFit}px` : '0',
+                padding: el.type === 'text' ? `${8 * scaleToFit}px` : (el.type === 'video' || el.type === 'image' ? '0' : `${16 * scaleToFit}px`),
                 gap: el.iconName ? `${8 * scaleToFit}px` : '0',
                 overflow: 'hidden',
                 zIndex: elementZIndex,
