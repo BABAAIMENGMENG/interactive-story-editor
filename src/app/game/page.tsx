@@ -458,15 +458,15 @@ function VideoElement({
         objectPosition: 'center',
         borderRadius: borderRadius || 0,
         backgroundColor: '#000',
-        border: 'none',
+        border: '3px solid red', // 调试：显示红色边框确认渲染
         outline: 'none',
         display: 'block',
         // 如果有控制条，让 video 标签可以响应点击（控制条交互）
         // 如果没有控制条，让点击穿透到下层元素
         pointerEvents: controls ? 'auto' : 'none'
       }}
-      onError={() => {
-        // 静默处理视频加载失败
+      onError={(e) => {
+        console.log('VideoElement: 视频加载错误', e);
       }}
     />
   );
@@ -2037,10 +2037,21 @@ function GamePageContent() {
               console.log('=== 视频元素渲染检查 ===');
               console.log('el.id:', el.id);
               console.log('el.visible:', el.visible);
-              console.log('el.src:', el.src?.substring(0, 50) + '...');
+              console.log('el.x:', el.x, 'el.y:', el.y);
+              console.log('el.width:', el.width, 'el.height:', el.height);
+              console.log('el.src:', el.src?.substring(0, 80) + '...');
               console.log('el.playOnVisible:', el.playOnVisible);
               console.log('el.muted:', el.muted);
-              console.log('URL验证:', validateVideoUrl(el.src).isValid);
+              console.log('URL验证:', validateVideoUrl(el.src));
+              console.log('canvasW:', canvasW, 'canvasH:', canvasH);
+            }
+            
+            // 如果元素尺寸为0，跳过渲染
+            if (!el.width || !el.height || el.width <= 0 || el.height <= 0) {
+              if (el.type === 'video') {
+                console.log('视频元素尺寸无效，跳过渲染');
+              }
+              return null;
             }
             
             // 检查该元素是否会被某个时间触发器显示（如果是，则初始隐藏）
@@ -2538,6 +2549,21 @@ function GamePageContent() {
           </div>
         </div>
       )}
+
+      {/* 调试面板 - 显示视频元素信息 */}
+      <div className="absolute bottom-4 left-4 z-50 bg-black/80 text-white p-3 rounded text-xs max-w-xs">
+        <div className="font-bold mb-1">调试信息:</div>
+        <div>场景数: {editorScenes.length}</div>
+        <div>当前场景: {currentEditorSceneId || '无'}</div>
+        <div>视频元素数: {currentEditorScene?.elements?.filter(e => e.type === 'video').length || 0}</div>
+        {currentEditorScene?.elements?.filter(e => e.type === 'video').map((v, i) => (
+          <div key={i} className="mt-1 border-t border-white/20 pt-1">
+            <div>视频{i+1}: {v.width}x{v.height}</div>
+            <div>visible: {String(v.visible)}</div>
+            <div>playOnVisible: {String(v.playOnVisible)}</div>
+          </div>
+        ))}
+      </div>
     </div>
     </>
   );
