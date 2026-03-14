@@ -4907,7 +4907,7 @@ export default function EditorPage() {
             
             {/* 画布信息 */}
             <div className="absolute bottom-3 left-3 text-xs text-zinc-400 flex gap-3" suppressHydrationWarning>
-              <span>{currentScene?.canvasWidth || 1920} × {currentScene?.canvasHeight || 1080}</span>
+              <span suppressHydrationWarning>{currentScene?.canvasWidth || 1920} × {currentScene?.canvasHeight || 1080}</span>
               <span>|</span>
               <span>{currentScene?.name}</span>
               {currentScene?.panoramaImage && <span>| 全景图</span>}
