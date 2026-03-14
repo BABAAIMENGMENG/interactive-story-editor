@@ -68,6 +68,44 @@ function VideoElement({
   const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
   const triggerStatesRef = useRef<Map<string, boolean>>(new Map());
 
+  // 视频自动播放
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    
+    // 确保视频静音（浏览器策略要求）
+    video.muted = true;
+    
+    const tryPlay = () => {
+      video.play().catch(() => {
+        video.muted = true;
+        video.play().catch(() => {});
+      });
+    };
+    
+    const handleCanPlay = () => tryPlay();
+    const handleLoadedData = () => tryPlay();
+    
+    video.addEventListener('canplay', handleCanPlay);
+    video.addEventListener('loadeddata', handleLoadedData);
+    
+    // 立即尝试
+    if (video.readyState >= 2) {
+      tryPlay();
+    }
+    
+    // 延迟重试
+    const timeoutId = setTimeout(() => {
+      if (video.readyState >= 2) tryPlay();
+    }, 100);
+    
+    return () => {
+      video.removeEventListener('canplay', handleCanPlay);
+      video.removeEventListener('loadeddata', handleLoadedData);
+      clearTimeout(timeoutId);
+    };
+  }, [element.src]);
+
   // 拖拽功能
   useEffect(() => {
     if (!element.draggable) return;
@@ -166,7 +204,7 @@ function VideoElement({
         src={element.src}
         style={{ objectFit: element.objectFit || 'cover', width: '100%', height: '100%' }}
         loop={element.loop ?? false}
-        muted={element.muted ?? true}
+        muted={true}
         autoPlay
         playsInline
         controls={element.controls ?? true}

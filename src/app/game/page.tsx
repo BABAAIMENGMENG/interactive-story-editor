@@ -336,20 +336,24 @@ function VideoElement({
     const video = videoRef.current;
     if (!video || !shouldAutoplay) return;
     
+    // 确保视频静音（浏览器策略要求）
+    video.muted = true;
+    
     // 尝试播放的函数
-    const tryPlay = (forceMute = false) => {
-      if (forceMute) {
-        video.muted = true;
-      }
+    const tryPlay = () => {
       video.play().then(() => {
-        // 播放成功
+        console.log('视频自动播放成功');
       }).catch((err) => {
-        // 如果播放失败（可能是因为没有静音），尝试静音播放
-        if (!video.muted) {
-          video.muted = true;
-          video.play().catch(() => {});
-        }
+        console.log('视频自动播放失败，尝试静音播放:', err.message);
+        // 确保静音后重试
+        video.muted = true;
+        video.play().catch(() => {});
       });
+    };
+    
+    // 监听视频可以播放
+    const handleCanPlay = () => {
+      tryPlay();
     };
     
     // 监听视频加载完成
@@ -357,17 +361,30 @@ function VideoElement({
       tryPlay();
     };
     
+    video.addEventListener('canplay', handleCanPlay);
     video.addEventListener('loadeddata', handleLoadedData);
     
-    // 如果视频已经加载，立即尝试播放
-    if (video.readyState >= 2) {
+    // 立即尝试播放（如果视频已经准备好）
+    if (video.readyState >= 3) {
+      tryPlay();
+    } else if (video.readyState >= 2) {
+      // 视频已加载部分数据，尝试播放
       tryPlay();
     }
     
+    // 延迟重试（解决某些情况下的时序问题）
+    const timeoutId = setTimeout(() => {
+      if (video.readyState >= 2) {
+        tryPlay();
+      }
+    }, 100);
+    
     return () => {
+      video.removeEventListener('canplay', handleCanPlay);
       video.removeEventListener('loadeddata', handleLoadedData);
+      clearTimeout(timeoutId);
     };
-  }, [src, shouldAutoplay]); // 添加依赖：视频源或自动播放设置变化时重新尝试播放
+  }, [src, shouldAutoplay]);
 
   // 处理时间触发器
   useEffect(() => {
@@ -415,7 +432,7 @@ function VideoElement({
       ref={videoRef}
       src={src}
       loop={shouldLoop}
-      muted={shouldMute}
+      muted={true}
       autoPlay={shouldAutoplay}
       controls={controls}
       playsInline
