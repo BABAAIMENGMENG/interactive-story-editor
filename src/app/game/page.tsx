@@ -154,6 +154,7 @@ interface CanvasElement {
   lowHealthThreshold?: number;
   lowHealthColor?: string;
   showHealthText?: boolean;
+  healthTriggers?: HealthTrigger[]; // 血量阈值触发器
   // 选择项属性
   isSelected?: boolean;       // 选中状态
   clickActions?: any[];
@@ -248,6 +249,16 @@ interface VideoTimeTrigger {
   time: number;
   actions: any[];
   description?: string;
+}
+
+// 血量阈值触发器
+interface HealthTrigger {
+  id: string;
+  threshold: number;    // 血量阈值（百分比，0-100）
+  triggerType: 'below' | 'above' | 'equals'; // 触发条件
+  actions: any[];
+  description?: string;
+  triggered?: boolean;  // 是否已触发（运行时状态）
 }
 
 // 视频元素组件 - 处理自动播放和时间触发器
@@ -1302,6 +1313,53 @@ function GamePageContent() {
     }
   };
 
+  // 检测并触发血量阈值事件
+  const checkHealthTriggers = (elementId: string, newHealth: number, maxHealth: number, triggers: HealthTrigger[]) => {
+    if (!triggers || triggers.length === 0) return;
+    
+    const healthPercent = (newHealth / maxHealth) * 100;
+    
+    triggers.forEach(trigger => {
+      // 如果已经触发过，跳过
+      if (trigger.triggered) return;
+      
+      let shouldTrigger = false;
+      switch (trigger.triggerType) {
+        case 'below':
+          shouldTrigger = healthPercent < trigger.threshold;
+          break;
+        case 'above':
+          shouldTrigger = healthPercent > trigger.threshold;
+          break;
+        case 'equals':
+          shouldTrigger = Math.abs(healthPercent - trigger.threshold) < 0.5; // 允许小误差
+          break;
+      }
+      
+      if (shouldTrigger && trigger.actions && trigger.actions.length > 0) {
+        console.log(`血量触发器触发: ${trigger.triggerType} ${trigger.threshold}%`);
+        // 标记为已触发
+        setEditorScenes(prevScenes => {
+          return prevScenes.map(scene => {
+            if (scene.id !== currentEditorSceneId) return scene;
+            return {
+              ...scene,
+              elements: scene.elements.map((el: any) => {
+                if (el.id !== elementId) return el;
+                const updatedTriggers = (el.healthTriggers || []).map((t: HealthTrigger) =>
+                  t.id === trigger.id ? { ...t, triggered: true } : t
+                );
+                return { ...el, healthTriggers: updatedTriggers };
+              })
+            };
+          });
+        });
+        // 执行动作
+        executeEventActions(trigger.actions);
+      }
+    });
+  };
+
   // 更新编辑器元素的辅助函数
   const updateEditorElement = (elementId: string, updates: any) => {
     setEditorScenes(prevScenes => {
@@ -1309,9 +1367,23 @@ function GamePageContent() {
         if (scene.id !== currentEditorSceneId) return scene;
         return {
           ...scene,
-          elements: scene.elements.map((el: any) => 
-            el.id === elementId ? { ...el, ...updates } : el
-          )
+          elements: scene.elements.map((el: any) => {
+            if (el.id !== elementId) return el;
+            const updatedEl = { ...el, ...updates };
+            
+            // 如果更新了血量，检测触发器
+            if (updates.healthValue !== undefined && el.type === 'healthBar') {
+              const newHealth = updates.healthValue;
+              const maxHealth = el.maxHealth ?? 100;
+              const triggers = el.healthTriggers || [];
+              // 延迟检测，确保状态更新完成
+              setTimeout(() => {
+                checkHealthTriggers(elementId, newHealth, maxHealth, triggers);
+              }, 0);
+            }
+            
+            return updatedEl;
+          })
         };
       });
     });

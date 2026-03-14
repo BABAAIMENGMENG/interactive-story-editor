@@ -281,11 +281,22 @@ interface Element {
   lowHealthThreshold?: number;
   lowHealthColor?: string;
   showHealthText?: boolean;
+  healthTriggers?: HealthTrigger[]; // 血量阈值触发器
   // 选择项属性
   isSelected?: boolean;       // 选中状态
   clickActions?: any[]; // 点击时触发的动作序列
   // 路径动画
   pathAnimations?: PathAnimation[];
+}
+
+// 血量阈值触发器
+interface HealthTrigger {
+  id: string;
+  threshold: number;    // 血量阈值（百分比，0-100）
+  triggerType: 'below' | 'above' | 'equals'; // 触发条件
+  actions: any[];
+  description?: string;
+  triggered?: boolean;  // 是否已触发（运行时状态）
 }
 
 // 场景类型定义
@@ -301,6 +312,54 @@ interface Scene {
   canvasWidth?: number;
   canvasHeight?: number;
 }
+
+// 检测血量触发器的辅助函数
+const checkHealthTriggersForElement = (element: Element, newHealth: number, context: any) => {
+  const triggers = element.healthTriggers;
+  if (!triggers || triggers.length === 0) return;
+  
+  const maxHealth = element.maxHealth ?? 100;
+  const healthPercent = (newHealth / maxHealth) * 100;
+  
+  triggers.forEach(trigger => {
+    // 如果已经触发过，跳过
+    if (trigger.triggered) return;
+    
+    let shouldTrigger = false;
+    switch (trigger.triggerType) {
+      case 'below':
+        shouldTrigger = healthPercent < trigger.threshold;
+        break;
+      case 'above':
+        shouldTrigger = healthPercent > trigger.threshold;
+        break;
+      case 'equals':
+        shouldTrigger = Math.abs(healthPercent - trigger.threshold) < 0.5; // 允许小误差
+        break;
+    }
+    
+    if (shouldTrigger && trigger.actions && trigger.actions.length > 0) {
+      console.log(`血量触发器触发: ${trigger.triggerType} ${trigger.threshold}%`);
+      // 标记为已触发
+      if (context.setScenes) {
+        context.setScenes((prev: Scene[]) => prev.map(scene => ({
+          ...scene,
+          elements: scene.elements.map((el: Element) => {
+            if (el.id !== element.id) return el;
+            const updatedTriggers = (el.healthTriggers || []).map((t: HealthTrigger) =>
+              t.id === trigger.id ? { ...t, triggered: true } : t
+            );
+            return { ...el, healthTriggers: updatedTriggers };
+          })
+        })));
+      }
+      // 执行动作（延迟执行避免状态更新冲突）
+      setTimeout(() => {
+        executeActions(trigger.actions, context);
+      }, 10);
+    }
+  });
+};
 
 // 事件执行器
 const executeActions = async (
@@ -443,6 +502,8 @@ const executeActions = async (
             elements: scene.elements.map(el => {
               if (el.id === config.targetElementId) {
                 const newHealth = Math.min(el.maxHealth ?? 100, (el.healthValue ?? 100) + (config.value ?? 10));
+                // 检测血量触发器
+                checkHealthTriggersForElement(el, newHealth, context);
                 return { ...el, healthValue: newHealth };
               }
               return el;
@@ -458,6 +519,8 @@ const executeActions = async (
             elements: scene.elements.map(el => {
               if (el.id === config.targetElementId) {
                 const newHealth = Math.max(0, (el.healthValue ?? 100) - (config.value ?? 10));
+                // 检测血量触发器
+                checkHealthTriggersForElement(el, newHealth, context);
                 return { ...el, healthValue: newHealth };
               }
               return el;
@@ -472,7 +535,10 @@ const executeActions = async (
             ...scene,
             elements: scene.elements.map(el => {
               if (el.id === config.targetElementId) {
-                return { ...el, healthValue: config.value || 0 };
+                const newHealth = config.value || 0;
+                // 检测血量触发器
+                checkHealthTriggersForElement(el, newHealth, context);
+                return { ...el, healthValue: newHealth };
               }
               return el;
             })

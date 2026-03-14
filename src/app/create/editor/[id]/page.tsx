@@ -97,6 +97,7 @@ import {
   Tag,
   MessageCircle,
   Share2,
+  Zap,
   Copy as CopyIcon,
   Check as CheckIcon,
   Route,
@@ -381,6 +382,16 @@ interface VideoTimeTrigger {
   description?: string; // 触发器描述
 }
 
+// 血量阈值触发器
+interface HealthTrigger {
+  id: string;           // 触发器唯一ID
+  threshold: number;    // 血量阈值（百分比，0-100）
+  triggerType: 'below' | 'above' | 'equals'; // 触发条件：低于/高于/等于
+  actions: EventAction[]; // 触发的动作列表
+  description?: string; // 触发器描述
+  triggered?: boolean;  // 是否已触发（运行时状态）
+}
+
 // 路径点
 interface PathPoint {
   id: string;           // 路径点唯一ID
@@ -510,6 +521,7 @@ interface CanvasElement {
   lowHealthThreshold?: number; // 低血量阈值（百分比）
   lowHealthColor?: string;    // 低血量颜色
   showHealthText?: boolean;   // 是否显示血量文字
+  healthTriggers?: HealthTrigger[]; // 血量阈值触发器
   // 选择项特有属性
   isSelected?: boolean;       // 选中状态（用于事件配置）
   clickActions?: EventAction[]; // 点击时触发的动作序列
@@ -5899,6 +5911,252 @@ export default function EditorPage() {
                                 checked={displayElement.showHealthText !== false}
                                 onCheckedChange={(v) => updateElement({ showHealthText: v })}
                               />
+                            </div>
+
+                            <Separator className="bg-zinc-700" />
+
+                            {/* 血量阈值触发器 */}
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs text-white flex items-center gap-2">
+                                  <Zap className="w-3.5 h-3.5" />
+                                  血量触发器
+                                </Label>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs border-purple-500/50 text-purple-400 hover:bg-purple-500/20"
+                                  onClick={() => {
+                                    const triggers = displayElement.healthTriggers || [];
+                                    const newTrigger: HealthTrigger = {
+                                      id: `trigger-${Date.now()}`,
+                                      threshold: 50,
+                                      triggerType: 'below',
+                                      actions: [],
+                                    };
+                                    updateElement({ healthTriggers: [...triggers, newTrigger] });
+                                  }}
+                                >
+                                  <Plus className="w-3 h-3 mr-1" />
+                                  添加触发器
+                                </Button>
+                              </div>
+                              <p className="text-xs text-zinc-500">
+                                当血量达到指定阈值时自动触发事件
+                              </p>
+                              
+                              {(displayElement.healthTriggers || []).map((trigger, idx) => (
+                                <div key={trigger.id} className="p-3 rounded-lg bg-zinc-700/50 border border-zinc-600 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-white font-medium">触发器 {idx + 1}</span>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 text-red-400 hover:text-red-300"
+                                      onClick={() => {
+                                        const triggers = displayElement.healthTriggers || [];
+                                        updateElement({ healthTriggers: triggers.filter(t => t.id !== trigger.id) });
+                                      }}
+                                    >
+                                      删除
+                                    </Button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <Label className="text-xs text-zinc-400 mb-1 block">触发条件</Label>
+                                      <Select
+                                        value={trigger.triggerType}
+                                        onValueChange={(v) => {
+                                          const triggers = displayElement.healthTriggers || [];
+                                          updateElement({
+                                            healthTriggers: triggers.map(t => 
+                                              t.id === trigger.id ? { ...t, triggerType: v as 'below' | 'above' | 'equals' } : t
+                                            )
+                                          });
+                                        }}
+                                      >
+                                        <SelectTrigger className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-zinc-700 border-zinc-600">
+                                          <SelectItem value="below">低于</SelectItem>
+                                          <SelectItem value="above">高于</SelectItem>
+                                          <SelectItem value="equals">等于</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs text-zinc-400 mb-1 block">阈值(%)</Label>
+                                      <Input
+                                        type="number"
+                                        value={trigger.threshold}
+                                        onChange={(e) => {
+                                          const triggers = displayElement.healthTriggers || [];
+                                          updateElement({
+                                            healthTriggers: triggers.map(t => 
+                                              t.id === trigger.id ? { ...t, threshold: parseInt(e.target.value) || 0 } : t
+                                            )
+                                          });
+                                        }}
+                                        className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white"
+                                        min={0}
+                                        max={100}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <Label className="text-xs text-zinc-400">触发动作</Label>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 text-xs border-purple-500/50 text-purple-400 hover:bg-purple-500/20"
+                                        onClick={() => {
+                                          const triggers = displayElement.healthTriggers || [];
+                                          const currentActions = triggers.find(t => t.id === trigger.id)?.actions || [];
+                                          const newAction: EventAction = {
+                                            id: `action-${Date.now()}`,
+                                            type: 'jumpScene',
+                                            targetSceneId: '',
+                                          };
+                                          updateElement({
+                                            healthTriggers: triggers.map(t => 
+                                              t.id === trigger.id ? { ...t, actions: [...currentActions, newAction] } : t
+                                            )
+                                          });
+                                        }}
+                                      >
+                                        <Plus className="w-3 h-3 mr-1" />
+                                        添加动作
+                                      </Button>
+                                    </div>
+                                    {trigger.actions.map((action, actionIdx) => (
+                                      <div key={action.id} className="flex items-center gap-2 p-2 rounded bg-zinc-600/50">
+                                        <Select
+                                          value={action.type}
+                                          onValueChange={(v) => {
+                                            const triggers = displayElement.healthTriggers || [];
+                                            updateElement({
+                                              healthTriggers: triggers.map(t => 
+                                                t.id === trigger.id ? {
+                                                  ...t,
+                                                  actions: t.actions.map(a => 
+                                                    a.id === action.id ? { ...a, type: v as any } : a
+                                                  )
+                                                } : t
+                                              )
+                                            });
+                                          }}
+                                        >
+                                          <SelectTrigger className="h-7 bg-zinc-500 border-zinc-400 text-xs text-white w-28">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent className="bg-zinc-700 border-zinc-600">
+                                            <SelectItem value="jumpScene">跳转场景</SelectItem>
+                                            <SelectItem value="showElement">显示元素</SelectItem>
+                                            <SelectItem value="hideElement">隐藏元素</SelectItem>
+                                            <SelectItem value="toggleElement">切换显示</SelectItem>
+                                            <SelectItem value="playAudio">播放音频</SelectItem>
+                                            <SelectItem value="pauseAudio">暂停音频</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                        {action.type === 'jumpScene' && (
+                                          <Select
+                                            value={action.targetSceneId || ''}
+                                            onValueChange={(v) => {
+                                              const triggers = displayElement.healthTriggers || [];
+                                              updateElement({
+                                                healthTriggers: triggers.map(t => 
+                                                  t.id === trigger.id ? {
+                                                    ...t,
+                                                    actions: t.actions.map(a => 
+                                                      a.id === action.id ? { ...a, targetSceneId: v } : a
+                                                    )
+                                                  } : t
+                                                )
+                                              });
+                                            }}
+                                          >
+                                            <SelectTrigger className="h-7 bg-zinc-500 border-zinc-400 text-xs text-white flex-1">
+                                              <SelectValue placeholder="选择场景" />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-zinc-700 border-zinc-600">
+                                              {scenes.map(s => (
+                                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        )}
+                                        {action.type === 'playAudio' && (
+                                          <Input
+                                            value={action.audioUrl || ''}
+                                            onChange={(e) => {
+                                              const triggers = displayElement.healthTriggers || [];
+                                              updateElement({
+                                                healthTriggers: triggers.map(t => 
+                                                  t.id === trigger.id ? {
+                                                    ...t,
+                                                    actions: t.actions.map(a => 
+                                                      a.id === action.id ? { ...a, audioUrl: e.target.value } : a
+                                                    )
+                                                  } : t
+                                                )
+                                              });
+                                            }}
+                                            placeholder="音频URL"
+                                            className="h-7 bg-zinc-500 border-zinc-400 text-xs text-white flex-1"
+                                          />
+                                        )}
+                                        {(action.type === 'showElement' || action.type === 'hideElement' || action.type === 'toggleElement') && (
+                                          <Select
+                                            value={action.targetElementId || ''}
+                                            onValueChange={(v) => {
+                                              const triggers = displayElement.healthTriggers || [];
+                                              updateElement({
+                                                healthTriggers: triggers.map(t => 
+                                                  t.id === trigger.id ? {
+                                                    ...t,
+                                                    actions: t.actions.map(a => 
+                                                      a.id === action.id ? { ...a, targetElementId: v } : a
+                                                    )
+                                                  } : t
+                                                )
+                                              });
+                                            }}
+                                          >
+                                            <SelectTrigger className="h-7 bg-zinc-500 border-zinc-400 text-xs text-white flex-1">
+                                              <SelectValue placeholder="选择元素" />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-zinc-700 border-zinc-600">
+                                              {currentScene?.elements.filter(e => e.id !== displayElement.id).map(e => (
+                                                <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        )}
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 text-red-400 hover:text-red-300"
+                                          onClick={() => {
+                                            const triggers = displayElement.healthTriggers || [];
+                                            updateElement({
+                                              healthTriggers: triggers.map(t => 
+                                                t.id === trigger.id ? {
+                                                  ...t,
+                                                  actions: t.actions.filter(a => a.id !== action.id)
+                                                } : t
+                                              )
+                                            });
+                                          }}
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </Button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </>
                         )}
