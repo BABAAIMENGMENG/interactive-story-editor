@@ -7930,6 +7930,22 @@ export default function EditorPage() {
                 ? (element?.correctActions || []) 
                 : (element?.wrongActions || []);
               
+              // 获取场景中的血条元素列表
+              const healthBars = currentScene?.elements.filter(el => el.type === 'healthBar') || [];
+              // 获取所有场景列表
+              const allScenes = scenes || [];
+              // 获取所有可显示/隐藏的元素
+              const toggleableElements = currentScene?.elements.filter(el => el.type !== 'choiceItem') || [];
+              
+              // 更新动作的辅助函数
+              const updateAction = (actionIdx: number, updates: Partial<EventAction>) => {
+                const key = showChoiceActionDialog?.type === 'correct' ? 'correctActions' : 'wrongActions';
+                const currentActions = element?.[key] || [];
+                const newActions = [...currentActions];
+                newActions[actionIdx] = { ...newActions[actionIdx], ...updates };
+                updateElement({ [key]: newActions });
+              };
+              
               return actions.length > 0 ? (
                 <div className="space-y-2">
                   <Label className="text-xs text-white">已配置的动作</Label>
@@ -7972,6 +7988,136 @@ export default function EditorPage() {
                           删除
                         </Button>
                       </div>
+                      
+                      {/* 血量相关动作配置 */}
+                      {['addHealth', 'reduceHealth', 'setHealth'].includes(action.type) && (
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-zinc-400">目标血条</Label>
+                            <Select
+                              value={action.targetElementId || ''}
+                              onValueChange={(v) => updateAction(idx, { targetElementId: v })}
+                            >
+                              <SelectTrigger className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white">
+                                <SelectValue placeholder="选择血条" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-zinc-700 border-zinc-600">
+                                {healthBars.map(hb => (
+                                  <SelectItem key={hb.id} value={hb.id} className="text-xs">
+                                    {hb.name || '血条'}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-zinc-400">
+                              {action.type === 'setHealth' ? '血量值' : '数值'}
+                            </Label>
+                            <Input
+                              type="number"
+                              value={action.value || 0}
+                              onChange={(e) => updateAction(idx, { value: parseInt(e.target.value) || 0 })}
+                              className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white"
+                              min={0}
+                              max={action.type === 'setHealth' ? undefined : undefined}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* 跳转场景配置 */}
+                      {action.type === 'jumpScene' && (
+                        <div className="space-y-1 mt-2">
+                          <Label className="text-xs text-zinc-400">目标场景</Label>
+                          <Select
+                            value={action.targetSceneId || ''}
+                            onValueChange={(v) => updateAction(idx, { targetSceneId: v })}
+                          >
+                            <SelectTrigger className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white">
+                              <SelectValue placeholder="选择场景" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-zinc-700 border-zinc-600">
+                              {allScenes.map(s => (
+                                <SelectItem key={s.id} value={s.id} className="text-xs">
+                                  {s.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      
+                      {/* 显示/隐藏元素配置 */}
+                      {['showElement', 'hideElement', 'toggleElement'].includes(action.type) && (
+                        <div className="space-y-1 mt-2">
+                          <Label className="text-xs text-zinc-400">目标元素</Label>
+                          <Select
+                            value={action.targetElementId || ''}
+                            onValueChange={(v) => updateAction(idx, { targetElementId: v })}
+                          >
+                            <SelectTrigger className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white">
+                              <SelectValue placeholder="选择元素" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-zinc-700 border-zinc-600">
+                              {toggleableElements.map(el => (
+                                <SelectItem key={el.id} value={el.id} className="text-xs">
+                                  {el.name || el.type}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      
+                      {/* 设置透明度配置 */}
+                      {action.type === 'setOpacity' && (
+                        <div className="space-y-2 mt-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-zinc-400">目标元素</Label>
+                            <Select
+                              value={action.targetElementId || ''}
+                              onValueChange={(v) => updateAction(idx, { targetElementId: v })}
+                            >
+                              <SelectTrigger className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white">
+                                <SelectValue placeholder="选择元素" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-zinc-700 border-zinc-600">
+                                {toggleableElements.map(el => (
+                                  <SelectItem key={el.id} value={el.id} className="text-xs">
+                                    {el.name || el.type}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-zinc-400">透明度: {Math.round((action.value || 1) * 100)}%</Label>
+                            <Input
+                              type="range"
+                              value={(action.value || 1) * 100}
+                              onChange={(e) => updateAction(idx, { value: parseInt(e.target.value) / 100 })}
+                              className="h-8"
+                              min={0}
+                              max={100}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* 延迟等待配置 */}
+                      {action.type === 'delay' && (
+                        <div className="space-y-1 mt-2">
+                          <Label className="text-xs text-zinc-400">延迟时间 (毫秒)</Label>
+                          <Input
+                            type="number"
+                            value={action.delay || 1000}
+                            onChange={(e) => updateAction(idx, { delay: parseInt(e.target.value) || 1000 })}
+                            className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white"
+                            min={0}
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
