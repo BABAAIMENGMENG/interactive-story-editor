@@ -6158,25 +6158,12 @@ export default function EditorPage() {
                   min={0}
                   step={1}
                   className="h-5 w-14 bg-zinc-700 border-zinc-600 text-xs text-white px-1"
-                  defaultValue={Math.round((videoTimes[selectedElement.id]?.currentTime || 0) * (videoTimes[selectedElement.id]?.fps || 30))}
-                  key={`frame-${selectedElement.id}-${Math.round((videoTimes[selectedElement.id]?.currentTime || 0) * (videoTimes[selectedElement.id]?.fps || 30))}`}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const input = e.target as HTMLInputElement;
-                      const frame = parseInt(input.value) || 0;
-                      const fps = videoTimes[selectedElement.id]?.fps || 30;
-                      const video = videoRefs.current.get(selectedElement.id);
-                      if (video) {
-                        video.currentTime = frame / fps;
-                      }
-                      input.blur();
-                    }
-                  }}
-                  onBlur={(e) => {
+                  value={Math.round((videoTimes[selectedElement.id]?.currentTime || 0) * (videoTimes[selectedElement.id]?.fps || 30))}
+                  onChange={(e) => {
                     const frame = parseInt(e.target.value) || 0;
                     const fps = videoTimes[selectedElement.id]?.fps || 30;
                     const video = videoRefs.current.get(selectedElement.id);
-                    if (video && Math.abs(video.currentTime - frame / fps) > 0.1) {
+                    if (video) {
                       video.currentTime = frame / fps;
                     }
                   }}
