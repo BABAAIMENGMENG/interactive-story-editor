@@ -392,19 +392,31 @@ interface HealthTrigger {
   triggered?: boolean;  // 是否已触发（运行时状态）
 }
 
-// 路径点
+// 路径点 - 简化版，支持自动平滑曲线
 interface PathPoint {
   id: string;           // 路径点唯一ID
   x: number;            // X坐标
   y: number;            // Y坐标
-  // 贝塞尔曲线控制点（用于平滑曲线）
+  // 贝塞尔曲线控制点（可选，不设置时自动计算平滑曲线）
   controlIn?: { x: number; y: number };   // 入方向控制点（相对于路径点）
   controlOut?: { x: number; y: number };  // 出方向控制点（相对于路径点）
-  // 控制点类型
-  controlType?: 'auto' | 'symmetric' | 'angle' | 'separate'; // 自动、对称、角度、分离
 }
 
-// 路径动画
+// 元素路径配置 - 简化版，每个元素只有一条路径
+interface ElementPath {
+  points: PathPoint[];  // 路径点列表
+  enabled: boolean;     // 是否启用路径
+  // 动画配置
+  duration: number;     // 动画持续时间(ms)
+  easing: 'linear' | 'ease' | 'easeIn' | 'easeOut' | 'easeInOut';
+  loopMode: 'none' | 'loop' | 'alternate'; // 循环模式
+  autoPlay: boolean;    // 是否自动播放
+  delay: number;        // 动画延迟(ms)
+  // 路径跟随选项
+  orientToPath?: boolean; // 是否朝向路径方向
+}
+
+// 保留旧的 PathAnimation 用于向后兼容
 interface PathAnimation {
   id: string;           // 动画唯一ID
   name: string;         // 动画名称
@@ -527,7 +539,9 @@ interface CanvasElement {
   // 选择项特有属性
   isSelected?: boolean;       // 选中状态（用于事件配置）
   clickActions?: EventAction[]; // 点击时触发的动作序列
-  // 路径动画
+  // 路径动画 - 简化版，直接在画布上绘制
+  path?: ElementPath;         // 元素的移动路径
+  // 旧版路径动画（保留向后兼容）
   pathAnimations?: PathAnimation[]; // 元素的路径动画列表
   // children 通过计算得出，不需要存储
 }
@@ -765,20 +779,14 @@ export default function EditorPage() {
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [showMediaDialog, setShowMediaDialog] = useState(false);
   const [showChoiceActionDialog, setShowChoiceActionDialog] = useState<{ elementId: string } | null>(null);
-  const [showPathAnimationEditor, setShowPathAnimationEditor] = useState<{ animationId: string; elementId: string } | null>(null);
+  
+  // 路径绘制模式 - 直接在画布上绘制路径
+  const [pathDrawMode, setPathDrawMode] = useState<{ elementId: string } | null>(null);
   // 路径编辑模式 - 在画布上直接编辑路径点
-  const [pathEditMode, setPathEditMode] = useState<{ animationId: string; elementId: string } | null>(null);
-  // 拖拽中的路径点或控制点
-  const [draggingPathPoint, setDraggingPathPoint] = useState<{
-    pointId: string;
-    type: 'point' | 'controlIn' | 'controlOut';
-    startX: number;
-    startY: number;
-    startPointX: number;
-    startPointY: number;
-    startControlX?: number;
-    startControlY?: number;
-  } | null>(null);
+  const [pathEditMode, setPathEditMode] = useState<{ elementId: string } | null>(null);
+  // 预览路径（绘制中的临时路径）
+  const [previewPath, setPreviewPath] = useState<{ elementId: string; points: { x: number; y: number }[] } | null>(null);
+  
   const [newSceneName, setNewSceneName] = useState('');
   const [mediaType, setMediaType] = useState<'image' | 'video' | 'panorama' | 'panoramaVideo' | 'audio'>('image');
   const [mediaUrl, setMediaUrl] = useState('');
@@ -1433,8 +1441,16 @@ export default function EditorPage() {
         setSelectedId(newEl.id);
       }
 
-      // Escape 取消选中
+      // Escape 取消选中或退出路径绘制/编辑模式
       if (e.key === 'Escape') {
+        if (pathDrawMode) {
+          setPathDrawMode(null);
+          return;
+        }
+        if (pathEditMode) {
+          setPathEditMode(null);
+          return;
+        }
         setSelectedId(null);
         closeContextMenu();
       }
@@ -1442,7 +1458,7 @@ export default function EditorPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedId, selectedElement, currentScene, currentSceneId]);
+  }, [selectedId, selectedElement, currentScene, currentSceneId, pathDrawMode, pathEditMode]);
 
   // 阻止浏览器默认的 Ctrl+滚轮 缩放行为（在整个编辑器内都禁止浏览器缩放）
   useEffect(() => {
@@ -1609,6 +1625,58 @@ export default function EditorPage() {
   // 画布拖拽
   const handleMouseDown = (e: React.MouseEvent, elementId?: string) => {
     e.preventDefault();
+    
+    // 路径绘制模式 - 点击画布添加路径点
+    if (pathDrawMode && !elementId) {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (rect) {
+        const x = (e.clientX - rect.left - offset.x) / zoom;
+        const y = (e.clientY - rect.top - offset.y) / zoom;
+        
+        // 获取当前元素
+        const element = currentScene?.elements.find(el => el.id === pathDrawMode.elementId);
+        if (element) {
+          const currentPath = element.path || {
+            points: [],
+            enabled: true,
+            duration: 3000,
+            easing: 'easeInOut' as const,
+            loopMode: 'none' as const,
+            autoPlay: false,
+            delay: 0,
+          };
+          
+          // 添加新的路径点
+          const newPoint: PathPoint = {
+            id: `pt-${Date.now()}`,
+            x: Math.round(x),
+            y: Math.round(y),
+          };
+          
+          // 如果是第一个点，使用元素当前位置作为起点
+          const newPoints = currentPath.points.length === 0 
+            ? [
+                { id: `pt-start-${Date.now()}`, x: element.x + element.width / 2, y: element.y + element.height / 2 },
+                newPoint
+              ]
+            : [...currentPath.points, newPoint];
+          
+          updateElement({ 
+            path: { 
+              ...currentPath, 
+              points: newPoints 
+            } 
+          });
+        }
+      }
+      return;
+    }
+    
+    // 路径编辑模式 - 点击空白处退出编辑模式
+    if (pathEditMode && !elementId) {
+      setPathEditMode(null);
+      return;
+    }
     
     // 计算拖拽参数（不依赖异步状态更新）
     let currentDragType: 'canvas' | 'element';
@@ -4973,60 +5041,98 @@ export default function EditorPage() {
                 );
               })}
             
-            {/* 路径动画预览 - 在画布上显示路径 */}
-            {pathEditMode && (() => {
-              const pathElement = currentScene?.elements.find(el => el.id === pathEditMode.elementId);
-              const animation = pathElement?.pathAnimations?.find(a => a.id === pathEditMode.animationId);
-              if (!animation || !pathElement) return null;
+            {/* 路径绘制/编辑模式 - 在画布上显示和编辑路径 */}
+            {(pathDrawMode || pathEditMode) && (() => {
+              const elementId = pathDrawMode?.elementId || pathEditMode?.elementId;
+              const pathElement = currentScene?.elements.find(el => el.id === elementId);
+              const elementPath = pathElement?.path;
               
-              // 生成贝塞尔曲线路径
+              if (!pathElement) return null;
+              
+              const points = elementPath?.points || [];
+              
+              // 计算平滑贝塞尔曲线的控制点（自动计算）
+              const getAutoControlPoints = (prev: PathPoint | null, next: PathPoint | null, curr: PathPoint, index: number, total: number) => {
+                // 起点 and 终点使用较小的控制点
+                if (index === 0) {
+                  if (!next) return { controlOut: { x: 0, y: 0 } };
+                  const dx = next.x - curr.x;
+                  const dy = next.y - curr.y;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  const controlDist = dist * 0.3;
+                  return { controlOut: { x: (dx / dist) * controlDist, y: (dy / dist) * controlDist } };
+                }
+                if (index === total - 1) {
+                  if (!prev) return { controlIn: { x: 0, y: 0 } };
+                  const dx = prev.x - curr.x;
+                  const dy = prev.y - curr.y;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  const controlDist = dist * 0.3;
+                  return { controlIn: { x: (dx / dist) * controlDist, y: (dy / dist) * controlDist } };
+                }
+                
+                // 中间点 - 计算平滑曲线
+                if (!prev || !next) return { controlIn: { x: 0, y: 0 }, controlOut: { x: 0, y: 0 } };
+                
+                const dx = next.x - prev.x;
+                const dy = next.y - prev.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const controlDist = dist * 0.25;
+                
+                return {
+                  controlIn: { x: -(dx / dist) * controlDist, y: -(dy / dist) * controlDist },
+                  controlOut: { x: (dx / dist) * controlDist, y: (dy / dist) * controlDist }
+                };
+              };
+              
+              // 生成 SVG 路径
               const generatePathD = () => {
-                if (animation.pathPoints.length < 2) return '';
+                if (points.length < 2) return '';
                 
-                let d = `M ${animation.pathPoints[0].x} ${animation.pathPoints[0].y}`;
+                let d = `M ${points[0].x} ${points[0].y}`;
                 
-                for (let i = 1; i < animation.pathPoints.length; i++) {
-                  const prev = animation.pathPoints[i - 1];
-                  const curr = animation.pathPoints[i];
+                for (let i = 1; i < points.length; i++) {
+                  const prev = points[i - 1];
+                  const curr = points[i];
                   
-                  // 如果前一个点有出方向控制点，且当前点有入方向控制点，使用三次贝塞尔曲线
-                  if (prev.controlOut && curr.controlIn) {
-                    const cp1x = prev.x + prev.controlOut.x;
-                    const cp1y = prev.y + prev.controlOut.y;
-                    const cp2x = curr.x + curr.controlIn.x;
-                    const cp2y = curr.y + curr.controlIn.y;
-                    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${curr.x} ${curr.y}`;
-                  } else if (prev.controlOut) {
-                    // 只有前一个点有控制点
-                    const cpx = prev.x + prev.controlOut.x;
-                    const cpy = prev.y + prev.controlOut.y;
-                    d += ` Q ${cpx} ${cpy}, ${curr.x} ${curr.y}`;
-                  } else if (curr.controlIn) {
-                    // 只有当前点有控制点
-                    const cpx = curr.x + curr.controlIn.x;
-                    const cpy = curr.y + curr.controlIn.y;
-                    d += ` Q ${cpx} ${cpy}, ${curr.x} ${curr.y}`;
-                  } else {
-                    // 直线连接
-                    d += ` L ${curr.x} ${curr.y}`;
-                  }
+                  const prevAuto = getAutoControlPoints(
+                    i > 1 ? points[i - 2] : null,
+                    curr,
+                    prev,
+                    i - 1,
+                    points.length
+                  );
+                  const currAuto = getAutoControlPoints(
+                    prev,
+                    i < points.length - 1 ? points[i + 1] : null,
+                    curr,
+                    i,
+                    points.length
+                  );
+                  
+                  const prevControlOut = prev.controlOut || prevAuto.controlOut || { x: 0, y: 0 };
+                  const currControlIn = curr.controlIn || currAuto.controlIn || { x: 0, y: 0 };
+                  
+                  // 使用三次贝塞尔曲线
+                  const cp1x = prev.x + prevControlOut.x;
+                  const cp1y = prev.y + prevControlOut.y;
+                  const cp2x = curr.x + currControlIn.x;
+                  const cp2y = curr.y + currControlIn.y;
+                  
+                  d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${curr.x} ${curr.y}`;
                 }
                 
                 return d;
               };
               
-              // 更新路径点的函数
+              // 更新路径点
               const updatePathPoint = (pointIndex: number, updates: Partial<PathPoint>) => {
-                if (!pathElement) return;
-                const newAnimations = [...(pathElement.pathAnimations || [])];
-                const animIndex = newAnimations.findIndex(a => a.id === animation.id);
-                if (animIndex === -1) return;
-                
-                const newPoints = [...animation.pathPoints];
+                if (!pathElement || !elementPath) return;
+                const newPoints = [...points];
                 newPoints[pointIndex] = { ...newPoints[pointIndex], ...updates };
-                newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
-                
-                updateElement({ pathAnimations: newAnimations });
+                updateElement({ 
+                  path: { ...elementPath, points: newPoints } 
+                });
               };
               
               return (
@@ -5038,114 +5144,90 @@ export default function EditorPage() {
                     overflow: 'visible'
                   }}
                 >
-                  {/* 路径线 */}
-                  <path 
-                    d={generatePathD()} 
-                    fill="none" 
-                    stroke="rgba(139, 92, 246, 0.8)" 
-                    strokeWidth="2"
-                    strokeDasharray="5,5"
-                  />
+                  {/* 路径曲线 */}
+                  {points.length >= 2 && (
+                    <path 
+                      d={generatePathD()} 
+                      fill="none" 
+                      stroke="rgba(139, 92, 246, 0.9)" 
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  )}
                   
-                  {/* 路径点和控制点 - 可交互 */}
-                  {animation.pathPoints.map((point, pointIndex) => {
-                    // 计算自动贝塞尔控制点
-                    const getAutoControlPoints = (prev: PathPoint | null, next: PathPoint | null, curr: PathPoint) => {
-                      if (!prev && !next) return { controlIn: { x: 0, y: 0 }, controlOut: { x: 0, y: 0 } };
-                      
-                      // 计算相邻点的方向
-                      const dx = (next?.x || curr.x) - (prev?.x || curr.x);
-                      const dy = (next?.y || curr.y) - (prev?.y || curr.y);
-                      const dist = Math.sqrt(dx * dx + dy * dy);
-                      
-                      if (dist === 0) return { controlIn: { x: 0, y: 0 }, controlOut: { x: 0, y: 0 } };
-                      
-                      // 控制点距离
-                      const controlDist = Math.min(50, dist * 0.3);
-                      const controlX = (dx / dist) * controlDist;
-                      const controlY = (dy / dist) * controlDist;
-                      
-                      return {
-                        controlIn: { x: -controlX, y: -controlY },
-                        controlOut: { x: controlX, y: controlY }
-                      };
-                    };
+                  {/* 连接线（直线预览） */}
+                  {points.length >= 2 && (
+                    <path 
+                      d={`M ${points.map(p => `${p.x} ${p.y}`).join(' L ')}`}
+                      fill="none" 
+                      stroke="rgba(139, 92, 246, 0.3)" 
+                      strokeWidth="1"
+                      strokeDasharray="5,5"
+                    />
+                  )}
+                  
+                  {/* 路径点 */}
+                  {points.map((point, pointIndex) => {
+                    const autoControls = getAutoControlPoints(
+                      pointIndex > 0 ? points[pointIndex - 1] : null,
+                      pointIndex < points.length - 1 ? points[pointIndex + 1] : null,
+                      point,
+                      pointIndex,
+                      points.length
+                    );
                     
-                    const prev = pointIndex > 0 ? animation.pathPoints[pointIndex - 1] : null;
-                    const next = pointIndex < animation.pathPoints.length - 1 ? animation.pathPoints[pointIndex + 1] : null;
-                    
-                    // 根据控制点类型确定实际使用的控制点
-                    let effectiveControlIn = point.controlIn;
-                    let effectiveControlOut = point.controlOut;
-                    
-                    if (point.controlType === 'auto' || (!point.controlIn && !point.controlOut)) {
-                      const auto = getAutoControlPoints(prev, next, point);
-                      effectiveControlIn = auto.controlIn;
-                      effectiveControlOut = auto.controlOut;
-                    }
+                    const controlIn = point.controlIn || autoControls.controlIn;
+                    const controlOut = point.controlOut || autoControls.controlOut;
                     
                     return (
                       <g key={point.id}>
                         {/* 控制点连接线 */}
-                        {effectiveControlIn && (
+                        {controlIn && (
                           <line 
                             x1={point.x} 
                             y1={point.y} 
-                            x2={point.x + effectiveControlIn.x} 
-                            y2={point.y + effectiveControlIn.y}
+                            x2={point.x + controlIn.x} 
+                            y2={point.y + controlIn.y}
                             stroke="rgba(236, 72, 153, 0.6)"
-                            strokeWidth="1"
-                            className="pointer-events-none"
+                            strokeWidth="1.5"
                           />
                         )}
-                        {effectiveControlOut && (
+                        {controlOut && (
                           <line 
                             x1={point.x} 
                             y1={point.y} 
-                            x2={point.x + effectiveControlOut.x} 
-                            y2={point.y + effectiveControlOut.y}
+                            x2={point.x + controlOut.x} 
+                            y2={point.y + controlOut.y}
                             stroke="rgba(34, 197, 94, 0.6)"
-                            strokeWidth="1"
-                            className="pointer-events-none"
+                            strokeWidth="1.5"
                           />
                         )}
                         
                         {/* 入方向控制点 */}
-                        {effectiveControlIn && (
+                        {controlIn && pathEditMode && (
                           <circle
-                            cx={point.x + effectiveControlIn.x}
-                            cy={point.y + effectiveControlIn.y}
-                            r="6"
-                            fill="rgba(236, 72, 153, 0.8)"
+                            cx={point.x + controlIn.x}
+                            cy={point.y + controlIn.y}
+                            r="7"
+                            fill="rgba(236, 72, 153, 0.9)"
                             stroke="white"
                             strokeWidth="2"
-                            className="pointer-events-auto cursor-move hover:fill-pink-400"
+                            className="pointer-events-auto cursor-move"
                             onMouseDown={(e) => {
                               e.stopPropagation();
                               e.preventDefault();
                               
                               const startX = e.clientX;
                               const startY = e.clientY;
-                              const startControlIn = point.controlIn || effectiveControlIn;
+                              const startControl = controlIn;
                               
                               const handleMouseMove = (moveEvent: MouseEvent) => {
                                 const deltaX = moveEvent.clientX - startX;
                                 const deltaY = moveEvent.clientY - startY;
-                                
-                                const newControlIn = {
-                                  x: startControlIn.x + deltaX,
-                                  y: startControlIn.y + deltaY
-                                };
-                                
-                                // 如果是对称模式，同步更新出方向控制点
-                                if (point.controlType === 'symmetric' && point.controlOut) {
-                                  updatePathPoint(pointIndex, {
-                                    controlIn: newControlIn,
-                                    controlOut: { x: -newControlIn.x, y: -newControlIn.y }
-                                  });
-                                } else {
-                                  updatePathPoint(pointIndex, { controlIn: newControlIn });
-                                }
+                                updatePathPoint(pointIndex, { 
+                                  controlIn: { x: startControl.x + deltaX, y: startControl.y + deltaY } 
+                                });
                               };
                               
                               const handleMouseUp = () => {
@@ -5160,41 +5242,29 @@ export default function EditorPage() {
                         )}
                         
                         {/* 出方向控制点 */}
-                        {effectiveControlOut && (
+                        {controlOut && pathEditMode && (
                           <circle
-                            cx={point.x + effectiveControlOut.x}
-                            cy={point.y + effectiveControlOut.y}
-                            r="6"
-                            fill="rgba(34, 197, 94, 0.8)"
+                            cx={point.x + controlOut.x}
+                            cy={point.y + controlOut.y}
+                            r="7"
+                            fill="rgba(34, 197, 94, 0.9)"
                             stroke="white"
                             strokeWidth="2"
-                            className="pointer-events-auto cursor-move hover:fill-green-400"
+                            className="pointer-events-auto cursor-move"
                             onMouseDown={(e) => {
                               e.stopPropagation();
                               e.preventDefault();
                               
                               const startX = e.clientX;
                               const startY = e.clientY;
-                              const startControlOut = point.controlOut || effectiveControlOut;
+                              const startControl = controlOut;
                               
                               const handleMouseMove = (moveEvent: MouseEvent) => {
                                 const deltaX = moveEvent.clientX - startX;
                                 const deltaY = moveEvent.clientY - startY;
-                                
-                                const newControlOut = {
-                                  x: startControlOut.x + deltaX,
-                                  y: startControlOut.y + deltaY
-                                };
-                                
-                                // 如果是对称模式，同步更新入方向控制点
-                                if (point.controlType === 'symmetric' && point.controlIn) {
-                                  updatePathPoint(pointIndex, {
-                                    controlOut: newControlOut,
-                                    controlIn: { x: -newControlOut.x, y: -newControlOut.y }
-                                  });
-                                } else {
-                                  updatePathPoint(pointIndex, { controlOut: newControlOut });
-                                }
+                                updatePathPoint(pointIndex, { 
+                                  controlOut: { x: startControl.x + deltaX, y: startControl.y + deltaY } 
+                                });
                               };
                               
                               const handleMouseUp = () => {
@@ -5212,32 +5282,26 @@ export default function EditorPage() {
                         <circle
                           cx={point.x}
                           cy={point.y}
-                          r="10"
-                          fill="rgba(139, 92, 246, 0.9)"
+                          r="12"
+                          fill={pointIndex === 0 ? "rgba(34, 197, 94, 0.9)" : pointIndex === points.length - 1 ? "rgba(239, 68, 68, 0.9)" : "rgba(139, 92, 246, 0.9)"}
                           stroke="white"
                           strokeWidth="2"
-                          className="pointer-events-auto cursor-move hover:fill-purple-400"
+                          className="pointer-events-auto cursor-move"
                           onMouseDown={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
                             
                             const startX = e.clientX;
                             const startY = e.clientY;
-                            const startPointX = point.x;
-                            const startPointY = point.y;
-                            const startControlIn = point.controlIn;
-                            const startControlOut = point.controlOut;
+                            const startPoint = { x: point.x, y: point.y };
                             
                             const handleMouseMove = (moveEvent: MouseEvent) => {
                               const deltaX = moveEvent.clientX - startX;
                               const deltaY = moveEvent.clientY - startY;
-                              
-                              const newPoint = {
-                                x: startPointX + deltaX,
-                                y: startPointY + deltaY
-                              };
-                              
-                              updatePathPoint(pointIndex, newPoint);
+                              updatePathPoint(pointIndex, { 
+                                x: startPoint.x + deltaX, 
+                                y: startPoint.y + deltaY 
+                              });
                             };
                             
                             const handleMouseUp = () => {
@@ -5267,25 +5331,31 @@ export default function EditorPage() {
                     );
                   })}
                   
-                  {/* 元素位置指示器 - 起点位置 */}
-                  <rect
-                    x={animation.pathPoints[0]?.x - pathElement.width / 2}
-                    y={animation.pathPoints[0]?.y - pathElement.height / 2}
-                    width={pathElement.width}
-                    height={pathElement.height}
-                    fill="none"
-                    stroke="rgba(139, 92, 246, 0.5)"
-                    strokeWidth="1"
-                    strokeDasharray="4,4"
-                    rx={pathElement.borderRadius}
-                    className="pointer-events-none"
-                  />
+                  {/* 绘制模式提示 */}
+                  {pathDrawMode && (
+                    <g>
+                      <rect
+                        x="10"
+                        y="10"
+                        width="280"
+                        height="60"
+                        fill="rgba(0, 0, 0, 0.8)"
+                        rx="8"
+                      />
+                      <text x="20" y="30" fill="white" fontSize="12" fontWeight="bold">
+                        🖊️ 路径绘制模式
+                      </text>
+                      <text x="20" y="50" fill="rgba(255,255,255,0.7)" fontSize="11">
+                        点击画布添加路径点，按 ESC 或点击按钮退出
+                      </text>
+                    </g>
+                  )}
                 </svg>
               );
             })()}
             
-            {/* 元素路径动画预览（非编辑模式时显示选中元素的路径） */}
-            {!pathEditMode && selectedElement?.pathAnimations && selectedElement.pathAnimations.length > 0 && (
+            {/* 选中元素的路径预览（非编辑模式） */}
+            {!pathDrawMode && !pathEditMode && selectedElement?.path && selectedElement.path.points.length >= 2 && (
               <svg 
                 className="absolute inset-0 pointer-events-none"
                 style={{ 
@@ -5294,13 +5364,13 @@ export default function EditorPage() {
                   overflow: 'visible'
                 }}
               >
-                {selectedElement.pathAnimations.map((animation) => {
-                  if (animation.pathPoints.length < 2) return null;
+                {(() => {
+                  const points = selectedElement.path.points;
+                  let d = `M ${points[0].x} ${points[0].y}`;
                   
-                  let d = `M ${animation.pathPoints[0].x} ${animation.pathPoints[0].y}`;
-                  for (let i = 1; i < animation.pathPoints.length; i++) {
-                    const prev = animation.pathPoints[i - 1];
-                    const curr = animation.pathPoints[i];
+                  for (let i = 1; i < points.length; i++) {
+                    const prev = points[i - 1];
+                    const curr = points[i];
                     
                     if (prev.controlOut && curr.controlIn) {
                       const cp1x = prev.x + prev.controlOut.x;
@@ -5314,28 +5384,28 @@ export default function EditorPage() {
                   }
                   
                   return (
-                    <g key={animation.id}>
+                    <g>
                       <path 
                         d={d} 
                         fill="none" 
-                        stroke="rgba(139, 92, 246, 0.4)" 
+                        stroke="rgba(139, 92, 246, 0.5)" 
                         strokeWidth="2"
                         strokeDasharray="5,5"
                       />
-                      {animation.pathPoints.map((point, idx) => (
+                      {points.map((point, idx) => (
                         <circle
                           key={point.id}
                           cx={point.x}
                           cy={point.y}
-                          r="4"
-                          fill="rgba(139, 92, 246, 0.6)"
+                          r="5"
+                          fill={idx === 0 ? "rgba(34, 197, 94, 0.7)" : idx === points.length - 1 ? "rgba(239, 68, 68, 0.7)" : "rgba(139, 92, 246, 0.7)"}
                           stroke="white"
                           strokeWidth="1"
                         />
                       ))}
                     </g>
                   );
-                })}
+                })()}
               </svg>
             )}
             
@@ -7957,112 +8027,205 @@ export default function EditorPage() {
                           </div>
                         )}
 
-                        {/* 路径动画 */}
-                        <div className="mt-4 space-y-2">
+                        {/* 路径动画 - 简化版，支持画布绘制 */}
+                        <div className="mt-4 space-y-3">
                           <div className="flex items-center justify-between">
                             <Label className="text-xs text-white flex items-center gap-2">
                               <Route className="w-4 h-4" />
-                              路径动画
+                              移动路径
                             </Label>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-2 text-xs text-zinc-300 hover:text-white"
-                              onClick={() => {
-                                const newAnimation: PathAnimation = {
-                                  id: `path-${Date.now()}`,
-                                  name: `动画${(displayElement.pathAnimations?.length || 0) + 1}`,
-                                  pathPoints: [
-                                    { id: `pt-${Date.now()}-0`, x: displayElement.x, y: displayElement.y },
-                                    { id: `pt-${Date.now()}-1`, x: displayElement.x + 100, y: displayElement.y },
-                                  ],
-                                  duration: 2000,
-                                  easing: 'easeInOut',
-                                  loopMode: 'none',
-                                  autoPlay: false,
-                                  delay: 0,
-                                };
-                                updateElement({ 
-                                  pathAnimations: [...(displayElement.pathAnimations || []), newAnimation] 
-                                });
-                              }}
-                            >
-                              <Plus className="w-3 h-3 mr-1" />
-                              添加
-                            </Button>
+                            {displayElement.path && displayElement.path.points.length >= 2 ? (
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={`h-7 px-2 text-xs ${pathEditMode?.elementId === displayElement.id ? 'text-green-400 bg-green-500/20' : 'text-zinc-300 hover:text-white'}`}
+                                  onClick={() => {
+                                    if (pathEditMode?.elementId === displayElement.id) {
+                                      setPathEditMode(null);
+                                    } else {
+                                      setPathDrawMode(null);
+                                      setPathEditMode({ elementId: displayElement.id });
+                                    }
+                                  }}
+                                >
+                                  <Edit3 className="w-3 h-3 mr-1" />
+                                  {pathEditMode?.elementId === displayElement.id ? '完成' : '编辑'}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-zinc-400 hover:text-red-400"
+                                  onClick={() => {
+                                    updateElement({ path: undefined });
+                                    setPathEditMode(null);
+                                    setPathDrawMode(null);
+                                  }}
+                                >
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className={`h-7 text-xs ${pathDrawMode?.elementId === displayElement.id ? 'bg-purple-500/30 border-purple-500 text-purple-300' : 'border-zinc-600 text-zinc-300 hover:text-white'}`}
+                                onClick={() => {
+                                  if (pathDrawMode?.elementId === displayElement.id) {
+                                    setPathDrawMode(null);
+                                  } else {
+                                    setPathEditMode(null);
+                                    setPathDrawMode({ elementId: displayElement.id });
+                                  }
+                                }}
+                              >
+                                <Edit3 className="w-3 h-3 mr-1" />
+                                {pathDrawMode?.elementId === displayElement.id ? '绘制中...' : '绘制路径'}
+                              </Button>
+                            )}
                           </div>
 
-                          {/* 路径动画列表 */}
-                          {displayElement.pathAnimations && displayElement.pathAnimations.length > 0 && (
-                            <div className="space-y-2">
-                              {displayElement.pathAnimations.map((animation, index) => (
-                                <div key={animation.id} className="bg-zinc-800/50 rounded-lg p-3 border border-zinc-700">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <Input
-                                      value={animation.name}
-                                      onChange={(e) => {
-                                        const newAnimations = [...(displayElement.pathAnimations || [])];
-                                        newAnimations[index] = { ...animation, name: e.target.value };
-                                        updateElement({ pathAnimations: newAnimations });
-                                      }}
-                                      className="h-6 w-24 bg-zinc-700 border-zinc-600 text-xs text-white"
-                                    />
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 p-0 text-zinc-400 hover:text-white"
-                                        onClick={() => setShowPathAnimationEditor({ animationId: animation.id, elementId: displayElement.id })}
-                                      >
-                                        <Edit3 className="w-3 h-3" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 p-0 text-zinc-400 hover:text-red-400"
-                                        onClick={() => {
-                                          const newAnimations = (displayElement.pathAnimations || []).filter((_, i) => i !== index);
-                                          updateElement({ pathAnimations: newAnimations });
-                                        }}
-                                      >
-                                        <X className="w-3 h-3" />
-                                      </Button>
-                                    </div>
-                                  </div>
-
-                                  {/* 路径点预览 */}
-                                  <div className="text-xs text-zinc-400 mb-2">
-                                    路径点: {animation.pathPoints.length} 个
-                                  </div>
-
-                                  {/* 动画参数 */}
-                                  <div className="grid grid-cols-2 gap-2 text-xs">
-                                    <div>
-                                      <span className="text-zinc-400">时长: </span>
-                                      <span className="text-zinc-300">{animation.duration}ms</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-zinc-400">缓动: </span>
-                                      <span className="text-zinc-300">{animation.easing}</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-zinc-400">循环: </span>
-                                      <span className="text-zinc-300">
-                                        {animation.loopMode === 'none' ? '无' : animation.loopMode === 'loop' ? '循环' : '往返'}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <span className="text-zinc-400">自动播放: </span>
-                                      <span className="text-zinc-300">{animation.autoPlay ? '是' : '否'}</span>
-                                    </div>
-                                  </div>
+                          {/* 路径已存在 - 显示配置 */}
+                          {displayElement.path && displayElement.path.points.length >= 2 && (
+                            <div className="bg-zinc-800/50 rounded-lg p-3 border border-zinc-700 space-y-3">
+                              {/* 路径信息 */}
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-zinc-400">路径点:</span>
+                                <span className="text-white font-medium">{displayElement.path.points.length} 个</span>
+                                <span className="text-zinc-500 mx-2">|</span>
+                                <span className="text-green-400">●</span>
+                                <span className="text-zinc-400">起点</span>
+                                <span className="text-red-400 ml-1">●</span>
+                                <span className="text-zinc-400">终点</span>
+                              </div>
+                              
+                              {/* 动画参数 */}
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-zinc-400">持续时间(ms)</Label>
+                                  <Input
+                                    type="number"
+                                    value={displayElement.path.duration || 3000}
+                                    onChange={(e) => updateElement({ 
+                                      path: { ...displayElement.path!, duration: parseInt(e.target.value) || 3000 } 
+                                    })}
+                                    className="h-7 text-xs bg-zinc-700 border-zinc-600"
+                                  />
                                 </div>
-                              ))}
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-zinc-400">缓动</Label>
+                                  <Select
+                                    value={displayElement.path.easing || 'easeInOut'}
+                                    onValueChange={(v) => updateElement({ 
+                                      path: { ...displayElement.path!, easing: v as any } 
+                                    })}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs bg-zinc-700 border-zinc-600">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-zinc-800 border-zinc-600">
+                                      <SelectItem value="linear">线性</SelectItem>
+                                      <SelectItem value="ease">缓动</SelectItem>
+                                      <SelectItem value="easeIn">缓入</SelectItem>
+                                      <SelectItem value="easeOut">缓出</SelectItem>
+                                      <SelectItem value="easeInOut">缓入缓出</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-zinc-400">循环模式</Label>
+                                  <Select
+                                    value={displayElement.path.loopMode || 'none'}
+                                    onValueChange={(v) => updateElement({ 
+                                      path: { ...displayElement.path!, loopMode: v as any } 
+                                    })}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs bg-zinc-700 border-zinc-600">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-zinc-800 border-zinc-600">
+                                      <SelectItem value="none">不循环</SelectItem>
+                                      <SelectItem value="loop">循环</SelectItem>
+                                      <SelectItem value="alternate">往返</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-zinc-400">延迟(ms)</Label>
+                                  <Input
+                                    type="number"
+                                    value={displayElement.path.delay || 0}
+                                    onChange={(e) => updateElement({ 
+                                      path: { ...displayElement.path!, delay: parseInt(e.target.value) || 0 } 
+                                    })}
+                                    className="h-7 text-xs bg-zinc-700 border-zinc-600"
+                                  />
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center justify-between pt-1">
+                                <div className="flex items-center gap-2">
+                                  <Switch
+                                    checked={displayElement.path.autoPlay || false}
+                                    onCheckedChange={(v) => updateElement({ 
+                                      path: { ...displayElement.path!, autoPlay: v } 
+                                    })}
+                                  />
+                                  <Label className="text-xs text-zinc-300">自动播放</Label>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs border-zinc-600 text-zinc-300"
+                                  onClick={() => {
+                                    // 清空路径重新绘制
+                                    updateElement({ 
+                                      path: { ...displayElement.path!, points: [] } 
+                                    });
+                                    setPathEditMode(null);
+                                    setPathDrawMode({ elementId: displayElement.id });
+                                  }}
+                                >
+                                  重绘路径
+                                </Button>
+                              </div>
                             </div>
                           )}
 
-                          {(!displayElement.pathAnimations || displayElement.pathAnimations.length === 0) && (
-                            <p className="text-xs text-zinc-500">创建路径动画让元素沿路径移动</p>
+                          {/* 绘制模式提示 */}
+                          {pathDrawMode?.elementId === displayElement.id && (
+                            <div className="bg-purple-500/20 border border-purple-500/40 rounded-lg p-3">
+                              <div className="flex items-start gap-2">
+                                <span className="text-purple-400">🖊️</span>
+                                <div className="text-xs text-purple-300">
+                                  <p className="font-medium mb-1">路径绘制模式已开启</p>
+                                  <p>在画布上点击添加路径点，元素将沿路径移动</p>
+                                  <p className="mt-1 text-purple-400">按 ESC 或点击「绘制中...」按钮退出</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 编辑模式提示 */}
+                          {pathEditMode?.elementId === displayElement.id && (
+                            <div className="bg-green-500/20 border border-green-500/40 rounded-lg p-3">
+                              <div className="flex items-start gap-2">
+                                <span className="text-green-400">✏️</span>
+                                <div className="text-xs text-green-300">
+                                  <p className="font-medium mb-1">路径编辑模式已开启</p>
+                                  <p>拖拽路径点调整位置，拖拽控制点调整曲线形状</p>
+                                  <p className="mt-1">🟢 出方向控制点 | 🩷 入方向控制点</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 无路径时的提示 */}
+                          {(!displayElement.path || displayElement.path.points.length < 2) && pathDrawMode?.elementId !== displayElement.id && (
+                            <p className="text-xs text-zinc-500">点击「绘制路径」在画布上绘制移动路径</p>
                           )}
                         </div>
                       </>
@@ -8791,432 +8954,7 @@ export default function EditorPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 路径动画编辑器弹窗 */}
-      <Dialog open={!!showPathAnimationEditor} onOpenChange={(open) => !open && setShowPathAnimationEditor(null)}>
-        <DialogContent className="bg-zinc-800 border-zinc-600 max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Route className="w-5 h-5" />
-                路径动画编辑器
-              </div>
-              <div className="flex items-center gap-2">
-                {pathEditMode?.animationId === showPathAnimationEditor?.animationId ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs border-green-500 text-green-400 hover:bg-green-500/20"
-                    onClick={() => setPathEditMode(null)}
-                  >
-                    <Check className="w-4 h-4 mr-1" />
-                    完成编辑
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs border-purple-500 text-purple-400 hover:bg-purple-500/20"
-                    onClick={() => {
-                      if (showPathAnimationEditor) {
-                        setPathEditMode({
-                          animationId: showPathAnimationEditor.animationId,
-                          elementId: showPathAnimationEditor.elementId
-                        });
-                      }
-                    }}
-                  >
-                    <Edit3 className="w-4 h-4 mr-1" />
-                    在画布上编辑
-                  </Button>
-                )}
-              </div>
-            </DialogTitle>
-          </DialogHeader>
-          
-          {/* 编辑模式提示 */}
-          {pathEditMode?.animationId === showPathAnimationEditor?.animationId && (
-            <div className="bg-purple-500/20 border border-purple-500/40 rounded-lg p-3 mb-2">
-              <div className="flex items-start gap-2">
-                <div className="text-purple-400 text-sm">💡</div>
-                <div className="text-xs text-purple-300">
-                  <p className="font-medium mb-1">画布编辑模式已开启</p>
-                  <p>在画布上拖拽路径点（紫色圆点）调整位置，拖拽控制点（绿色/粉色圆点）调整曲线形状。</p>
-                  <p className="mt-1">控制点说明：🟢 出方向控制点 | 🩷 入方向控制点</p>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {showPathAnimationEditor && (() => {
-            const animation = displayElement?.pathAnimations?.find(a => a.id === showPathAnimationEditor.animationId);
-            if (!animation) return null;
-            
-            const animIndex = displayElement?.pathAnimations?.findIndex(a => a.id === showPathAnimationEditor.animationId) ?? -1;
-            
-            return (
-              <div className="flex-1 overflow-auto space-y-4">
-                {/* 基本信息 */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs text-white">动画名称</Label>
-                    <Input
-                      value={animation.name}
-                      onChange={(e) => {
-                        const newAnimations = [...(displayElement?.pathAnimations || [])];
-                        newAnimations[animIndex] = { ...animation, name: e.target.value };
-                        updateElement({ pathAnimations: newAnimations });
-                      }}
-                      className="h-8 bg-zinc-700 border-zinc-600 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs text-white">持续时间 (ms)</Label>
-                    <Input
-                      type="number"
-                      value={animation.duration}
-                      onChange={(e) => {
-                        const newAnimations = [...(displayElement?.pathAnimations || [])];
-                        newAnimations[animIndex] = { ...animation, duration: parseInt(e.target.value) || 1000 };
-                        updateElement({ pathAnimations: newAnimations });
-                      }}
-                      className="h-8 bg-zinc-700 border-zinc-600 text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs text-white">缓动函数</Label>
-                    <Select
-                      value={animation.easing}
-                      onValueChange={(v) => {
-                        const newAnimations = [...(displayElement?.pathAnimations || [])];
-                        newAnimations[animIndex] = { ...animation, easing: v as any };
-                        updateElement({ pathAnimations: newAnimations });
-                      }}
-                    >
-                      <SelectTrigger className="h-8 bg-zinc-700 border-zinc-600 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-zinc-800 border-zinc-600">
-                        <SelectItem value="linear">线性</SelectItem>
-                        <SelectItem value="ease">缓动</SelectItem>
-                        <SelectItem value="easeIn">缓入</SelectItem>
-                        <SelectItem value="easeOut">缓出</SelectItem>
-                        <SelectItem value="easeInOut">缓入缓出</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs text-white">循环模式</Label>
-                    <Select
-                      value={animation.loopMode}
-                      onValueChange={(v) => {
-                        const newAnimations = [...(displayElement?.pathAnimations || [])];
-                        newAnimations[animIndex] = { ...animation, loopMode: v as any };
-                        updateElement({ pathAnimations: newAnimations });
-                      }}
-                    >
-                      <SelectTrigger className="h-8 bg-zinc-700 border-zinc-600 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-zinc-800 border-zinc-600">
-                        <SelectItem value="none">不循环</SelectItem>
-                        <SelectItem value="loop">循环</SelectItem>
-                        <SelectItem value="alternate">往返</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs text-white">延迟 (ms)</Label>
-                    <Input
-                      type="number"
-                      value={animation.delay}
-                      onChange={(e) => {
-                        const newAnimations = [...(displayElement?.pathAnimations || [])];
-                        newAnimations[animIndex] = { ...animation, delay: parseInt(e.target.value) || 0 };
-                        updateElement({ pathAnimations: newAnimations });
-                      }}
-                      className="h-8 bg-zinc-700 border-zinc-600 text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs text-white">自动播放</Label>
-                  <Switch
-                    checked={animation.autoPlay}
-                    onCheckedChange={(v) => {
-                      const newAnimations = [...(displayElement?.pathAnimations || [])];
-                      newAnimations[animIndex] = { ...animation, autoPlay: v };
-                      updateElement({ pathAnimations: newAnimations });
-                    }}
-                  />
-                </div>
-
-                <Separator className="bg-zinc-700" />
-
-                {/* 路径点列表 */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-white">路径点</Label>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs border-zinc-600 text-zinc-300 hover:bg-zinc-700"
-                      onClick={() => {
-                        const lastPoint = animation.pathPoints[animation.pathPoints.length - 1];
-                        const newPoint: PathPoint = {
-                          id: `pt-${Date.now()}`,
-                          x: lastPoint ? lastPoint.x + 50 : displayElement?.x || 0,
-                          y: lastPoint ? lastPoint.y : displayElement?.y || 0,
-                        };
-                        const newAnimations = [...(displayElement?.pathAnimations || [])];
-                        newAnimations[animIndex] = { 
-                          ...animation, 
-                          pathPoints: [...animation.pathPoints, newPoint] 
-                        };
-                        updateElement({ pathAnimations: newAnimations });
-                      }}
-                    >
-                      <Plus className="w-3 h-3 mr-1" />
-                      添加路径点
-                    </Button>
-                  </div>
-
-                  <div className="space-y-2 max-h-80 overflow-auto">
-                    {animation.pathPoints.map((point, pointIndex) => (
-                      <div key={point.id} className="p-3 bg-zinc-700/50 rounded-lg space-y-2">
-                        {/* 路径点基本信息 */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-zinc-400 w-6 font-medium">{pointIndex + 1}</span>
-                          <div className="flex-1 grid grid-cols-2 gap-2">
-                            <div className="flex items-center gap-1">
-                              <span className="text-xs text-zinc-400">X:</span>
-                              <Input
-                                type="number"
-                                value={Math.round(point.x)}
-                                onChange={(e) => {
-                                  const newPoints = [...animation.pathPoints];
-                                  newPoints[pointIndex] = { ...point, x: parseInt(e.target.value) || 0 };
-                                  const newAnimations = [...(displayElement?.pathAnimations || [])];
-                                  newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
-                                  updateElement({ pathAnimations: newAnimations });
-                                }}
-                                className="h-7 bg-zinc-600 border-zinc-500 text-xs text-white"
-                              />
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <span className="text-xs text-zinc-400">Y:</span>
-                              <Input
-                                type="number"
-                                value={Math.round(point.y)}
-                                onChange={(e) => {
-                                  const newPoints = [...animation.pathPoints];
-                                  newPoints[pointIndex] = { ...point, y: parseInt(e.target.value) || 0 };
-                                  const newAnimations = [...(displayElement?.pathAnimations || [])];
-                                  newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
-                                  updateElement({ pathAnimations: newAnimations });
-                                }}
-                                className="h-7 bg-zinc-600 border-zinc-500 text-xs text-white"
-                              />
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-zinc-400 hover:text-red-400"
-                            disabled={animation.pathPoints.length <= 2}
-                            onClick={() => {
-                              const newPoints = animation.pathPoints.filter((_, i) => i !== pointIndex);
-                              const newAnimations = [...(displayElement?.pathAnimations || [])];
-                              newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
-                              updateElement({ pathAnimations: newAnimations });
-                            }}
-                          >
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </div>
-                        
-                        {/* 控制点类型选择 */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-zinc-500 w-6"></span>
-                          <div className="flex-1">
-                            <Select
-                              value={point.controlType || 'auto'}
-                              onValueChange={(v) => {
-                                const newPoints = [...animation.pathPoints];
-                                newPoints[pointIndex] = { 
-                                  ...point, 
-                                  controlType: v as 'auto' | 'symmetric' | 'angle' | 'separate'
-                                };
-                                const newAnimations = [...(displayElement?.pathAnimations || [])];
-                                newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
-                                updateElement({ pathAnimations: newAnimations });
-                              }}
-                            >
-                              <SelectTrigger className="h-6 bg-zinc-600 border-zinc-500 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="bg-zinc-700 border-zinc-600">
-                                <SelectItem value="auto">🔵 自动曲线</SelectItem>
-                                <SelectItem value="symmetric">🔄 对称控制</SelectItem>
-                                <SelectItem value="angle">📐 角度控制</SelectItem>
-                                <SelectItem value="separate">✂️ 独立控制</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        
-                        {/* 贝塞尔控制点（仅在非自动模式下显示） */}
-                        {point.controlType && point.controlType !== 'auto' && (
-                          <div className="pl-6 space-y-2">
-                            {/* 入方向控制点 */}
-                            {(point.controlType === 'separate' || point.controlType === 'symmetric' || point.controlType === 'angle') && (
-                              <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full bg-pink-500 shrink-0" title="入方向控制点"></div>
-                                <span className="text-xs text-zinc-500 w-8">入:</span>
-                                <div className="flex gap-1 flex-1">
-                                  <Input
-                                    type="number"
-                                    value={Math.round(point.controlIn?.x || 0)}
-                                    onChange={(e) => {
-                                      const newControlIn = { 
-                                        x: parseInt(e.target.value) || 0, 
-                                        y: point.controlIn?.y || 0 
-                                      };
-                                      const newPoints = [...animation.pathPoints];
-                                      
-                                      // 对称模式下同步更新出方向
-                                      if (point.controlType === 'symmetric') {
-                                        newPoints[pointIndex] = { 
-                                          ...point, 
-                                          controlIn: newControlIn,
-                                          controlOut: { x: -newControlIn.x, y: -newControlIn.y }
-                                        };
-                                      } else {
-                                        newPoints[pointIndex] = { ...point, controlIn: newControlIn };
-                                      }
-                                      
-                                      const newAnimations = [...(displayElement?.pathAnimations || [])];
-                                      newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
-                                      updateElement({ pathAnimations: newAnimations });
-                                    }}
-                                    className="h-6 w-16 bg-zinc-600 border-zinc-500 text-xs text-white"
-                                  />
-                                  <Input
-                                    type="number"
-                                    value={Math.round(point.controlIn?.y || 0)}
-                                    onChange={(e) => {
-                                      const newControlIn = { 
-                                        x: point.controlIn?.x || 0, 
-                                        y: parseInt(e.target.value) || 0 
-                                      };
-                                      const newPoints = [...animation.pathPoints];
-                                      
-                                      if (point.controlType === 'symmetric') {
-                                        newPoints[pointIndex] = { 
-                                          ...point, 
-                                          controlIn: newControlIn,
-                                          controlOut: { x: -newControlIn.x, y: -newControlIn.y }
-                                        };
-                                      } else {
-                                        newPoints[pointIndex] = { ...point, controlIn: newControlIn };
-                                      }
-                                      
-                                      const newAnimations = [...(displayElement?.pathAnimations || [])];
-                                      newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
-                                      updateElement({ pathAnimations: newAnimations });
-                                    }}
-                                    className="h-6 w-16 bg-zinc-600 border-zinc-500 text-xs text-white"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                            
-                            {/* 出方向控制点（仅独立模式下显示） */}
-                            {point.controlType === 'separate' && (
-                              <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full bg-green-500 shrink-0" title="出方向控制点"></div>
-                                <span className="text-xs text-zinc-500 w-8">出:</span>
-                                <div className="flex gap-1 flex-1">
-                                  <Input
-                                    type="number"
-                                    value={Math.round(point.controlOut?.x || 0)}
-                                    onChange={(e) => {
-                                      const newControlOut = { 
-                                        x: parseInt(e.target.value) || 0, 
-                                        y: point.controlOut?.y || 0 
-                                      };
-                                      const newPoints = [...animation.pathPoints];
-                                      newPoints[pointIndex] = { ...point, controlOut: newControlOut };
-                                      const newAnimations = [...(displayElement?.pathAnimations || [])];
-                                      newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
-                                      updateElement({ pathAnimations: newAnimations });
-                                    }}
-                                    className="h-6 w-16 bg-zinc-600 border-zinc-500 text-xs text-white"
-                                  />
-                                  <Input
-                                    type="number"
-                                    value={Math.round(point.controlOut?.y || 0)}
-                                    onChange={(e) => {
-                                      const newControlOut = { 
-                                        x: point.controlOut?.x || 0, 
-                                        y: parseInt(e.target.value) || 0 
-                                      };
-                                      const newPoints = [...animation.pathPoints];
-                                      newPoints[pointIndex] = { ...point, controlOut: newControlOut };
-                                      const newAnimations = [...(displayElement?.pathAnimations || [])];
-                                      newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
-                                      updateElement({ pathAnimations: newAnimations });
-                                    }}
-                                    className="h-6 w-16 bg-zinc-600 border-zinc-500 text-xs text-white"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* 曲线类型说明 */}
-                  <div className="text-xs text-zinc-500 space-y-1 pt-2 border-t border-zinc-700 mt-2">
-                    <p className="font-medium text-zinc-400">控制点类型说明：</p>
-                    <p>🔵 <span className="text-zinc-400">自动曲线</span> - 根据相邻点自动计算平滑曲线</p>
-                    <p>🔄 <span className="text-zinc-400">对称控制</span> - 入/出方向控制点联动，保持平滑</p>
-                    <p>📐 <span className="text-zinc-400">角度控制</span> - 入方向控制角度，出方向自动计算</p>
-                    <p>✂️ <span className="text-zinc-400">独立控制</span> - 入/出方向控制点完全独立</p>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          <DialogFooter className="flex gap-2">
-            {pathEditMode?.animationId === showPathAnimationEditor?.animationId ? (
-              <Button
-                className="bg-green-600 hover:bg-green-700"
-                onClick={() => setPathEditMode(null)}
-              >
-                <Check className="w-4 h-4 mr-1" />
-                完成编辑
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => setShowPathAnimationEditor(null)}
-                className="border-zinc-600 text-zinc-300 hover:bg-zinc-700"
-              >
-                关闭
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 媒体导入弹窗 */}
+{/* 媒体导入弹窗 */}
       <Dialog open={showMediaDialog} onOpenChange={setShowMediaDialog}>
         <DialogContent className="bg-zinc-800 border-zinc-600 max-w-md">
           <DialogHeader>
