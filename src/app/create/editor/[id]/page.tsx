@@ -786,6 +786,9 @@ export default function EditorPage() {
   const [pathEditMode, setPathEditMode] = useState<{ elementId: string } | null>(null);
   // 预览路径（绘制中的临时路径）
   const [previewPath, setPreviewPath] = useState<{ elementId: string; points: { x: number; y: number }[] } | null>(null);
+  // 路径动画预览状态
+  const [pathPreviewState, setPathPreviewState] = useState<{ elementId: string; x: number; y: number } | null>(null);
+  const pathPreviewRef = useRef<{ elementId: string; animationFrame: number } | null>(null);
   
   const [newSceneName, setNewSceneName] = useState('');
   const [mediaType, setMediaType] = useState<'image' | 'video' | 'panorama' | 'panoramaVideo' | 'audio'>('image');
@@ -1056,6 +1059,204 @@ export default function EditorPage() {
       }, 50);
     }, 100);
   };
+
+  // 预览路径动画
+  const previewPathAnimation = useCallback((elementId: string) => {
+    const element = currentScene?.elements.find(e => e.id === elementId);
+    if (!element?.path || element.path.points.length < 2) return;
+    
+    // 停止之前的动画
+    if (pathPreviewRef.current) {
+      cancelAnimationFrame(pathPreviewRef.current.animationFrame);
+      pathPreviewRef.current = null;
+    }
+    
+    const path = element.path;
+    const points = path.points;
+    const duration = path.duration || 3000;
+    const delay = path.delay || 0;
+    const easing = path.easing || 'easeInOut';
+    const loopMode = path.loopMode || 'none';
+    
+    // 缓动函数
+    const easingFunctions: Record<string, (t: number) => number> = {
+      linear: (t) => t,
+      ease: (t) => t * t * (3 - 2 * t),
+      easeIn: (t) => t * t,
+      easeOut: (t) => t * (2 - t),
+      easeInOut: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+    };
+    const easingFn = easingFunctions[easing] || easingFunctions.linear;
+    
+    // 三次贝塞尔曲线计算
+    const cubicBezier = (p0: number, p1: number, p2: number, p3: number, t: number): number => {
+      const mt = 1 - t;
+      return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3;
+    };
+    
+    // 二次贝塞尔曲线计算
+    const quadraticBezier = (p0: number, p1: number, p2: number, t: number): number => {
+      const mt = 1 - t;
+      return mt * mt * p0 + 2 * mt * t * p1 + t * t * p2;
+    };
+    
+    // 计算路径上某点的位置
+    const getPointOnPath = (progress: number): { x: number; y: number } => {
+      if (points.length === 0) return { x: element.x, y: element.y };
+      if (points.length === 1) return { x: points[0].x, y: points[0].y };
+      
+      // 计算总路径长度
+      const sampleCount = 100;
+      let totalLength = 0;
+      const segmentLengths: number[] = [];
+      
+      for (let i = 0; i < points.length - 1; i++) {
+        const start = points[i];
+        const end = points[i + 1];
+        let segmentLength = 0;
+        let prevX = start.x;
+        let prevY = start.y;
+        
+        for (let j = 1; j <= sampleCount; j++) {
+          const t = j / sampleCount;
+          let x: number, y: number;
+          
+          if (start.controlOut && end.controlIn) {
+            const cp1x = start.x + start.controlOut.x;
+            const cp1y = start.y + start.controlOut.y;
+            const cp2x = end.x + end.controlIn.x;
+            const cp2y = end.y + end.controlIn.y;
+            x = cubicBezier(start.x, cp1x, cp2x, end.x, t);
+            y = cubicBezier(start.y, cp1y, cp2y, end.y, t);
+          } else if (start.controlOut) {
+            const cpx = start.x + start.controlOut.x;
+            const cpy = start.y + start.controlOut.y;
+            x = quadraticBezier(start.x, cpx, end.x, t);
+            y = quadraticBezier(start.y, cpy, end.y, t);
+          } else if (end.controlIn) {
+            const cpx = end.x + end.controlIn.x;
+            const cpy = end.y + end.controlIn.y;
+            x = quadraticBezier(start.x, cpx, end.x, t);
+            y = quadraticBezier(start.y, cpy, end.y, t);
+          } else {
+            x = start.x + (end.x - start.x) * t;
+            y = start.y + (end.y - start.y) * t;
+          }
+          
+          const dx = x - prevX;
+          const dy = y - prevY;
+          segmentLength += Math.sqrt(dx * dx + dy * dy);
+          prevX = x;
+          prevY = y;
+        }
+        
+        segmentLengths.push(segmentLength);
+        totalLength += segmentLength;
+      }
+      
+      if (totalLength === 0) return { x: points[0].x, y: points[0].y };
+      
+      const targetLength = progress * totalLength;
+      let currentLength = 0;
+      
+      for (let i = 0; i < points.length - 1; i++) {
+        if (currentLength + segmentLengths[i] >= targetLength) {
+          const start = points[i];
+          const end = points[i + 1];
+          const segmentProgress = (targetLength - currentLength) / segmentLengths[i];
+          
+          let x: number, y: number;
+          
+          if (start.controlOut && end.controlIn) {
+            const cp1x = start.x + start.controlOut.x;
+            const cp1y = start.y + start.controlOut.y;
+            const cp2x = end.x + end.controlIn.x;
+            const cp2y = end.y + end.controlIn.y;
+            x = cubicBezier(start.x, cp1x, cp2x, end.x, segmentProgress);
+            y = cubicBezier(start.y, cp1y, cp2y, end.y, segmentProgress);
+          } else if (start.controlOut) {
+            const cpx = start.x + start.controlOut.x;
+            const cpy = start.y + start.controlOut.y;
+            x = quadraticBezier(start.x, cpx, end.x, segmentProgress);
+            y = quadraticBezier(start.y, cpy, end.y, segmentProgress);
+          } else if (end.controlIn) {
+            const cpx = end.x + end.controlIn.x;
+            const cpy = end.y + end.controlIn.y;
+            x = quadraticBezier(start.x, cpx, end.x, segmentProgress);
+            y = quadraticBezier(start.y, cpy, end.y, segmentProgress);
+          } else {
+            x = start.x + (end.x - start.x) * segmentProgress;
+            y = start.y + (end.y - start.y) * segmentProgress;
+          }
+          
+          return { x, y };
+        }
+        currentLength += segmentLengths[i];
+      }
+      
+      return { x: points[points.length - 1].x, y: points[points.length - 1].y };
+    };
+    
+    const startTime = Date.now() + delay;
+    let direction = 1;
+    let iterations = 0;
+    
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      
+      if (elapsed < 0) {
+        pathPreviewRef.current = { elementId, animationFrame: requestAnimationFrame(animate) };
+        return;
+      }
+      
+      let progress = elapsed / duration;
+      
+      // 处理循环模式
+      if (loopMode === 'none') {
+        if (progress >= 1) {
+          setPathPreviewState(null);
+          pathPreviewRef.current = null;
+          return;
+        }
+      } else if (loopMode === 'loop') {
+        progress = progress % 1;
+        if (iterations > 10) { // 限制预览循环次数
+          setPathPreviewState(null);
+          pathPreviewRef.current = null;
+          return;
+        }
+        iterations = Math.floor(elapsed / duration);
+      } else if (loopMode === 'alternate') {
+        const cycle = Math.floor(progress);
+        progress = progress % 1;
+        if (cycle % 2 === 1) {
+          progress = 1 - progress;
+        }
+        if (cycle > 10) {
+          setPathPreviewState(null);
+          pathPreviewRef.current = null;
+          return;
+        }
+      }
+      
+      const easedProgress = easingFn(progress);
+      const pos = getPointOnPath(easedProgress);
+      
+      setPathPreviewState({ elementId, x: pos.x, y: pos.y });
+      pathPreviewRef.current = { elementId, animationFrame: requestAnimationFrame(animate) };
+    };
+    
+    animate();
+  }, [currentScene?.elements]);
+
+  // 停止路径动画预览
+  const stopPathPreview = useCallback(() => {
+    if (pathPreviewRef.current) {
+      cancelAnimationFrame(pathPreviewRef.current.animationFrame);
+      pathPreviewRef.current = null;
+    }
+    setPathPreviewState(null);
+  }, []);
 
   // 移动元素层级（上移=更靠近顶层=z-index更大=数组索引变大=列表位置变低）
   const moveElementUp = (elementId: string) => {
@@ -4523,8 +4724,8 @@ export default function EditorPage() {
                   onContextMenu={(e) => handleContextMenu(e, el.id)}
                   style={{
                     position: 'absolute',
-                    left: el.x - offsetX,
-                    top: el.y - offsetY,
+                    left: (pathPreviewState?.elementId === el.id ? pathPreviewState.x : el.x) - offsetX,
+                    top: (pathPreviewState?.elementId === el.id ? pathPreviewState.y : el.y) - offsetY,
                     width: el.width,
                     height: el.height,
                     // 图片和透明视频使用透明背景
@@ -8176,21 +8377,39 @@ export default function EditorPage() {
                                   />
                                   <Label className="text-xs text-zinc-300">自动播放</Label>
                                 </div>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 text-xs border-zinc-600 text-zinc-300"
-                                  onClick={() => {
-                                    // 清空路径重新绘制
-                                    updateElement({ 
-                                      path: { ...displayElement.path!, points: [] } 
-                                    });
-                                    setPathEditMode(null);
-                                    setPathDrawMode({ elementId: displayElement.id });
-                                  }}
-                                >
-                                  重绘路径
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className={`h-7 text-xs ${pathPreviewState?.elementId === displayElement.id ? 'bg-green-500/20 border-green-500 text-green-400' : 'border-zinc-600 text-zinc-300'}`}
+                                    onClick={() => {
+                                      if (pathPreviewState?.elementId === displayElement.id) {
+                                        stopPathPreview();
+                                      } else {
+                                        previewPathAnimation(displayElement.id);
+                                      }
+                                    }}
+                                  >
+                                    <Play className="w-3 h-3 mr-1" />
+                                    {pathPreviewState?.elementId === displayElement.id ? '停止' : '预览'}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs border-zinc-600 text-zinc-300"
+                                    onClick={() => {
+                                      // 清空路径重新绘制
+                                      stopPathPreview();
+                                      updateElement({ 
+                                        path: { ...displayElement.path!, points: [] } 
+                                      });
+                                      setPathEditMode(null);
+                                      setPathDrawMode({ elementId: displayElement.id });
+                                    }}
+                                  >
+                                    重绘
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                           )}
