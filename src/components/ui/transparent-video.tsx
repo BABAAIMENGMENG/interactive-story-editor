@@ -102,16 +102,16 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
     }
     
     // MOV 透明视频 - Safari 支持，其他浏览器需要转码
-    if (lowerSrc.includes('.mov') || lowerSrc.includes('.mp4')) {
+    if (lowerSrc.includes('.mov')) {
       const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
       if (isSafari) {
         return false; // Safari 原生支持 MOV 透明
       }
-      // 其他浏览器可能需要 Canvas 处理
-      // 但实际上大多数浏览器不支持 MOV 透明，建议转码为 WebM
-      return true;
+      // 其他浏览器不支持 MOV 透明，但我们也直接播放（不透明），而不是使用 Canvas
+      return false;
     }
     
+    // MP4 等其他格式 - 直接播放，不使用 Canvas
     return false;
   }, [src, enableTransparency]);
 
@@ -167,6 +167,16 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
     
     if (!video) return;
     
+    console.log('[TransparentVideo] 视频加载完成:', {
+      src: src?.substring(0, 50),
+      autoplay,
+      playOnVisible,
+      paused: video.paused,
+      readyState: video.readyState,
+      videoWidth: video.videoWidth,
+      videoHeight: video.videoHeight,
+    });
+    
     // 设置 Canvas 尺寸
     if (canvas && useCanvas) {
       canvas.width = video.videoWidth;
@@ -178,11 +188,12 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
     // 自动播放：如果设置了 autoplay 或 playOnVisible，且视频未在播放，尝试播放
     if ((autoplay || playOnVisible) && video.paused && !hasPlayedRef.current) {
       hasPlayedRef.current = true;
+      console.log('[TransparentVideo] 尝试自动播放...');
       video.play().catch((err) => {
         console.log('[TransparentVideo] 自动播放被阻止:', err.message);
       });
     }
-  }, [useCanvas, autoplay, playOnVisible]);
+  }, [useCanvas, autoplay, playOnVisible, src]);
 
   // 视频播放处理
   const handlePlay = useCallback(() => {
@@ -230,14 +241,14 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
     ...style,
   };
 
-  // 视频样式（用于 Canvas 模式时隐藏视频）
+  // 视频样式
   const videoStyle: React.CSSProperties = {
-    position: useCanvas ? 'absolute' : 'relative',
+    position: 'absolute',
+    top: 0,
+    left: 0,
     width: '100%',
     height: '100%',
     objectFit,
-    opacity: useCanvas ? 0 : 1,
-    pointerEvents: useCanvas ? 'none' : 'auto',
     backgroundColor: 'transparent',
   };
 
@@ -279,7 +290,7 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
         style={videoStyle}
         loop={loop}
         muted={muted}
-        autoPlay={false}
+        autoPlay={autoplay || playOnVisible}
         playsInline={playsInline}
         controls={!useCanvas && controls}
         onLoadedData={handleLoadedData}
