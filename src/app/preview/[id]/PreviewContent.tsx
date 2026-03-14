@@ -319,6 +319,52 @@ const executeActions = async (
     const config = action.config || action;
     
     switch (actionType) {
+      case 'addHealth':
+        // 加血
+        if (config.targetElementId && config.value) {
+          const targetEl = context.elements.find(el => el.id === config.targetElementId);
+          if (targetEl) {
+            const currentHealth = targetEl.healthValue ?? 100;
+            const maxHealth = targetEl.maxHealth ?? 100;
+            const newHealth = Math.min(maxHealth, currentHealth + config.value);
+            context.updateElements(
+              context.elements.map(el =>
+                el.id === config.targetElementId ? { ...el, healthValue: newHealth } : el
+              )
+            );
+          }
+        }
+        break;
+      case 'reduceHealth':
+        // 减血
+        if (config.targetElementId && config.value) {
+          const targetEl = context.elements.find(el => el.id === config.targetElementId);
+          if (targetEl) {
+            const currentHealth = targetEl.healthValue ?? 100;
+            const newHealth = Math.max(0, currentHealth - config.value);
+            context.updateElements(
+              context.elements.map(el =>
+                el.id === config.targetElementId ? { ...el, healthValue: newHealth } : el
+              )
+            );
+          }
+        }
+        break;
+      case 'setHealth':
+        // 设置血量
+        if (config.targetElementId && config.value !== undefined) {
+          const targetEl = context.elements.find(el => el.id === config.targetElementId);
+          if (targetEl) {
+            const maxHealth = targetEl.maxHealth ?? 100;
+            const newHealth = Math.max(0, Math.min(maxHealth, config.value));
+            context.updateElements(
+              context.elements.map(el =>
+                el.id === config.targetElementId ? { ...el, healthValue: newHealth } : el
+              )
+            );
+          }
+        }
+        break;
       case 'jumpScene':
         context.setCurrentSceneId(config.targetSceneId || config.sceneId);
         break;

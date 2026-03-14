@@ -1000,6 +1000,34 @@ function GamePageContent() {
         : sourceElement;
 
       switch (action.type) {
+        case 'addHealth':
+          // 加血
+          if (action.targetElementId && action.value) {
+            const currentHealth = targetElement?.healthValue ?? 100;
+            const maxHealth = targetElement?.maxHealth ?? 100;
+            const newHealth = Math.min(maxHealth, currentHealth + action.value);
+            updateEditorElement(action.targetElementId, { healthValue: newHealth });
+          }
+          break;
+
+        case 'reduceHealth':
+          // 减血
+          if (action.targetElementId && action.value) {
+            const currentHealth = targetElement?.healthValue ?? 100;
+            const newHealth = Math.max(0, currentHealth - action.value);
+            updateEditorElement(action.targetElementId, { healthValue: newHealth });
+          }
+          break;
+
+        case 'setHealth':
+          // 设置血量
+          if (action.targetElementId && action.value !== undefined) {
+            const maxHealth = targetElement?.maxHealth ?? 100;
+            const newHealth = Math.max(0, Math.min(maxHealth, action.value));
+            updateEditorElement(action.targetElementId, { healthValue: newHealth });
+          }
+          break;
+
         case 'jumpScene':
           // 跳转场景
           if (action.targetSceneId) {
