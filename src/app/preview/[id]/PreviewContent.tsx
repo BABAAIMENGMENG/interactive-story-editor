@@ -561,9 +561,12 @@ const executeActions = async (
         const animation = pathElement?.pathAnimations?.find(a => a.id === config.pathAnimationId);
         if (pathElement && animation && animation.pathPoints.length >= 2) {
           const points = animation.pathPoints;
-          const firstPoint = points[0];
           
-          // 记录父元素和所有子元素的初始位置
+          // 计算父元素的初始中心位置
+          const parentCenterX = pathElement.x + pathElement.width / 2;
+          const parentCenterY = pathElement.y + pathElement.height / 2;
+          
+          // 记录所有子元素的初始位置
           const allChildren = getAllChildren(pathElement.id, context.elements);
           const initialPositions = new Map<string, { x: number; y: number }>();
           initialPositions.set(pathElement.id, { x: pathElement.x, y: pathElement.y });
@@ -725,9 +728,9 @@ const executeActions = async (
                 progress = 1;
                 // 动画结束，设置到终点
                 const finalPoint = points[points.length - 1];
-                // 计算终点相对于路径起点的偏移
-                const deltaX = finalPoint.x - firstPoint.x;
-                const deltaY = finalPoint.y - firstPoint.y;
+                // 计算终点相对于父元素初始中心位置的偏移
+                const deltaX = finalPoint.x - parentCenterX;
+                const deltaY = finalPoint.y - parentCenterY;
                 
                 if (context.setScenes) {
                   context.setScenes(prev => prev.map(scene => ({
@@ -735,7 +738,7 @@ const executeActions = async (
                     elements: scene.elements.map(el => {
                       const initialPos = initialPositions.get(el.id);
                       if (initialPos) {
-                        // 基于初始位置 + 偏移量计算最终位置
+                        // 所有元素都移动相同的偏移量
                         return { ...el, x: initialPos.x + deltaX, y: initialPos.y + deltaY };
                       }
                       return el;
@@ -763,13 +766,13 @@ const executeActions = async (
             // 应用缓动
             const easedProgress = easingFn(progress);
             
-            // 计算当前位置
+            // 计算当前位置（路径点代表元素中心位置）
             const pos = getPointOnPath(easedProgress);
             
-            // 计算偏移量：当前位置相对于路径起点的偏移
-            // 这样循环回到起点时，偏移量为0，元素回到原位
-            const deltaX = pos.x - firstPoint.x;
-            const deltaY = pos.y - firstPoint.y;
+            // 计算偏移量：相对于父元素初始中心位置的偏移
+            // 这样元素中心会精确移动到路径点位置
+            const deltaX = pos.x - parentCenterX;
+            const deltaY = pos.y - parentCenterY;
             
             // 更新元素位置（包括子元素）
             if (context.setScenes) {
@@ -778,7 +781,7 @@ const executeActions = async (
                 elements: scene.elements.map(el => {
                   const initialPos = initialPositions.get(el.id);
                   if (initialPos) {
-                    // 基于初始位置 + 偏移量计算新位置
+                    // 所有元素（父+子）都移动相同的偏移量
                     return { ...el, x: initialPos.x + deltaX, y: initialPos.y + deltaY };
                   }
                   return el;
