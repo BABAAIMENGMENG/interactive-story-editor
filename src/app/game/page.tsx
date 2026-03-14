@@ -91,6 +91,35 @@ type LabelSubType =
   | 'bubble'    // 气泡注记
   | 'dialog';   // 对话框注记
 
+// 路径动画点
+interface PathPoint {
+  x: number;
+  y: number;
+  controlIn?: { x: number; y: number };
+  controlOut?: { x: number; y: number };
+}
+
+// 路径动画（旧版，向后兼容）
+interface PathAnimation {
+  id: string;
+  pathPoints: PathPoint[];
+  duration: number;
+  delay?: number;
+  easing?: 'linear' | 'ease' | 'easeIn' | 'easeOut' | 'easeInOut';
+  loop?: boolean;
+}
+
+// 路径动画（新版）
+interface ElementPath {
+  enabled: boolean;
+  autoPlay: boolean;
+  points: PathPoint[];
+  duration: number;
+  delay?: number;
+  easing?: 'linear' | 'ease' | 'easeIn' | 'easeOut' | 'easeInOut';
+  loopMode?: 'none' | 'loop' | 'alternate';
+}
+
 interface CanvasElement {
   id: string;
   type: ElementType;
@@ -158,6 +187,10 @@ interface CanvasElement {
   // 选择项属性
   isSelected?: boolean;       // 选中状态
   clickActions?: any[];
+  // 路径动画
+  pathAnimations?: PathAnimation[];
+  // 路径动画（新版）
+  path?: ElementPath;
 }
 
 // 编辑器场景类型
@@ -439,6 +472,9 @@ function GamePageContent() {
   // 用于追踪当前播放的点击音效，防止多次点击叠加播放
   const clickAudioRef = useRef<HTMLAudioElement | null>(null);
   
+  // 路径动画状态
+  const pathAnimationRefs = useRef<Map<string, { animationFrame: number; startTime: number }>>(new Map());
+  
   // 状态管理
   const [storyId, setStoryId] = useState('demo');
   const [initialSceneId, setInitialSceneId] = useState<string | null>(null);
@@ -583,6 +619,159 @@ function GamePageContent() {
     window.addEventListener('resize', updateScale);
     return () => window.removeEventListener('resize', updateScale);
   }, [currentEditorScene]);
+
+  // 自动播放路径动画
+  useEffect(() => {
+    if (!currentEditorScene) return;
+    
+    const cleanupFns: (() => void)[] = [];
+    
+    currentEditorScene.elements.forEach((element: any) => {
+      const path = element.path;
+      if (!path || !path.enabled || !path.autoPlay || path.points.length < 2) return;
+      
+      const delay = path.delay || 0;
+      const duration = path.duration || 3000;
+      const easing = path.easing || 'easeInOut';
+      const loopMode = path.loopMode || 'none';
+      
+      // 缓动函数
+      const easingFunctions: Record<string, (t: number) => number> = {
+        linear: (t) => t,
+        ease: (t) => t * t * (3 - 2 * t),
+        easeIn: (t) => t * t,
+        easeOut: (t) => t * (2 - t),
+        easeInOut: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+      };
+      const easingFn = easingFunctions[easing] || easingFunctions.linear;
+      
+      // 三次贝塞尔曲线计算
+      const cubicBezier = (p0: number, p1: number, p2: number, p3: number, t: number): number => {
+        const mt = 1 - t;
+        return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3;
+      };
+      
+      const getPointOnPath = (progress: number): { x: number; y: number } => {
+        const points = path.points;
+        if (points.length === 0) return { x: element.x, y: element.y };
+        if (points.length === 1) return { x: points[0].x, y: points[0].y };
+        
+        const totalSegments = points.length - 1;
+        const segmentProgress = progress * totalSegments;
+        const segmentIndex = Math.min(Math.floor(segmentProgress), totalSegments - 1);
+        const t = segmentProgress - segmentIndex;
+        
+        const p0 = points[segmentIndex];
+        const p3 = points[segmentIndex + 1];
+        
+        // 自动计算控制点（如果未定义）
+        const autoControlOffset = 50;
+        const p1 = p0.controlOut 
+          ? { x: p0.x + p0.controlOut.x, y: p0.y + p0.controlOut.y }
+          : { x: p0.x + autoControlOffset, y: p0.y };
+        const p2 = p3.controlIn 
+          ? { x: p3.x + p3.controlIn.x, y: p3.y + p3.controlIn.y }
+          : { x: p3.x - autoControlOffset, y: p3.y };
+        
+        return {
+          x: cubicBezier(p0.x, p1.x, p2.x, p3.x, t),
+          y: cubicBezier(p0.y, p1.y, p2.y, p3.y, t),
+        };
+      };
+      
+      // 获取所有子元素
+      const allChildren = getAllChildren(element.id, currentEditorScene.elements);
+      const initialPositions = new Map<string, { x: number; y: number }>();
+      initialPositions.set(element.id, { x: element.x, y: element.y });
+      allChildren.forEach((child: any) => {
+        initialPositions.set(child.id, { x: child.x, y: child.y });
+      });
+      
+      const elementCenterX = element.x + element.width / 2;
+      const elementCenterY = element.y + element.height / 2;
+      
+      let animationStarted = false;
+      let animationId = 0;
+      
+      const animate = () => {
+        const now = Date.now();
+        
+        if (!animationStarted) {
+          animationStarted = true;
+          pathAnimationRefs.current.set(element.id, { animationFrame: animationId, startTime: now });
+        }
+        
+        const ref = pathAnimationRefs.current.get(element.id);
+        if (!ref) return;
+        
+        const elapsed = now - ref.startTime - delay;
+        
+        if (elapsed < 0) {
+          animationId = requestAnimationFrame(animate);
+          return;
+        }
+        
+        let progress = elapsed / duration;
+        let finished = false;
+        
+        if (progress >= 1) {
+          if (loopMode === 'loop') {
+            progress = progress % 1;
+          } else if (loopMode === 'alternate') {
+            const loopCount = Math.floor(progress);
+            progress = loopCount % 2 === 0 ? progress % 1 : 1 - (progress % 1);
+          } else {
+            progress = 1;
+            finished = true;
+          }
+        }
+        
+        const easedProgress = easingFn(progress);
+        const pos = getPointOnPath(easedProgress);
+        
+        // 计算位移
+        const deltaX = pos.x - elementCenterX;
+        const deltaY = pos.y - elementCenterY;
+        
+        // 更新元素位置
+        setEditorScenes(prevScenes => prevScenes.map(scene => {
+          if (scene.id !== currentEditorSceneId) return scene;
+          return {
+            ...scene,
+            elements: scene.elements.map((el: any) => {
+              if (el.id === element.id) {
+                const initial = initialPositions.get(el.id);
+                if (!initial) return el;
+                return { ...el, x: initial.x + deltaX, y: initial.y + deltaY };
+              }
+              // 移动子元素
+              if (allChildren.some((c: any) => c.id === el.id)) {
+                const initial = initialPositions.get(el.id);
+                if (!initial) return el;
+                return { ...el, x: initial.x + deltaX, y: initial.y + deltaY };
+              }
+              return el;
+            })
+          };
+        }));
+        
+        if (!finished) {
+          animationId = requestAnimationFrame(animate);
+        }
+      };
+      
+      animationId = requestAnimationFrame(animate);
+      
+      cleanupFns.push(() => {
+        cancelAnimationFrame(animationId);
+        pathAnimationRefs.current.delete(element.id);
+      });
+    });
+    
+    return () => {
+      cleanupFns.forEach(fn => fn());
+    };
+  }, [currentEditorSceneId, currentEditorScene?.id]);
 
   const [gameState, setGameState] = useState<GameState>({
     currentNode: null,
@@ -962,6 +1151,16 @@ function GamePageContent() {
     }
   }, [story, gameState]);
 
+  // 辅助函数：获取元素的所有子元素（递归）
+  const getAllChildren = (elementId: string, elements: any[]): any[] => {
+    const directChildren = elements.filter(e => e.parentId === elementId);
+    const allChildren: any[] = [...directChildren];
+    directChildren.forEach(child => {
+      allChildren.push(...getAllChildren(child.id, elements));
+    });
+    return allChildren;
+  };
+
   // 辅助函数：查找元素内部的媒体元素（video 或 audio）
   // 因为媒体元素的结构是 <div data-element-id="..."><video/audio /></div>
   const getMediaElement = (elementId: string): HTMLMediaElement | null => {
@@ -1304,6 +1503,122 @@ function GamePageContent() {
           // 延迟等待
           if (action.delay) {
             await new Promise(resolve => setTimeout(resolve, action.delay));
+          }
+          break;
+
+        case 'startPathAnimation':
+          // 执行路径动画
+          if (currentEditorScene) {
+            const pathElement = currentEditorScene.elements.find((el: any) => el.id === action.targetElementId || el.id === action.elementId);
+            const animation = pathElement?.pathAnimations?.find((a: any) => a.id === action.pathAnimationId);
+            if (pathElement && animation && animation.pathPoints.length >= 2) {
+              const points = animation.pathPoints;
+              
+              // 获取所有子元素
+              const allChildren = getAllChildren(pathElement.id, currentEditorScene.elements);
+              const initialPositions = new Map<string, { x: number; y: number }>();
+              initialPositions.set(pathElement.id, { x: pathElement.x, y: pathElement.y });
+              allChildren.forEach((child: any) => {
+                initialPositions.set(child.id, { x: child.x, y: child.y });
+              });
+              
+              // 计算父元素的初始中心位置
+              const parentCenterX = pathElement.x + pathElement.width / 2;
+              const parentCenterY = pathElement.y + pathElement.height / 2;
+              
+              // 缓动函数
+              const easingFunctions: Record<string, (t: number) => number> = {
+                linear: (t: number) => t,
+                ease: (t: number) => t * t * (3 - 2 * t),
+                easeIn: (t: number) => t * t,
+                easeOut: (t: number) => t * (2 - t),
+                easeInOut: (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+              };
+              const easingFn = easingFunctions[animation.easing || 'linear'] || easingFunctions.linear;
+              
+              // 三次贝塞尔曲线计算
+              const cubicBezier = (p0: number, p1: number, p2: number, p3: number, t: number): number => {
+                const mt = 1 - t;
+                return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3;
+              };
+              
+              // 计算路径上某点的位置
+              const getPointOnPath = (progress: number): { x: number; y: number } => {
+                if (points.length === 0) return { x: pathElement.x, y: pathElement.y };
+                if (points.length === 1) return { x: points[0].x, y: points[0].y };
+                
+                const totalSegments = points.length - 1;
+                const segmentProgress = progress * totalSegments;
+                const segmentIndex = Math.min(Math.floor(segmentProgress), totalSegments - 1);
+                const t = segmentProgress - segmentIndex;
+                
+                const p0 = points[segmentIndex];
+                const p3 = points[segmentIndex + 1];
+                
+                const autoControlOffset = 50;
+                const p1 = p0.controlOut 
+                  ? { x: p0.x + p0.controlOut.x, y: p0.y + p0.controlOut.y }
+                  : { x: p0.x + autoControlOffset, y: p0.y };
+                const p2 = p3.controlIn 
+                  ? { x: p3.x + p3.controlIn.x, y: p3.y + p3.controlIn.y }
+                  : { x: p3.x - autoControlOffset, y: p3.y };
+                
+                return {
+                  x: cubicBezier(p0.x, p1.x, p2.x, p3.x, t),
+                  y: cubicBezier(p0.y, p1.y, p2.y, p3.y, t),
+                };
+              };
+              
+              const startTime = Date.now() + (animation.delay || 0);
+              const duration = animation.duration || 3000;
+              let animationId = 0;
+              
+              const animate = () => {
+                const now = Date.now();
+                const elapsed = now - startTime;
+                
+                if (elapsed < 0) {
+                  animationId = requestAnimationFrame(animate);
+                  return;
+                }
+                
+                let progress = Math.min(elapsed / duration, 1);
+                const easedProgress = easingFn(progress);
+                const pos = getPointOnPath(easedProgress);
+                
+                const deltaX = pos.x - parentCenterX;
+                const deltaY = pos.y - parentCenterY;
+                
+                setEditorScenes(prevScenes => prevScenes.map(scene => {
+                  if (scene.id !== currentEditorSceneId) return scene;
+                  return {
+                    ...scene,
+                    elements: scene.elements.map((el: any) => {
+                      if (el.id === pathElement.id) {
+                        const initial = initialPositions.get(el.id);
+                        if (!initial) return el;
+                        return { ...el, x: initial.x + deltaX, y: initial.y + deltaY };
+                      }
+                      if (allChildren.some((c: any) => c.id === el.id)) {
+                        const initial = initialPositions.get(el.id);
+                        if (!initial) return el;
+                        return { ...el, x: initial.x + deltaX, y: initial.y + deltaY };
+                      }
+                      return el;
+                    })
+                  };
+                }));
+                
+                if (progress < 1) {
+                  animationId = requestAnimationFrame(animate);
+                } else {
+                  pathAnimationRefs.current.delete(pathElement.id);
+                }
+              };
+              
+              animationId = requestAnimationFrame(animate);
+              pathAnimationRefs.current.set(pathElement.id, { animationFrame: animationId, startTime });
+            }
           }
           break;
 
