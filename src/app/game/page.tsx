@@ -334,17 +334,24 @@ function VideoElement({
   // 组件挂载后立即尝试播放视频
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !shouldAutoplay) return;
+    if (!video || !shouldAutoplay) {
+      console.log('VideoElement: 跳过播放 - video存在:', !!video, 'shouldAutoplay:', shouldAutoplay);
+      return;
+    }
+    
+    console.log('VideoElement: 开始尝试播放视频');
+    console.log('VideoElement: src=', src?.substring(0, 50));
     
     // 确保视频静音（浏览器策略要求）
     video.muted = true;
     
     // 尝试播放的函数
     const tryPlay = () => {
+      console.log('VideoElement: 调用 play(), readyState=', video.readyState);
       video.play().then(() => {
-        console.log('视频自动播放成功');
+        console.log('VideoElement: ✅ 视频自动播放成功');
       }).catch((err) => {
-        console.log('视频自动播放失败，尝试静音播放:', err.message);
+        console.log('VideoElement: ❌ 视频自动播放失败:', err.message);
         // 确保静音后重试
         video.muted = true;
         video.play().catch(() => {});
@@ -353,11 +360,13 @@ function VideoElement({
     
     // 监听视频可以播放
     const handleCanPlay = () => {
+      console.log('VideoElement: canplay 事件');
       tryPlay();
     };
     
     // 监听视频加载完成
     const handleLoadedData = () => {
+      console.log('VideoElement: loadeddata 事件');
       tryPlay();
     };
     
@@ -366,15 +375,17 @@ function VideoElement({
     
     // 立即尝试播放（如果视频已经准备好）
     if (video.readyState >= 3) {
+      console.log('VideoElement: 视频已准备好 (readyState>=3)');
       tryPlay();
     } else if (video.readyState >= 2) {
-      // 视频已加载部分数据，尝试播放
+      console.log('VideoElement: 视频已加载部分数据 (readyState>=2)');
       tryPlay();
     }
     
     // 延迟重试（解决某些情况下的时序问题）
     const timeoutId = setTimeout(() => {
       if (video.readyState >= 2) {
+        console.log('VideoElement: 延迟重试播放');
         tryPlay();
       }
     }, 100);
@@ -906,6 +917,20 @@ function GamePageContent() {
       
       const enabledScenes = projectData.scenes || [];
       console.log('预览 - 场景数量:', enabledScenes.length);
+      
+      // 调试：打印所有视频元素的信息
+      enabledScenes.forEach((scene: any, sceneIndex: number) => {
+        scene.elements?.forEach((el: any, elIndex: number) => {
+          if (el.type === 'video') {
+            console.log(`=== 视频元素数据 [场景${sceneIndex}, 元素${elIndex}] ===`);
+            console.log('el.id:', el.id);
+            console.log('el.visible:', el.visible);
+            console.log('el.playOnVisible:', el.playOnVisible);
+            console.log('el.muted:', el.muted);
+            console.log('el.src:', el.src?.substring(0, 50) + '...');
+          }
+        });
+      });
       
       if (enabledScenes.length > 0) {
         const firstScene = enabledScenes[0];
@@ -2007,6 +2032,17 @@ function GamePageContent() {
                   {/* 渲染元素 - 跳过热点类型（热点由 PanoramaViewer 处理） */}
                   {currentEditorScene.elements.map((el, originalIndex) => {
             
+            // 调试：打印视频元素信息
+            if (el.type === 'video') {
+              console.log('=== 视频元素渲染检查 ===');
+              console.log('el.id:', el.id);
+              console.log('el.visible:', el.visible);
+              console.log('el.src:', el.src?.substring(0, 50) + '...');
+              console.log('el.playOnVisible:', el.playOnVisible);
+              console.log('el.muted:', el.muted);
+              console.log('URL验证:', validateVideoUrl(el.src).isValid);
+            }
+            
             // 检查该元素是否会被某个时间触发器显示（如果是，则初始隐藏）
             const willBeShownByTrigger = currentEditorScene.elements.some(
               (otherEl) => otherEl.type === 'video' && 
@@ -2028,8 +2064,9 @@ function GamePageContent() {
             }
             
             // 普通元素或已被触发的元素：检查 visible 属性
-            // 如果 visible 为 false，不渲染（不占用空间，不与鼠标交互）
-            if (!el.visible) return null;
+            // 如果 visible 显式为 false，不渲染（不占用空间，不与鼠标交互）
+            // 注意：visible 为 undefined 或 true 时都应该渲染
+            if (el.visible === false) return null;
             
             // 图片和视频元素如果没有有效的 src，不渲染（避免遮挡其他元素）
             if (el.type === 'image' && (!el.src || !validateVideoUrl(el.src).isValid)) return null;
@@ -2179,7 +2216,7 @@ function GamePageContent() {
                 <VideoElement 
                   key={`${currentEditorSceneId}-${el.id}`}
                   src={el.src}
-                  playOnVisible={el.playOnVisible}
+                  playOnVisible={el.playOnVisible !== false}
                   loop={el.loop}
                   muted={el.muted}
                   controls={el.controls}
