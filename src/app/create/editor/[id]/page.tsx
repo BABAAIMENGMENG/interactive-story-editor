@@ -4531,7 +4531,7 @@ export default function EditorPage() {
               
               {/* 图层列表 */}
               {!layersCollapsed && (
-                <ScrollArea className="flex-1">
+                <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-zinc-800 hover:scrollbar-thumb-zinc-500">
                   <div className="p-2 space-y-0.5">
                     {(() => {
                       // 渲染层级树
@@ -4724,7 +4724,7 @@ export default function EditorPage() {
                       <p className="text-xs text-zinc-400 text-center py-3">暂无元素</p>
                     )}
                   </div>
-                </ScrollArea>
+                </div>
               )}
             </div>
           )}

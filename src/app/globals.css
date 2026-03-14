@@ -411,3 +411,37 @@ body {
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
+
+/* 自定义滚动条样式 */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #52525b #27272a;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #27272a;
+  border-radius: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #52525b;
+  border-radius: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #71717a;
+}
+
+.scrollbar-thin::-webkit-scrollbar-corner {
+  background: #27272a;
+}
+
+/* 滚动条始终显示 */
+.scrollbar-thin::-webkit-scrollbar-button {
+  display: none;
+}
