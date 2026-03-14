@@ -1100,9 +1100,94 @@ export default function EditorPage() {
       return mt * mt * p0 + 2 * mt * t * p1 + t * t * p2;
     };
     
+    // 自动计算平滑的贝塞尔控制点（当路径点没有控制点时）
+    const calculateSmoothControlPoints = (pts: PathPoint[]): { controlOut?: { x: number; y: number }; controlIn?: { x: number; y: number } }[] => {
+      const result: { controlOut?: { x: number; y: number }; controlIn?: { x: number; y: number } }[] = [];
+      
+      for (let i = 0; i < pts.length; i++) {
+        const prev = pts[i - 1];
+        const curr = pts[i];
+        const next = pts[i + 1];
+        
+        // 如果已经有控制点，保留
+        if (curr.controlOut || curr.controlIn) {
+          result.push({ controlOut: curr.controlOut, controlIn: curr.controlIn });
+          continue;
+        }
+        
+        // 自动计算控制点
+        if (i === 0) {
+          // 起点：只有出方向控制点
+          if (next) {
+            const dx = next.x - curr.x;
+            const dy = next.y - curr.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const controlDist = dist / 3;
+            result.push({
+              controlOut: { x: dx !== 0 ? (dx / dist) * controlDist : controlDist, y: dy !== 0 ? (dy / dist) * controlDist : 0 }
+            });
+          } else {
+            result.push({});
+          }
+        } else if (i === pts.length - 1) {
+          // 终点：只有入方向控制点
+          if (prev) {
+            const dx = curr.x - prev.x;
+            const dy = curr.y - prev.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const controlDist = dist / 3;
+            result.push({
+              controlIn: { x: dx !== 0 ? -(dx / dist) * controlDist : -controlDist, y: dy !== 0 ? -(dy / dist) * controlDist : 0 }
+            });
+          } else {
+            result.push({});
+          }
+        } else {
+          // 中间点：双向控制点
+          if (prev && next) {
+            // 计算前后点的方向
+            const dxPrev = curr.x - prev.x;
+            const dyPrev = curr.y - prev.y;
+            const dxNext = next.x - curr.x;
+            const dyNext = next.y - curr.y;
+            
+            const distPrev = Math.sqrt(dxPrev * dxPrev + dyPrev * dyPrev);
+            const distNext = Math.sqrt(dxNext * dxNext + dyNext * dyNext);
+            
+            // 平滑方向（前后方向的平均）
+            const smoothX = (dxPrev / distPrev + dxNext / distNext) / 2;
+            const smoothY = (dyPrev / distPrev + dyNext / distNext) / 2;
+            const smoothLen = Math.sqrt(smoothX * smoothX + smoothY * smoothY);
+            
+            // 控制点距离
+            const controlDistPrev = distPrev / 3;
+            const controlDistNext = distNext / 3;
+            
+            result.push({
+              controlIn: { 
+                x: smoothLen > 0 ? -(smoothX / smoothLen) * controlDistPrev : -controlDistPrev, 
+                y: smoothLen > 0 ? -(smoothY / smoothLen) * controlDistPrev : 0 
+              },
+              controlOut: { 
+                x: smoothLen > 0 ? (smoothX / smoothLen) * controlDistNext : controlDistNext, 
+                y: smoothLen > 0 ? (smoothY / smoothLen) * controlDistNext : 0 
+              }
+            });
+          } else {
+            result.push({});
+          }
+        }
+      }
+      
+      return result;
+    };
+    
     // 预计算路径点（60fps，每帧一个点）
     const totalFrames = Math.ceil(duration / 16.67); // 60fps
     const precomputedPoints: { x: number; y: number }[] = [];
+    
+    // 计算自动控制点
+    const autoControls = calculateSmoothControlPoints(points);
     
     // 计算路径上某点的位置
     const getPointOnPath = (progress: number): { x: number; y: number } => {
@@ -1125,21 +1210,25 @@ export default function EditorPage() {
           const t = j / sampleCount;
           let x: number, y: number;
           
-          if (start.controlOut && end.controlIn) {
-            const cp1x = start.x + start.controlOut.x;
-            const cp1y = start.y + start.controlOut.y;
-            const cp2x = end.x + end.controlIn.x;
-            const cp2y = end.y + end.controlIn.y;
+          // 优先使用显式控制点，否则使用自动计算的控制点
+          const ctrlOut = start.controlOut || autoControls[i]?.controlOut;
+          const ctrlIn = end.controlIn || autoControls[i + 1]?.controlIn;
+          
+          if (ctrlOut && ctrlIn) {
+            const cp1x = start.x + ctrlOut.x;
+            const cp1y = start.y + ctrlOut.y;
+            const cp2x = end.x + ctrlIn.x;
+            const cp2y = end.y + ctrlIn.y;
             x = cubicBezier(start.x, cp1x, cp2x, end.x, t);
             y = cubicBezier(start.y, cp1y, cp2y, end.y, t);
-          } else if (start.controlOut) {
-            const cpx = start.x + start.controlOut.x;
-            const cpy = start.y + start.controlOut.y;
+          } else if (ctrlOut) {
+            const cpx = start.x + ctrlOut.x;
+            const cpy = start.y + ctrlOut.y;
             x = quadraticBezier(start.x, cpx, end.x, t);
             y = quadraticBezier(start.y, cpy, end.y, t);
-          } else if (end.controlIn) {
-            const cpx = end.x + end.controlIn.x;
-            const cpy = end.y + end.controlIn.y;
+          } else if (ctrlIn) {
+            const cpx = end.x + ctrlIn.x;
+            const cpy = end.y + ctrlIn.y;
             x = quadraticBezier(start.x, cpx, end.x, t);
             y = quadraticBezier(start.y, cpy, end.y, t);
           } else {
@@ -1171,21 +1260,25 @@ export default function EditorPage() {
           
           let x: number, y: number;
           
-          if (start.controlOut && end.controlIn) {
-            const cp1x = start.x + start.controlOut.x;
-            const cp1y = start.y + start.controlOut.y;
-            const cp2x = end.x + end.controlIn.x;
-            const cp2y = end.y + end.controlIn.y;
+          // 优先使用显式控制点，否则使用自动计算的控制点
+          const ctrlOut = start.controlOut || autoControls[i]?.controlOut;
+          const ctrlIn = end.controlIn || autoControls[i + 1]?.controlIn;
+          
+          if (ctrlOut && ctrlIn) {
+            const cp1x = start.x + ctrlOut.x;
+            const cp1y = start.y + ctrlOut.y;
+            const cp2x = end.x + ctrlIn.x;
+            const cp2y = end.y + ctrlIn.y;
             x = cubicBezier(start.x, cp1x, cp2x, end.x, segmentProgress);
             y = cubicBezier(start.y, cp1y, cp2y, end.y, segmentProgress);
-          } else if (start.controlOut) {
-            const cpx = start.x + start.controlOut.x;
-            const cpy = start.y + start.controlOut.y;
+          } else if (ctrlOut) {
+            const cpx = start.x + ctrlOut.x;
+            const cpy = start.y + ctrlOut.y;
             x = quadraticBezier(start.x, cpx, end.x, segmentProgress);
             y = quadraticBezier(start.y, cpy, end.y, segmentProgress);
-          } else if (end.controlIn) {
-            const cpx = end.x + end.controlIn.x;
-            const cpy = end.y + end.controlIn.y;
+          } else if (ctrlIn) {
+            const cpx = end.x + ctrlIn.x;
+            const cpy = end.y + ctrlIn.y;
             x = quadraticBezier(start.x, cpx, end.x, segmentProgress);
             y = quadraticBezier(start.y, cpy, end.y, segmentProgress);
           } else {
@@ -5627,18 +5720,77 @@ export default function EditorPage() {
               >
                 {(() => {
                   const points = selectedElement.path.points;
+                  
+                  // 自动计算平滑控制点
+                  const calculateAutoControls = (pts: PathPoint[]): { out: { x: number; y: number } | null; in: { x: number; y: number } | null }[] => {
+                    return pts.map((p, i) => {
+                      if (p.controlOut || p.controlIn) {
+                        return { out: p.controlOut || null, in: p.controlIn || null };
+                      }
+                      
+                      const prev = pts[i - 1];
+                      const next = pts[i + 1];
+                      
+                      if (i === 0) {
+                        if (next) {
+                          const dx = next.x - p.x;
+                          const dy = next.y - p.y;
+                          const dist = Math.sqrt(dx * dx + dy * dy);
+                          return { out: { x: (dx / dist) * (dist / 3), y: (dy / dist) * (dist / 3) }, in: null };
+                        }
+                      } else if (i === pts.length - 1) {
+                        if (prev) {
+                          const dx = p.x - prev.x;
+                          const dy = p.y - prev.y;
+                          const dist = Math.sqrt(dx * dx + dy * dy);
+                          return { in: { x: -(dx / dist) * (dist / 3), y: -(dy / dist) * (dist / 3) }, out: null };
+                        }
+                      } else if (prev && next) {
+                        const dxPrev = p.x - prev.x;
+                        const dyPrev = p.y - prev.y;
+                        const dxNext = next.x - p.x;
+                        const dyNext = next.y - p.y;
+                        const distPrev = Math.sqrt(dxPrev * dxPrev + dyPrev * dyPrev);
+                        const distNext = Math.sqrt(dxNext * dxNext + dyNext * dyNext);
+                        
+                        const smoothX = (dxPrev / distPrev + dxNext / distNext) / 2;
+                        const smoothY = (dyPrev / distPrev + dyNext / distNext) / 2;
+                        const smoothLen = Math.sqrt(smoothX * smoothX + smoothY * smoothY);
+                        
+                        return {
+                          in: { x: smoothLen > 0 ? -(smoothX / smoothLen) * (distPrev / 3) : -(distPrev / 3), y: smoothLen > 0 ? -(smoothY / smoothLen) * (distPrev / 3) : 0 },
+                          out: { x: smoothLen > 0 ? (smoothX / smoothLen) * (distNext / 3) : (distNext / 3), y: smoothLen > 0 ? (smoothY / smoothLen) * (distNext / 3) : 0 }
+                        };
+                      }
+                      return { out: null, in: null };
+                    });
+                  };
+                  
+                  const autoControls = calculateAutoControls(points);
+                  
                   let d = `M ${points[0].x} ${points[0].y}`;
                   
                   for (let i = 1; i < points.length; i++) {
                     const prev = points[i - 1];
                     const curr = points[i];
                     
-                    if (prev.controlOut && curr.controlIn) {
-                      const cp1x = prev.x + prev.controlOut.x;
-                      const cp1y = prev.y + prev.controlOut.y;
-                      const cp2x = curr.x + curr.controlIn.x;
-                      const cp2y = curr.y + curr.controlIn.y;
+                    const ctrlOut = prev.controlOut || autoControls[i - 1]?.out;
+                    const ctrlIn = curr.controlIn || autoControls[i]?.in;
+                    
+                    if (ctrlOut && ctrlIn) {
+                      const cp1x = prev.x + ctrlOut.x;
+                      const cp1y = prev.y + ctrlOut.y;
+                      const cp2x = curr.x + ctrlIn.x;
+                      const cp2y = curr.y + ctrlIn.y;
                       d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${curr.x} ${curr.y}`;
+                    } else if (ctrlOut) {
+                      const cpx = prev.x + ctrlOut.x;
+                      const cpy = prev.y + ctrlOut.y;
+                      d += ` Q ${cpx} ${cpy}, ${curr.x} ${curr.y}`;
+                    } else if (ctrlIn) {
+                      const cpx = curr.x + ctrlIn.x;
+                      const cpy = curr.y + ctrlIn.y;
+                      d += ` Q ${cpx} ${cpy}, ${curr.x} ${curr.y}`;
                     } else {
                       d += ` L ${curr.x} ${curr.y}`;
                     }
