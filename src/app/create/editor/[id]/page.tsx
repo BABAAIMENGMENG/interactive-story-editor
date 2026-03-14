@@ -1100,13 +1100,17 @@ export default function EditorPage() {
       return mt * mt * p0 + 2 * mt * t * p1 + t * t * p2;
     };
     
+    // 预计算路径点（60fps，每帧一个点）
+    const totalFrames = Math.ceil(duration / 16.67); // 60fps
+    const precomputedPoints: { x: number; y: number }[] = [];
+    
     // 计算路径上某点的位置
     const getPointOnPath = (progress: number): { x: number; y: number } => {
       if (points.length === 0) return { x: element.x, y: element.y };
       if (points.length === 1) return { x: points[0].x, y: points[0].y };
       
       // 计算总路径长度
-      const sampleCount = 100;
+      const sampleCount = 50;
       let totalLength = 0;
       const segmentLengths: number[] = [];
       
@@ -1197,12 +1201,26 @@ export default function EditorPage() {
       return { x: points[points.length - 1].x, y: points[points.length - 1].y };
     };
     
-    const startTime = Date.now() + delay;
-    let direction = 1;
+    // 预计算所有路径点
+    for (let i = 0; i <= totalFrames; i++) {
+      const progress = i / totalFrames;
+      const easedProgress = easingFn(progress);
+      precomputedPoints.push(getPointOnPath(easedProgress));
+    }
+    
+    // 使用 CSS transform 直接操作 DOM，避免 React 重渲染
+    const elementDom = document.querySelector(`[data-element-id="${elementId}"]`) as HTMLElement;
+    if (!elementDom) {
+      // 降级到状态更新方式
+      setPathPreviewState({ elementId, x: precomputedPoints[0].x, y: precomputedPoints[0].y });
+    }
+    
+    let currentFrame = 0;
+    let startTime = performance.now() + delay;
     let iterations = 0;
     
     const animate = () => {
-      const elapsed = Date.now() - startTime;
+      const elapsed = performance.now() - startTime;
       
       if (elapsed < 0) {
         pathPreviewRef.current = { elementId, animationFrame: requestAnimationFrame(animate) };
@@ -1214,13 +1232,22 @@ export default function EditorPage() {
       // 处理循环模式
       if (loopMode === 'none') {
         if (progress >= 1) {
+          // 恢复原始位置
+          if (elementDom) {
+            elementDom.style.transition = 'transform 0.3s ease';
+            elementDom.style.transform = '';
+          }
           setPathPreviewState(null);
           pathPreviewRef.current = null;
           return;
         }
       } else if (loopMode === 'loop') {
         progress = progress % 1;
-        if (iterations > 10) { // 限制预览循环次数
+        if (iterations > 10) {
+          if (elementDom) {
+            elementDom.style.transition = 'transform 0.3s ease';
+            elementDom.style.transform = '';
+          }
           setPathPreviewState(null);
           pathPreviewRef.current = null;
           return;
@@ -1233,16 +1260,35 @@ export default function EditorPage() {
           progress = 1 - progress;
         }
         if (cycle > 10) {
+          if (elementDom) {
+            elementDom.style.transition = 'transform 0.3s ease';
+            elementDom.style.transform = '';
+          }
           setPathPreviewState(null);
           pathPreviewRef.current = null;
           return;
         }
       }
       
-      const easedProgress = easingFn(progress);
-      const pos = getPointOnPath(easedProgress);
+      // 计算当前帧
+      currentFrame = Math.floor(progress * totalFrames);
+      if (currentFrame > totalFrames) currentFrame = totalFrames;
       
-      setPathPreviewState({ elementId, x: pos.x, y: pos.y });
+      const pos = precomputedPoints[currentFrame];
+      
+      // 直接操作 DOM（性能更好）
+      if (elementDom) {
+        const offsetX = element.x + element.width / 2;
+        const offsetY = element.y + element.height / 2;
+        const dx = pos.x - offsetX;
+        const dy = pos.y - offsetY;
+        elementDom.style.transition = 'none';
+        elementDom.style.transform = `translate(${dx}px, ${dy}px)`;
+      } else {
+        // 降级到状态更新
+        setPathPreviewState({ elementId, x: pos.x, y: pos.y });
+      }
+      
       pathPreviewRef.current = { elementId, animationFrame: requestAnimationFrame(animate) };
     };
     
@@ -1252,8 +1298,16 @@ export default function EditorPage() {
   // 停止路径动画预览
   const stopPathPreview = useCallback(() => {
     if (pathPreviewRef.current) {
+      const elementId = pathPreviewRef.current.elementId;
       cancelAnimationFrame(pathPreviewRef.current.animationFrame);
       pathPreviewRef.current = null;
+      
+      // 恢复 DOM 元素的原始位置
+      const elementDom = document.querySelector(`[data-element-id="${elementId}"]`) as HTMLElement;
+      if (elementDom) {
+        elementDom.style.transition = 'transform 0.3s ease';
+        elementDom.style.transform = '';
+      }
     }
     setPathPreviewState(null);
   }, []);
@@ -4717,6 +4771,7 @@ export default function EditorPage() {
                 return (
                 <div
                   key={el.id}
+                  data-element-id={el.id}
                   onMouseDown={(e) => {
                     e.stopPropagation();
                     handleMouseDown(e, el.id);
