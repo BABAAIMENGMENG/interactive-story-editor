@@ -58,6 +58,7 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | undefined>(undefined);
+  const hasPlayedRef = useRef(false); // 跟踪是否已尝试播放
   
   const [useCanvas, setUseCanvas] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -140,8 +141,27 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
     setUseCanvas(needsCanvas);
   }, [checkTransparencySupport]);
 
-  // 视频加载处理
-  const handleLoadedMetadata = useCallback(() => {
+  // 处理已缓存的视频：检查是否已经加载完成
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !src || hasPlayedRef.current) return;
+    
+    // 使用 requestAnimationFrame 确保视频元素已经挂载
+    const rafId = requestAnimationFrame(() => {
+      // 如果视频已经加载完成（从缓存），尝试播放
+      if (video.readyState >= 2 && video.paused && (autoplay || playOnVisible)) {
+        hasPlayedRef.current = true;
+        video.play().catch((err) => {
+          console.log('[TransparentVideo] 自动播放被阻止 (已缓存):', err.message);
+        });
+      }
+    });
+    
+    return () => cancelAnimationFrame(rafId);
+  }, [src, autoplay, playOnVisible]);
+
+  // 视频加载处理 - 同时触发自动播放
+  const handleLoadedData = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     
@@ -154,7 +174,15 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
     }
     
     setIsLoaded(true);
-  }, [useCanvas]);
+    
+    // 自动播放：如果设置了 autoplay 或 playOnVisible，且视频未在播放，尝试播放
+    if ((autoplay || playOnVisible) && video.paused && !hasPlayedRef.current) {
+      hasPlayedRef.current = true;
+      video.play().catch((err) => {
+        console.log('[TransparentVideo] 自动播放被阻止:', err.message);
+      });
+    }
+  }, [useCanvas, autoplay, playOnVisible]);
 
   // 视频播放处理
   const handlePlay = useCallback(() => {
@@ -191,88 +219,6 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
       }
     };
   }, []);
-
-  // 自动播放控制：无论 autoplay 设置如何，都尝试播放
-  useEffect(() => {
-    const video = videoRef.current;
-    const container = containerRef.current;
-    
-    if (!video || !container) return;
-
-    // 如果设置了 autoplay 或 playOnVisible，都需要尝试播放
-    if (!autoplay && !playOnVisible) return;
-
-    const tryPlay = () => {
-      if (video.paused) {
-        video.play().catch((err) => {
-          console.log('[TransparentVideo] 自动播放被阻止:', err.message);
-        });
-      }
-    };
-
-    // 如果 autoplay 为 true，等待视频加载后播放
-    if (autoplay) {
-      // 如果视频已经有足够数据，直接播放
-      if (video.readyState >= 2) {
-        tryPlay();
-      } else {
-        // 否则等待 canplay 事件
-        const handleCanPlay = () => {
-          tryPlay();
-        };
-        video.addEventListener('canplay', handleCanPlay);
-        return () => video.removeEventListener('canplay', handleCanPlay);
-      }
-      return;
-    }
-
-    // 否则使用可见性控制
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            // 检查视频是否已加载
-            if (video.readyState >= 2) {
-              tryPlay();
-            } else {
-              // 等待加载完成
-              const handleCanPlay = () => {
-                tryPlay();
-                video.removeEventListener('canplay', handleCanPlay);
-              };
-              video.addEventListener('canplay', handleCanPlay);
-            }
-          }
-        });
-      },
-      { threshold: 0.1 }
-    );
-
-    observer.observe(container);
-
-    // 立即检查一次是否在视口内
-    const rect = container.getBoundingClientRect();
-    const isInViewport = (
-      rect.top < window.innerHeight &&
-      rect.bottom > 0 &&
-      rect.left < window.innerWidth &&
-      rect.right > 0
-    );
-    
-    if (isInViewport) {
-      if (video.readyState >= 2) {
-        tryPlay();
-      } else {
-        const handleCanPlay = () => {
-          tryPlay();
-          video.removeEventListener('canplay', handleCanPlay);
-        };
-        video.addEventListener('canplay', handleCanPlay);
-      }
-    }
-
-    return () => observer.disconnect();
-  }, [autoplay, playOnVisible, src]);
 
   // 容器样式
   const containerStyle: React.CSSProperties = {
@@ -336,7 +282,8 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
         autoPlay={false}
         playsInline={playsInline}
         controls={!useCanvas && controls}
-        onLoadedMetadata={handleLoadedMetadata}
+        onLoadedData={handleLoadedData}
+        onCanPlay={handleLoadedData}
         onPlay={handlePlay}
         onPause={handlePauseOrEnd}
         onEnded={handlePauseOrEnd}

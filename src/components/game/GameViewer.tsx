@@ -404,6 +404,7 @@ export function GameViewer({
                   loop={element.loop ?? false}
                   muted={element.muted ?? true}
                   autoplay={element.autoplay ?? false}
+                  playOnVisible={element.playOnVisible !== false}
                   controls={element.controls ?? true}
                   playsInline
                   enableTransparency={element.enableTransparency !== false}
