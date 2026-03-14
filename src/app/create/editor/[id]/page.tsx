@@ -6151,7 +6151,9 @@ export default function EditorPage() {
               
               {/* 帧率信息 */}
               <div className="flex items-center gap-2 text-xs text-zinc-500">
-                <span>FPS: {videoTimes[selectedElement.id]?.fps || '--'}</span>
+                <span>帧: {Math.round((videoTimes[selectedElement.id]?.currentTime || 0) * (videoTimes[selectedElement.id]?.fps || 30))}</span>
+                <span className="text-zinc-600">|</span>
+                <span>FPS: {videoTimes[selectedElement.id]?.fps || 30}</span>
                 <span className="text-zinc-600">|</span>
                 <span>{currentScene?.canvasWidth || 1920}×{currentScene?.canvasHeight || 1080}</span>
               </div>
