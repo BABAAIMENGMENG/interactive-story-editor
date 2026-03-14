@@ -69,40 +69,74 @@ function VideoElement({
   const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
   const triggerStatesRef = useRef<Map<string, boolean>>(new Map());
 
-  // 可见性控制
+  // 可见性控制 + 自动播放
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const video = container.querySelector('video');
-    if (!video) return;
+    let observer: IntersectionObserver | null = null;
+    let rafId: number | null = null;
 
-    const playOnVisible = element.playOnVisible !== false;
-    const pauseOnHidden = element.pauseOnHidden !== false;
+    const initVideoPlayback = () => {
+      const video = container.querySelector('video');
+      if (!video) {
+        // 视频还没加载，等待下一帧
+        rafId = requestAnimationFrame(initVideoPlayback);
+        return;
+      }
 
-    if (!playOnVisible && !pauseOnHidden) return;
+      // 如果设置了 autoplay，直接播放
+      if (element.autoplay) {
+        video.play().catch(() => {});
+        return;
+      }
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            if (playOnVisible && video.paused) {
-              video.play().catch(() => {});
+      // 否则使用可见性控制
+      const playOnVisible = element.playOnVisible !== false;
+      const pauseOnHidden = element.pauseOnHidden !== false;
+
+      if (!playOnVisible && !pauseOnHidden) return;
+
+      observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              if (playOnVisible && video.paused) {
+                video.play().catch(() => {});
+              }
+            } else {
+              if (pauseOnHidden && !video.paused) {
+                video.pause();
+              }
             }
-          } else {
-            if (pauseOnHidden && !video.paused) {
-              video.pause();
-            }
-          }
-        });
-      },
-      { threshold: 0.1 }
-    );
+          });
+        },
+        { threshold: 0.1 }
+      );
 
-    observer.observe(container);
+      observer.observe(container);
 
-    return () => observer.disconnect();
-  }, [element.playOnVisible, element.pauseOnHidden]);
+      // 立即检查一次是否在视口内
+      const rect = container.getBoundingClientRect();
+      const isInViewport = (
+        rect.top < window.innerHeight &&
+        rect.bottom > 0 &&
+        rect.left < window.innerWidth &&
+        rect.right > 0
+      );
+      
+      if (isInViewport && playOnVisible && video.paused) {
+        video.play().catch(() => {});
+      }
+    };
+
+    rafId = requestAnimationFrame(initVideoPlayback);
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      if (observer) observer.disconnect();
+    };
+  }, [element.autoplay, element.playOnVisible, element.pauseOnHidden]);
 
   // 拖拽功能
   useEffect(() => {
