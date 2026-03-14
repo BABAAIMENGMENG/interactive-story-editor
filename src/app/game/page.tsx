@@ -1672,7 +1672,7 @@ function GamePageContent() {
                 alignItems: 'center',
                 justifyContent: el.type === 'text' ? (el.textAlign === 'left' ? 'flex-start' : el.textAlign === 'right' ? 'flex-end' : 'center') : 'center',
                 fontWeight: el.fontWeight || '500',
-                padding: el.type === 'text' ? `${8 * scaleToFit}px` : (el.type === 'video' || el.type === 'image' || el.type === 'healthBar' || el.type === 'choiceItem' ? '0' : `0 ${16 * scaleToFit}px`),
+                padding: el.type === 'text' ? `${8 * scaleToFit}px` : (el.type === 'video' || el.type === 'image' || el.type === 'choiceItem' ? '0' : `0 ${16 * scaleToFit}px`),
                 gap: el.iconName ? `${8 * scaleToFit}px` : '0',
                 overflow: 'hidden',
                 zIndex: elementZIndex,
