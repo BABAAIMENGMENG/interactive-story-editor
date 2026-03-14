@@ -338,36 +338,50 @@ function HomePageContent() {
       </header>
 
       {/* Hero Section */}
-      <section className="relative pt-12 pb-8 px-3">
-        <div className="container mx-auto text-center">
-          <Badge className="mb-3 bg-purple-500/20 text-purple-300 border-purple-500/30 text-[10px] px-2 py-0.5">
-            <Sparkles className="w-3 h-3 mr-1" />
-            全新体验
-          </Badge>
-          <h2 className="mb-3 text-2xl font-bold text-white md:text-3xl">
-            沉浸式互动短剧
-            <br />
-            <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-              你的选择改变故事
-            </span>
-          </h2>
-          <p className="mx-auto mb-4 max-w-xl text-xs text-gray-300">
-            在360度全景场景中探索故事世界，与角色互动，做出影响剧情的关键选择。
-            每一个决定都将带你走向不同的结局。
-          </p>
-          <div className="flex justify-center gap-2">
-            <Link href="/dashboard">
-              <Button size="sm" className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 h-7 text-xs">
-                <Plus className="mr-1 h-3 w-3" />
-                开始创作
-              </Button>
-            </Link>
-            <Link href="#projects">
-              <Button size="sm" variant="outline" className="border-white/20 bg-white text-gray-900 hover:bg-gray-100 h-7 text-xs">
-                <Play className="mr-1 h-3 w-3" />
-                立即体验
-              </Button>
-            </Link>
+      <section className="relative pt-8 pb-8 px-3">
+        <div className="container mx-auto">
+          <div className="flex flex-col md:flex-row items-center gap-6">
+            {/* 左侧：获奖图片 */}
+            <div className="flex-shrink-0 w-full md:w-2/5 flex justify-center">
+              <img
+                src="/award-image-nobg.png"
+                alt="创作大师奖"
+                className="w-64 md:w-80 h-auto drop-shadow-2xl animate-float"
+              />
+            </div>
+            
+            {/* 右侧：宣传文字 */}
+            <div className="flex-1 text-center md:text-left">
+              <Badge className="mb-3 bg-purple-500/20 text-purple-300 border-purple-500/30 text-[10px] px-2 py-0.5">
+                <Sparkles className="w-3 h-3 mr-1" />
+                全新体验
+              </Badge>
+              <h2 className="mb-3 text-2xl font-bold text-white md:text-3xl">
+                沉浸式互动短剧
+                <br />
+                <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                  你的选择改变故事
+                </span>
+              </h2>
+              <p className="mb-4 max-w-lg text-xs text-gray-300">
+                在360度全景场景中探索故事世界，与角色互动，做出影响剧情的关键选择。
+                每一个决定都将带你走向不同的结局。
+              </p>
+              <div className="flex justify-center md:justify-start gap-2">
+                <Link href="/dashboard">
+                  <Button size="sm" className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 h-7 text-xs">
+                    <Plus className="mr-1 h-3 w-3" />
+                    开始创作
+                  </Button>
+                </Link>
+                <Link href="#projects">
+                  <Button size="sm" variant="outline" className="border-white/20 bg-white text-gray-900 hover:bg-gray-100 h-7 text-xs">
+                    <Play className="mr-1 h-3 w-3" />
+                    立即体验
+                  </Button>
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
 
