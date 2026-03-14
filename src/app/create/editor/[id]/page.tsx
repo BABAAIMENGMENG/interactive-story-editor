@@ -5377,26 +5377,34 @@ export default function EditorPage() {
                     </div>
                   )}
                   {/* 选择项组件 */}
-                  {el.type === 'choiceItem' && (
-                    <div className={`w-full h-full flex items-center justify-center px-4 gap-2 transition-colors rounded-lg border-2 ${
-                      el.isSelected 
-                        ? 'bg-purple-500/30 border-purple-500' 
-                        : 'bg-white/10 hover:bg-white/20 border-white/30'
-                    }`}>
-                      <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${
-                        el.isSelected 
-                          ? 'bg-purple-500 border-purple-500' 
-                          : 'border-2 border-zinc-400'
-                      }`}>
-                        {el.isSelected && (
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
+                  {el.type === 'choiceItem' && (() => {
+                    // 内框圆角不能超过外层容器的圆角
+                    const outerRadius = el.borderRadius || 8;
+                    const innerRadius = Math.min(8, outerRadius - 2); // 减去边框宽度2px
+                    return (
+                      <div 
+                        className={`w-full h-full flex items-center justify-center px-4 gap-2 transition-colors border-2 ${
+                          el.isSelected 
+                            ? 'bg-purple-500/30 border-purple-500' 
+                            : 'bg-white/10 hover:bg-white/20 border-white/30'
+                        }`}
+                        style={{ borderRadius: innerRadius }}
+                      >
+                        <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${
+                          el.isSelected 
+                            ? 'bg-purple-500 border-purple-500' 
+                            : 'border-2 border-zinc-400'
+                        }`}>
+                          {el.isSelected && (
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                        </div>
+                        <span className={`text-sm font-medium truncate ${el.isSelected ? 'text-white' : 'text-zinc-200'}`}>{el.content || '选项文字'}</span>
                       </div>
-                      <span className={`text-sm font-medium truncate ${el.isSelected ? 'text-white' : 'text-zinc-200'}`}>{el.content || '选项文字'}</span>
-                    </div>
-                  )}
+                    );
+                  })()}
                   
                   {/* 选中元素的调整手柄 - 文本元素不显示 */}
                   {selectedId === el.id && !el.locked && el.type !== 'text' && (
