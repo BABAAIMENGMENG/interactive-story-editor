@@ -8587,7 +8587,7 @@ export default function EditorPage() {
                                           
                                           {/* 跳转播放位置 - 选择目标视频 + 时间点 */}
                                           {action.type === 'seekTo' && (
-                                            <div className="flex items-center gap-2">
+                                            <div className="space-y-2">
                                               <Select
                                                 value={action.targetElementId || ''}
                                                 onValueChange={(v) => {
@@ -8601,23 +8601,25 @@ export default function EditorPage() {
                                                   updateElement({ timeTriggers: newTriggers });
                                                 }}
                                               >
-                                                <SelectTrigger className="h-6 bg-white border-zinc-300 text-xs text-zinc-900 flex-1">
+                                                <SelectTrigger className="h-6 bg-white border-zinc-300 text-xs text-zinc-900 w-full">
                                                   <SelectValue placeholder="选择视频" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                   {currentScene?.elements.filter(e => e.type === 'video').map(e => (
                                                     <SelectItem key={e.id} value={e.id}>
-                                                      {e.name}
+                                                      {e.name.length > 20 ? e.name.substring(0, 20) + '...' : e.name}
                                                     </SelectItem>
                                                   ))}
                                                 </SelectContent>
                                               </Select>
-                                              <Input
-                                                type="number"
-                                                min={0}
-                                                step={0.1}
-                                                placeholder="秒"
-                                                value={action.value ?? ''}
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-xs text-zinc-400 whitespace-nowrap">跳转到</span>
+                                                <Input
+                                                  type="number"
+                                                  min={0}
+                                                  step={0.1}
+                                                  placeholder="0"
+                                                  value={action.value ?? ''}
                                                 onChange={(e) => {
                                                   const newTriggers = [...(displayElement.timeTriggers || [])];
                                                   newTriggers[index] = {
@@ -8631,6 +8633,7 @@ export default function EditorPage() {
                                                 className="h-6 w-16 bg-white border-zinc-300 text-xs text-zinc-900"
                                               />
                                               <span className="text-xs text-zinc-400">秒</span>
+                                              </div>
                                             </div>
                                           )}
                                         </div>
