@@ -5235,68 +5235,6 @@ export default function EditorPage() {
                       );
                     })()
                   )}
-                  {/* 视频时间线 - 仅在视频元素被选中时显示 */}
-                  {el.type === 'video' && selectedElement?.id === el.id && videoTimes[el.id] && (
-                    <div 
-                      className="absolute bottom-0 left-0 right-0 bg-black/70 px-2 py-1 flex items-center gap-2"
-                      style={{ height: '24px' }}
-                    >
-                      {/* 播放/暂停按钮 */}
-                      <button
-                        className="text-white hover:text-purple-400 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const video = videoRefs.current.get(el.id);
-                          if (video) {
-                            if (video.paused) {
-                              video.play();
-                            } else {
-                              video.pause();
-                            }
-                          }
-                        }}
-                      >
-                        {playingVideos.has(el.id) ? (
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                            <rect x="6" y="4" width="4" height="16" />
-                            <rect x="14" y="4" width="4" height="16" />
-                          </svg>
-                        ) : (
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                            <polygon points="5,3 19,12 5,21" />
-                          </svg>
-                        )}
-                      </button>
-                      {/* 当前时间 */}
-                      <span className="text-[10px] text-white font-mono min-w-[36px]">
-                        {formatTime(videoTimes[el.id].currentTime)}
-                      </span>
-                      {/* 进度条 */}
-                      <div 
-                        className="flex-1 h-1 bg-zinc-600 rounded cursor-pointer relative"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const video = videoRefs.current.get(el.id);
-                          if (video && videoTimes[el.id].duration > 0) {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const percent = (e.clientX - rect.left) / rect.width;
-                            video.currentTime = percent * videoTimes[el.id].duration;
-                          }
-                        }}
-                      >
-                        <div 
-                          className="absolute left-0 top-0 h-full bg-purple-500 rounded"
-                          style={{ 
-                            width: `${(videoTimes[el.id].currentTime / videoTimes[el.id].duration) * 100}%` 
-                          }}
-                        />
-                      </div>
-                      {/* 总时长 */}
-                      <span className="text-[10px] text-zinc-400 font-mono min-w-[36px]">
-                        {formatTime(videoTimes[el.id].duration)}
-                      </span>
-                    </div>
-                  )}
                   {/* 音频 - 编辑模式下显示透明标签 */}
                   {el.type === 'audio' && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -6088,6 +6026,94 @@ export default function EditorPage() {
             </div>
             </div>
           </div>
+          
+          {/* 视频时间线面板 - 显示当前选中视频的播放控制 */}
+          {selectedElement?.type === 'video' && videoTimes[selectedElement.id] && (
+            <div className="h-12 bg-zinc-900 border-t border-zinc-700 flex items-center px-4 gap-3 shrink-0">
+              {/* 视频名称 */}
+              <span className="text-xs text-zinc-300 max-w-[150px] truncate" title={selectedElement.name}>
+                {selectedElement.name}
+              </span>
+              
+              {/* 播放/暂停按钮 */}
+              <button
+                className="w-8 h-8 rounded-full bg-purple-600 hover:bg-purple-500 flex items-center justify-center transition-colors"
+                onClick={() => {
+                  const video = videoRefs.current.get(selectedElement.id);
+                  if (video) {
+                    if (video.paused) {
+                      video.play();
+                      setPlayingVideos(prev => new Set(prev).add(selectedElement.id));
+                    } else {
+                      video.pause();
+                      setPlayingVideos(prev => {
+                        const next = new Set(prev);
+                        next.delete(selectedElement.id);
+                        return next;
+                      });
+                    }
+                  }
+                }}
+              >
+                {playingVideos.has(selectedElement.id) ? (
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <rect x="6" y="4" width="4" height="16" rx="1" />
+                    <rect x="14" y="4" width="4" height="16" rx="1" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                    <polygon points="6,4 20,12 6,20" />
+                  </svg>
+                )}
+              </button>
+              
+              {/* 当前时间 */}
+              <span className="text-sm text-white font-mono min-w-[45px]">
+                {formatTime(videoTimes[selectedElement.id]?.currentTime || 0)}
+              </span>
+              
+              {/* 进度条 */}
+              <div 
+                className="flex-1 h-2 bg-zinc-700 rounded-full cursor-pointer relative group"
+                onClick={(e) => {
+                  const video = videoRefs.current.get(selectedElement.id);
+                  const duration = videoTimes[selectedElement.id]?.duration || 0;
+                  if (video && duration > 0) {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const percent = (e.clientX - rect.left) / rect.width;
+                    video.currentTime = Math.max(0, Math.min(duration, percent * duration));
+                  }
+                }}
+              >
+                {/* 进度填充 */}
+                <div 
+                  className="absolute left-0 top-0 h-full bg-purple-500 rounded-full transition-all"
+                  style={{ 
+                    width: `${((videoTimes[selectedElement.id]?.currentTime || 0) / (videoTimes[selectedElement.id]?.duration || 1)) * 100}%` 
+                  }}
+                />
+                {/* 播放头 */}
+                <div 
+                  className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ 
+                    left: `calc(${((videoTimes[selectedElement.id]?.currentTime || 0) / (videoTimes[selectedElement.id]?.duration || 1)) * 100}% - 6px)` 
+                  }}
+                />
+              </div>
+              
+              {/* 总时长 */}
+              <span className="text-sm text-zinc-400 font-mono min-w-[45px]">
+                {formatTime(videoTimes[selectedElement.id]?.duration || 0)}
+              </span>
+              
+              {/* 帧率信息 */}
+              <div className="flex items-center gap-2 text-xs text-zinc-500">
+                <span>FPS: --</span>
+                <span className="text-zinc-600">|</span>
+                <span>{currentScene?.canvasWidth || 1920}×{currentScene?.canvasHeight || 1080}</span>
+              </div>
+            </div>
+          )}
           
           {/* 右键菜单 */}
           {contextMenu.visible && (
