@@ -995,9 +995,21 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
     
     const cleanupFns: (() => void)[] = [];
     
+    console.log('路径动画检查 - 当前场景元素:', currentScene.elements.map(el => ({
+      id: el.id,
+      type: el.type,
+      name: el.name,
+      hasPath: !!el.path,
+      pathEnabled: el.path?.enabled,
+      pathAutoPlay: el.path?.autoPlay,
+      pathPoints: el.path?.points?.length
+    })));
+    
     currentScene.elements.forEach(element => {
       const path = element.path;
       if (!path || !path.enabled || !path.autoPlay || path.points.length < 2) return;
+      
+      console.log('路径动画启动 - 元素:', element.name, '路径点数:', path.points.length);
       
       const delay = path.delay || 0;
       const duration = path.duration || 3000;
@@ -1102,27 +1114,42 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
         const deltaX = pos.x - elementCenterX;
         const deltaY = pos.y - elementCenterY;
         
-        // 更新元素位置
-        setScenes(prev => prev.map(scene => {
-          if (scene.id !== currentSceneId) return scene;
-          return {
-            ...scene,
-            elements: scene.elements.map(el => {
-              if (el.id === element.id) {
-                const initial = initialPositions.get(el.id);
-                if (!initial) return el;
-                return { ...el, x: initial.x + deltaX, y: initial.y + deltaY };
-              }
-              // 移动子元素
-              if (allChildren.some(c => c.id === el.id)) {
-                const initial = initialPositions.get(el.id);
-                if (!initial) return el;
-                return { ...el, x: initial.x + deltaX, y: initial.y + deltaY };
-              }
-              return el;
-            })
-          };
-        }));
+        // 调试日志
+        if (Math.random() < 0.05) { // 5% 概率打印，避免日志过多
+          console.log('路径动画更新:', {
+            elementName: element.name,
+            progress: easedProgress,
+            pos,
+            deltaX,
+            deltaY,
+            currentSceneId
+          });
+        }
+        
+        // 更新元素位置 - 使用函数式更新确保获取最新的 sceneId
+        setScenes(prev => {
+          const targetSceneId = currentSceneId;
+          return prev.map(scene => {
+            if (scene.id !== targetSceneId) return scene;
+            return {
+              ...scene,
+              elements: scene.elements.map(el => {
+                if (el.id === element.id) {
+                  const initial = initialPositions.get(el.id);
+                  if (!initial) return el;
+                  return { ...el, x: initial.x + deltaX, y: initial.y + deltaY };
+                }
+                // 移动子元素
+                if (allChildren.some(c => c.id === el.id)) {
+                  const initial = initialPositions.get(el.id);
+                  if (!initial) return el;
+                  return { ...el, x: initial.x + deltaX, y: initial.y + deltaY };
+                }
+                return el;
+              })
+            };
+          });
+        });
         
         if (!finished) {
           animationId = requestAnimationFrame(animate);
@@ -1140,7 +1167,8 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
     return () => {
       cleanupFns.forEach(fn => fn());
     };
-  }, [currentSceneId, currentScene?.id]); // 依赖场景ID，场景切换时重新运行
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSceneId]); // 只依赖场景ID，避免 scenes 变化导致动画重置
 
   // 加载项目数据
   useEffect(() => {
