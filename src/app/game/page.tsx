@@ -1849,10 +1849,10 @@ function GamePageContent() {
               })()}
               {/* 血条组件 */}
               {el.type === 'healthBar' && (
-                <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', alignItems: 'center', gap: '8px', padding: '0 8px' }}>
+                <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', alignItems: 'center', gap: `${8 * scaleToFit}px`, padding: `0 ${8 * scaleToFit}px` }}>
                   {/* 血条背景 */}
                   <div 
-                    style={{ flex: 1, height: '100%', minHeight: '4px', backgroundColor: el.healthBarBgColor || '#374151', borderRadius: 4, overflow: 'hidden', position: 'relative' }}
+                    style={{ flex: 1, height: '100%', minHeight: `${4 * scaleToFit}px`, backgroundColor: el.healthBarBgColor || '#374151', borderRadius: 4 * scaleToFit, overflow: 'hidden', position: 'relative' }}
                   >
                     {/* 当前血量 */}
                     <div
@@ -1868,7 +1868,7 @@ function GamePageContent() {
                   </div>
                   {/* 血量文字 */}
                   {el.showHealthText !== false && (
-                    <span style={{ fontSize: '12px', fontWeight: 500, flexShrink: 0, color: el.color || '#FFFFFF', minWidth: '40px', textAlign: 'right' }}>
+                    <span style={{ fontSize: `${12 * scaleToFit}px`, fontWeight: 500, flexShrink: 0, color: el.color || '#FFFFFF', minWidth: `${40 * scaleToFit}px`, textAlign: 'right' }}>
                       {el.healthValue || 100}/{el.maxHealth || 100}
                     </span>
                   )}
@@ -1876,11 +1876,11 @@ function GamePageContent() {
               )}
               {/* 选择项组件 */}
               {el.type === 'choiceItem' && (
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px', gap: '8px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 8, border: '2px solid rgba(255,255,255,0.3)' }}>
-                  <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${el.isCorrectChoice ? '#4ADE80' : '#A1A1AA'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `0 ${16 * scaleToFit}px`, gap: `${8 * scaleToFit}px`, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 8 * scaleToFit, border: `${2 * scaleToFit}px solid rgba(255,255,255,0.3)` }}>
+                  <div style={{ width: 16 * scaleToFit, height: 16 * scaleToFit, borderRadius: 4 * scaleToFit, border: `${2 * scaleToFit}px solid ${el.isCorrectChoice ? '#4ADE80' : '#A1A1AA'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {el.isCorrectChoice && <Check style={{ width: 12, height: 12, color: '#4ADE80' }} />}
                   </div>
-                  <span style={{ fontSize: '14px', fontWeight: 500, color: '#E4E4E7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.content || '选项文字'}</span>
+                  <span style={{ fontSize: `${14 * scaleToFit}px`, fontWeight: 500, color: '#E4E4E7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.content || '选项文字'}</span>
                 </div>
               )}
             </div>
