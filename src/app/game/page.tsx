@@ -279,7 +279,8 @@ interface GameState {
 // 视频时间触发器
 interface VideoTimeTrigger {
   id: string;
-  time: number;
+  frame?: number;        // 触发帧数
+  time?: number;         // 兼容旧数据：触发时间（秒）
   actions: any[];
   description?: string;
 }
@@ -425,17 +426,24 @@ function VideoElement({
     };
   }, [src, shouldAutoplay]);
 
-  // 处理时间触发器
+  // 处理时间触发器（基于帧数触发）
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !timeTriggers || timeTriggers.length === 0) return;
+    
+    // 默认帧率 30fps
+    const fps = 30;
 
     const handleTimeUpdate = () => {
       const currentTime = video.currentTime;
+      const currentFrame = Math.round(currentTime * fps);
       
       timeTriggers.forEach(trigger => {
-        // 检查是否到达触发时间（允许0.5秒的误差）
-        if (Math.abs(currentTime - trigger.time) < 0.5 && !triggeredRef.current.has(trigger.id)) {
+        // 获取触发帧数（兼容旧数据：优先使用 frame，没有则使用 time * fps）
+        const triggerFrame = trigger.frame ?? Math.round((trigger.time || 0) * fps);
+        
+        // 检查是否到达触发帧数（允许1帧的误差）
+        if (Math.abs(currentFrame - triggerFrame) <= 1 && !triggeredRef.current.has(trigger.id)) {
           triggeredRef.current.add(trigger.id);
           if (onTimeTrigger) {
             onTimeTrigger(trigger);

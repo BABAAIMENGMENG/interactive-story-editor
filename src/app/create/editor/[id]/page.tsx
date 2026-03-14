@@ -377,7 +377,8 @@ interface ElementEvent {
 // 视频时间触发器
 interface VideoTimeTrigger {
   id: string;           // 触发器唯一ID
-  time: number;         // 触发时间（秒）
+  frame: number;        // 触发帧数（第几帧触发）
+  time?: number;        // 兼容旧数据：触发时间（秒）
   actions: EventAction[]; // 触发的动作列表
   description?: string; // 触发器描述
 }
@@ -8590,7 +8591,7 @@ export default function EditorPage() {
                                 onClick={() => {
                                   const newTrigger: VideoTimeTrigger = {
                                     id: `trigger-${Date.now()}`,
-                                    time: 0,
+                                    frame: 0,
                                     actions: [],
                                     description: '',
                                   };
@@ -8614,16 +8615,16 @@ export default function EditorPage() {
                                       <Input
                                         type="number"
                                         min={0}
-                                        step={0.5}
-                                        value={trigger.time}
+                                        step={1}
+                                        value={trigger.frame ?? Math.round((trigger.time || 0) * 30)}
                                         onChange={(e) => {
                                           const newTriggers = [...(displayElement.timeTriggers || [])];
-                                          newTriggers[index] = { ...trigger, time: parseFloat(e.target.value) || 0 };
+                                          newTriggers[index] = { ...trigger, frame: parseInt(e.target.value) || 0 };
                                           updateElement({ timeTriggers: newTriggers });
                                         }}
                                         className="h-6 w-16 bg-white border-zinc-300 text-xs text-zinc-900"
                                       />
-                                      <span className="text-xs text-zinc-400">秒时触发</span>
+                                      <span className="text-xs text-zinc-400">帧时触发</span>
                                       <Button
                                         variant="ghost"
                                         size="sm"
