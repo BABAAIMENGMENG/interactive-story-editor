@@ -29,12 +29,12 @@ export async function POST(request: Request) {
     // 按顺序清空各表数据（注意外键约束）
     const tables = [
       'beans_transactions',      // 快乐豆交易记录
-      'project_purchases',       // 作品购买记录
-      'recharge_orders',         // 充值订单
       'project_likes',           // 作品点赞
-      'project_reviews',         // 作品审核记录
+      'reviews',                 // 作品审核记录
+      'subscriptions',           // 订阅记录
       'projects',                // 项目/作品
       'profiles',                // 用户资料
+      'admin_users',             // 管理员账户
     ];
 
     const results = [];
