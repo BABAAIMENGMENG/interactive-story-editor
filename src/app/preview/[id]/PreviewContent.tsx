@@ -251,6 +251,23 @@ interface Element {
   // 视频透明通道
   enableTransparency?: boolean;
   objectFit?: 'cover' | 'contain' | 'fill' | 'none';
+  // 血条属性
+  healthValue?: number;
+  maxHealth?: number;
+  healthBarColor?: string;
+  healthBarBgColor?: string;
+  lowHealthThreshold?: number;
+  lowHealthColor?: string;
+  showHealthText?: boolean;
+  showColorPicker?: boolean;
+  colorOptions?: string[];
+  // 选择项属性
+  isCorrectChoice?: boolean;
+  correctFeedback?: string;
+  wrongFeedback?: string;
+  targetHealthBarId?: string;
+  healthChangeOnCorrect?: number;
+  healthChangeOnWrong?: number;
 }
 
 // 场景类型定义
@@ -382,6 +399,8 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('互动体验');
+  // 血条颜色状态（玩家选择的颜色）
+  const [healthBarColors, setHealthBarColors] = useState<Record<string, string>>({});
   
   const sceneContainerRef = useRef<HTMLDivElement>(null);
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
@@ -677,6 +696,168 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
                 {element.text || '▶'}
               </span>
             )}
+          </div>
+        );
+
+      case 'healthBar':
+        // 获取当前血条颜色（玩家选择的或默认的）
+        const currentBarColor = healthBarColors[element.id] || element.healthBarColor || '#22C55E';
+        const healthPercent = ((element.healthValue || 100) / (element.maxHealth || 100)) * 100;
+        const isLowHealth = healthPercent <= (element.lowHealthThreshold || 30);
+        const barColor = isLowHealth ? (element.lowHealthColor || '#EF4444') : currentBarColor;
+        const colorOptions = element.colorOptions || ['#22C55E', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+        
+        return (
+          <div
+            key={element.id}
+            id={`element-${element.id}`}
+            style={{
+              ...style,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}
+            onClick={handleClick}
+            onMouseEnter={handleMouseEnter}
+          >
+            {/* 血条主体 */}
+            <div
+              style={{
+                width: '100%',
+                height: element.showColorPicker ? 'calc(100% - 20px)' : '100%',
+                backgroundColor: element.healthBarBgColor || '#374151',
+                borderRadius: style.borderRadius || 4,
+                overflow: 'hidden',
+                position: 'relative',
+              }}
+            >
+              {/* 血量填充 */}
+              <div
+                style={{
+                  width: `${healthPercent}%`,
+                  height: '100%',
+                  backgroundColor: barColor,
+                  transition: 'width 0.3s ease, background-color 0.3s ease',
+                }}
+              />
+              {/* 血量文字 */}
+              {element.showHealthText !== false && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    color: element.color || '#FFFFFF',
+                    fontSize: `${element.fontSize || 12}px`,
+                    fontWeight: element.fontWeight || 'bold',
+                    textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+                  }}
+                >
+                  {element.healthValue || 100}/{element.maxHealth || 100}
+                </span>
+              )}
+            </div>
+            
+            {/* 颜色选择器 */}
+            {element.showColorPicker && (
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '4px',
+                  height: '16px',
+                  justifyContent: 'center',
+                }}
+              >
+                {colorOptions.map((color, index) => (
+                  <button
+                    key={index}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setHealthBarColors(prev => ({ ...prev, [element.id]: color }));
+                    }}
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '4px',
+                      backgroundColor: color,
+                      border: currentBarColor === color ? '2px solid white' : '2px solid transparent',
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s, border-color 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'scale(1.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      case 'choiceItem':
+        return (
+          <div
+            key={element.id}
+            id={`element-${element.id}`}
+            style={{
+              ...style,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              backgroundColor: style.backgroundColor || 'rgba(255,255,255,0.1)',
+              borderRadius: style.borderRadius || 8,
+              cursor: 'pointer',
+              transition: 'background-color 0.2s',
+            }}
+            onClick={(e) => {
+              handleClick(e);
+              // 如果有关联血条，更新血量
+              if (element.targetHealthBarId) {
+                const healthChange = element.isCorrectChoice 
+                  ? (element.healthChangeOnCorrect || 0)
+                  : (element.healthChangeOnWrong || 0);
+                if (healthChange !== 0) {
+                  setScenes(prev => prev.map(scene => ({
+                    ...scene,
+                    elements: scene.elements.map(el => {
+                      if (el.id === element.targetHealthBarId) {
+                        const newHealth = Math.max(0, Math.min(
+                          el.maxHealth || 100,
+                          (el.healthValue || 100) + healthChange
+                        ));
+                        return { ...el, healthValue: newHealth };
+                      }
+                      return el;
+                    })
+                  })));
+                }
+              }
+            }}
+            onMouseEnter={handleMouseEnter}
+          >
+            {/* 选择框 */}
+            <div
+              style={{
+                width: '20px',
+                height: '20px',
+                borderRadius: '4px',
+                border: '2px solid rgba(255,255,255,0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {/* 可以添加选中状态 */}
+            </div>
+            {/* 选项文字 */}
+            <span style={{ flex: 1 }}>
+              {element.content || element.text || '选项'}
+            </span>
           </div>
         );
 
