@@ -607,14 +607,8 @@ function GamePageContent() {
               console.log('预览 - ✅ 收到编辑器数据');
               const projectData = event.data.data;
               
-              // 保存到 localStorage 供下次使用
-              try {
-                const savedProjects = JSON.parse(localStorage.getItem('interactive-stories') || '{}');
-                savedProjects[storyId] = projectData;
-                localStorage.setItem('interactive-stories', JSON.stringify(savedProjects));
-                console.log('预览 - 已保存到 localStorage');
-              } catch (e) {}
-              
+              // 预览页面不应该保存数据到 localStorage，避免覆盖编辑器数据
+              // 直接使用数据
               if (isMounted) useProjectData(projectData);
               dataLoaded = true;
               window.removeEventListener('message', handleMessage);
