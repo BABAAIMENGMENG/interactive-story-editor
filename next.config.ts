@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   
   allowedDevOrigins: ['*.dev.coze.site'],
+  
   images: {
     remotePatterns: [
       {
@@ -26,10 +27,11 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // 配置 API 路由的请求体大小限制
+  
+  // 配置 API 路由和 Server Actions 的请求体大小限制
   experimental: {
     serverActions: {
-      bodySizeLimit: '100mb', // 上传大文件需要
+      bodySizeLimit: '500mb', // 上传大文件需要（视频等）
     },
   },
 };

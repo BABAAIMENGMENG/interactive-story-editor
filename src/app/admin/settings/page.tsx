@@ -63,7 +63,7 @@ export default function AdminSettingsPage() {
     siteDescription: '创建沉浸式互动短剧和全景体验',
     enableRegistration: true,
     enableUpload: true,
-    maxUploadSize: 100,
+    maxUploadSize: 500,
     maintenanceMode: false,
     // 快乐豆相关设置
     publishRewardBeans: 50,

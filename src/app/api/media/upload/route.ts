@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { uploadFile, s3Storage } from '@/lib/cloud-storage';
 import { indexedDBStorage, fileToBlob } from '@/lib/storage';
 
-// 配置 API 路由
+// 配置 API 路由 - 支持大文件上传
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300; // 5 分钟超时，支持大文件上传
+export const dynamic = 'force-dynamic';
 
 /**
  * 媒体文件上传 API

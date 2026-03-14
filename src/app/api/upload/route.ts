@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Storage } from 'coze-coding-dev-sdk';
 
+// 配置路由以支持大文件上传
+export const runtime = 'nodejs';
+export const maxDuration = 300; // 5 分钟超时
+
 /**
  * 上传文件到对象存储
  * POST /api/upload
@@ -14,10 +18,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请选择要上传的文件' }, { status: 400 });
     }
 
-    // 检查文件大小（最大 100MB）
-    const maxSize = 100 * 1024 * 1024;
+    // 检查文件大小（最大 500MB）
+    const maxSize = 500 * 1024 * 1024;
     if (file.size > maxSize) {
-      return NextResponse.json({ error: '文件大小不能超过 100MB' }, { status: 400 });
+      return NextResponse.json({ 
+        error: '文件过大', 
+        details: `文件超过 500MB 限制，当前文件 ${(file.size / 1024 / 1024).toFixed(2)}MB`,
+        code: 'FILE_TOO_LARGE'
+      }, { status: 413 });
     }
 
     // 初始化 S3Storage
