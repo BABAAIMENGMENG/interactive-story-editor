@@ -4724,8 +4724,13 @@ export default function EditorPage() {
                   onContextMenu={(e) => handleContextMenu(e, el.id)}
                   style={{
                     position: 'absolute',
-                    left: (pathPreviewState?.elementId === el.id ? pathPreviewState.x : el.x) - offsetX,
-                    top: (pathPreviewState?.elementId === el.id ? pathPreviewState.y : el.y) - offsetY,
+                    // 路径点坐标代表元素中心位置，需要转换为左上角坐标
+                    left: (pathPreviewState?.elementId === el.id 
+                      ? pathPreviewState.x - el.width / 2 
+                      : el.x) - offsetX,
+                    top: (pathPreviewState?.elementId === el.id 
+                      ? pathPreviewState.y - el.height / 2 
+                      : el.y) - offsetY,
                     width: el.width,
                     height: el.height,
                     // 图片和透明视频使用透明背景
