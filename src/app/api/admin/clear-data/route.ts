@@ -2,10 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 const supabaseUrl = process.env.COZE_SUPABASE_URL!;
-const supabaseKey = process.env.COZE_SUPABASE_ANON_KEY!;
+const supabaseAnonKey = process.env.COZE_SUPABASE_ANON_KEY!;
+const supabaseServiceKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
 
-// 创建服务端客户端（使用 service_role 权限）
-const supabase = createClient(supabaseUrl, supabaseKey, {
+// 创建服务端客户端（优先使用 service_role 权限）
+const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,
