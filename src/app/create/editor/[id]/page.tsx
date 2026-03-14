@@ -1078,6 +1078,21 @@ export default function EditorPage() {
     const easing = path.easing || 'easeInOut';
     const loopMode = path.loopMode || 'none';
     
+    // 记录元素和子元素的初始位置（用于循环模式下正确计算偏移）
+    const elementCenterX = element.x + element.width / 2;
+    const elementCenterY = element.y + element.height / 2;
+    const firstPoint = points[0];
+    // 路径起点相对于元素中心的偏移（用于计算循环时的正确位置）
+    const pathOffsetX = firstPoint.x - elementCenterX;
+    const pathOffsetY = firstPoint.y - elementCenterY;
+    
+    // 记录所有子元素的初始位置
+    const allChildren = getAllChildren(elementId, currentScene?.elements || []);
+    const initialChildPositions = new Map<string, { x: number; y: number }>();
+    allChildren.forEach(child => {
+      initialChildPositions.set(child.id, { x: child.x, y: child.y });
+    });
+    
     // 缓动函数
     const easingFunctions: Record<string, (t: number) => number> = {
       linear: (t) => t,
@@ -1371,15 +1386,14 @@ export default function EditorPage() {
       
       // 直接操作 DOM（性能更好）
       if (elementDom) {
-        const offsetX = element.x + element.width / 2;
-        const offsetY = element.y + element.height / 2;
-        const dx = pos.x - offsetX;
-        const dy = pos.y - offsetY;
+        // 计算偏移量：当前位置相对于路径起点的偏移
+        // 这样循环回到起点时，偏移量为0，元素回到原位
+        const dx = pos.x - firstPoint.x;
+        const dy = pos.y - firstPoint.y;
         elementDom.style.transition = 'none';
         elementDom.style.transform = `translate(${dx}px, ${dy}px)`;
         
         // 同时移动所有子元素
-        const allChildren = getAllChildren(elementId, currentScene?.elements || []);
         allChildren.forEach(child => {
           const childDom = document.querySelector(`[data-element-id="${child.id}"]`) as HTMLElement;
           if (childDom) {

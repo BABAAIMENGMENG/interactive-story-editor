@@ -560,6 +560,9 @@ const executeActions = async (
         const pathElement = context.elements.find(el => el.id === config.targetElementId || el.id === config.elementId);
         const animation = pathElement?.pathAnimations?.find(a => a.id === config.pathAnimationId);
         if (pathElement && animation && animation.pathPoints.length >= 2) {
+          const points = animation.pathPoints;
+          const firstPoint = points[0];
+          
           // 记录父元素和所有子元素的初始位置
           const allChildren = getAllChildren(pathElement.id, context.elements);
           const initialPositions = new Map<string, { x: number; y: number }>();
@@ -571,7 +574,6 @@ const executeActions = async (
           // 使用 requestAnimationFrame 实现路径动画
           const startTime = Date.now() + animation.delay;
           const duration = animation.duration;
-          const points = animation.pathPoints;
           
           // 缓动函数
           const easingFunctions = {
@@ -723,9 +725,9 @@ const executeActions = async (
                 progress = 1;
                 // 动画结束，设置到终点
                 const finalPoint = points[points.length - 1];
-                const parentInitialPos = initialPositions.get(pathElement.id)!;
-                const deltaX = finalPoint.x - parentInitialPos.x;
-                const deltaY = finalPoint.y - parentInitialPos.y;
+                // 计算终点相对于路径起点的偏移
+                const deltaX = finalPoint.x - firstPoint.x;
+                const deltaY = finalPoint.y - firstPoint.y;
                 
                 if (context.setScenes) {
                   context.setScenes(prev => prev.map(scene => ({
@@ -764,10 +766,10 @@ const executeActions = async (
             // 计算当前位置
             const pos = getPointOnPath(easedProgress);
             
-            // 基于初始位置计算偏移量
-            const parentInitialPos = initialPositions.get(pathElement.id)!;
-            const deltaX = pos.x - parentInitialPos.x;
-            const deltaY = pos.y - parentInitialPos.y;
+            // 计算偏移量：当前位置相对于路径起点的偏移
+            // 这样循环回到起点时，偏移量为0，元素回到原位
+            const deltaX = pos.x - firstPoint.x;
+            const deltaY = pos.y - firstPoint.y;
             
             // 更新元素位置（包括子元素）
             if (context.setScenes) {
