@@ -2,16 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 const supabaseUrl = process.env.COZE_SUPABASE_URL!;
-const supabaseAnonKey = process.env.COZE_SUPABASE_ANON_KEY!;
 const supabaseServiceKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
-
-// 创建服务端客户端（优先使用 service_role 权限）
-const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
 
 export async function POST(request: Request) {
   try {
@@ -26,6 +17,23 @@ export async function POST(request: Request) {
       );
     }
 
+    // 检查是否配置了 Service Role Key
+    if (!supabaseServiceKey) {
+      return NextResponse.json({
+        success: false,
+        message: '未配置 Supabase Service Role Key',
+        error: 'SERVICE_ROLE_KEY_NOT_CONFIGURED',
+      }, { status: 500 });
+    }
+
+    // 创建服务端客户端
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
     // 按顺序清空各表数据（注意外键约束）
     const tables = [
       'beans_transactions',      // 快乐豆交易记录
@@ -34,21 +42,28 @@ export async function POST(request: Request) {
       'subscriptions',           // 订阅记录
       'projects',                // 项目/作品
       'profiles',                // 用户资料
-      'admin_users',             // 管理员账户
     ];
 
     const results = [];
 
     for (const table of tables) {
       try {
-        const { error } = await supabase
-          .from(table)
-          .delete()
-          .neq('id', '00000000-0000-0000-0000-000000000000'); // 删除所有记录
-
+        // 使用 RPC 调用 TRUNCATE（更可靠）
+        const { error } = await supabase.rpc('truncate_table', { table_name: table });
+        
         if (error) {
-          console.error(`清空表 ${table} 失败:`, error);
-          results.push({ table, success: false, error: error.message });
+          // 如果 RPC 不存在，尝试普通删除
+          const { error: deleteError } = await supabase
+            .from(table)
+            .delete()
+            .gt('created_at', '1970-01-01'); // 删除所有记录
+          
+          if (deleteError) {
+            console.error(`清空表 ${table} 失败:`, deleteError);
+            results.push({ table, success: false, error: deleteError.message });
+          } else {
+            results.push({ table, success: true });
+          }
         } else {
           results.push({ table, success: true });
         }
@@ -59,9 +74,9 @@ export async function POST(request: Request) {
     }
 
     // 检查是否全部成功
-    const allSuccess = results.every(r => r.success);
+    const failedTables = results.filter(r => !r.success);
 
-    if (allSuccess) {
+    if (failedTables.length === 0) {
       return NextResponse.json({
         success: true,
         message: '所有数据已清空',
@@ -70,7 +85,7 @@ export async function POST(request: Request) {
     } else {
       return NextResponse.json({
         success: false,
-        message: '部分数据清空失败',
+        message: `清空失败: ${failedTables.map(t => t.table).join(', ')}`,
         results,
       }, { status: 500 });
     }
