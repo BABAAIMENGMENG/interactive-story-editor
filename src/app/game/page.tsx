@@ -486,7 +486,6 @@ function VideoElement({
         objectPosition: 'center',
         borderRadius: borderRadius || 0,
         backgroundColor: '#000',
-        border: '3px solid red', // 调试：显示红色边框确认渲染
         outline: 'none',
         display: 'block',
         // 如果有控制条，让 video 标签可以响应点击（控制条交互）
@@ -2578,20 +2577,6 @@ function GamePageContent() {
         </div>
       )}
 
-      {/* 调试面板 - 显示视频元素信息 */}
-      <div className="absolute bottom-4 left-4 z-50 bg-black/80 text-white p-3 rounded text-xs max-w-xs">
-        <div className="font-bold mb-1">调试信息:</div>
-        <div>场景数: {editorScenes.length}</div>
-        <div>当前场景: {currentEditorSceneId || '无'}</div>
-        <div>视频元素数: {currentEditorScene?.elements?.filter(e => e.type === 'video').length || 0}</div>
-        {currentEditorScene?.elements?.filter(e => e.type === 'video').map((v, i) => (
-          <div key={i} className="mt-1 border-t border-white/20 pt-1">
-            <div>视频{i+1}: {v.width}x{v.height}</div>
-            <div>visible: {String(v.visible)}</div>
-            <div>playOnVisible: {String(v.playOnVisible)}</div>
-          </div>
-        ))}
-      </div>
     </div>
     </>
   );
