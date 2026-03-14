@@ -101,6 +101,7 @@ import {
   Check as CheckIcon,
   Route,
   Edit3,
+  ToggleRight,
 } from 'lucide-react';
 import EditorPanoramaViewer from '@/components/panorama/EditorPanoramaViewer';
 import TransparentVideo from '@/components/ui/transparent-video';
@@ -510,6 +511,7 @@ interface CanvasElement {
   lowHealthColor?: string;    // 低血量颜色
   showHealthText?: boolean;   // 是否显示血量文字
   // 选择项特有属性
+  isSelected?: boolean;       // 选中状态（用于事件配置）
   clickActions?: EventAction[]; // 点击时触发的动作序列
   // 路径动画
   pathAnimations?: PathAnimation[]; // 元素的路径动画列表
@@ -4749,9 +4751,23 @@ export default function EditorPage() {
                   )}
                   {/* 选择项组件 */}
                   {el.type === 'choiceItem' && (
-                    <div className="w-full h-full flex items-center justify-center px-4 gap-2 bg-white/10 hover:bg-white/20 transition-colors rounded-lg border-2 border-white/30">
-                      <div className="w-4 h-4 rounded border-2 border-zinc-400 flex items-center justify-center shrink-0" />
-                      <span className="text-sm font-medium text-zinc-200 truncate">{el.content || '选项文字'}</span>
+                    <div className={`w-full h-full flex items-center justify-center px-4 gap-2 transition-colors rounded-lg border-2 ${
+                      el.isSelected 
+                        ? 'bg-purple-500/30 border-purple-500' 
+                        : 'bg-white/10 hover:bg-white/20 border-white/30'
+                    }`}>
+                      <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${
+                        el.isSelected 
+                          ? 'bg-purple-500 border-purple-500' 
+                          : 'border-2 border-zinc-400'
+                      }`}>
+                        {el.isSelected && (
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className={`text-sm font-medium truncate ${el.isSelected ? 'text-white' : 'text-zinc-200'}`}>{el.content || '选项文字'}</span>
                     </div>
                   )}
                   
@@ -5688,6 +5704,25 @@ export default function EditorPage() {
                                 className="h-9 bg-zinc-700 border-zinc-600 text-sm"
                                 placeholder="输入选项文字..."
                               />
+                            </div>
+
+                            <Separator className="bg-zinc-700" />
+
+                            {/* 选中状态 - 事件配置 */}
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs text-white flex items-center gap-2">
+                                  <ToggleRight className="w-3.5 h-3.5" />
+                                  选中状态
+                                </Label>
+                                <Switch
+                                  checked={displayElement.isSelected || false}
+                                  onCheckedChange={(checked) => updateElement({ isSelected: checked })}
+                                />
+                              </div>
+                              <p className="text-xs text-zinc-500">
+                                开启后，预览时该选项默认显示为选中状态
+                              </p>
                             </div>
 
                             <Separator className="bg-zinc-700" />

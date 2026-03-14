@@ -155,6 +155,7 @@ interface CanvasElement {
   lowHealthColor?: string;
   showHealthText?: boolean;
   // 选择项属性
+  isSelected?: boolean;       // 选中状态
   clickActions?: any[];
 }
 
@@ -714,6 +715,17 @@ function GamePageContent() {
       }
       
       setEditorScenes(enabledScenes);
+      
+      // 初始化选中状态：找出所有 isSelected: true 的选择项
+      const initiallySelected = new Set<string>();
+      enabledScenes.forEach((scene: EditorScene) => {
+        scene.elements?.forEach((el: CanvasElement) => {
+          if (el.type === 'choiceItem' && el.isSelected) {
+            initiallySelected.add(el.id);
+          }
+        });
+      });
+      setSelectedChoices(initiallySelected);
       
       const targetSceneId = initialSceneId && enabledScenes.find((s: any) => s.id === initialSceneId)
         ? initialSceneId

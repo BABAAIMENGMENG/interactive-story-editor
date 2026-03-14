@@ -282,6 +282,7 @@ interface Element {
   lowHealthColor?: string;
   showHealthText?: boolean;
   // 选择项属性
+  isSelected?: boolean;       // 选中状态
   clickActions?: any[]; // 点击时触发的动作序列
   // 路径动画
   pathAnimations?: PathAnimation[];
@@ -675,6 +676,17 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
           }));
           setScenes(cleanedScenes);
           setCurrentSceneId(cleanedScenes[0].id);
+          
+          // 初始化选中状态：找出所有 isSelected: true 的选择项
+          const initiallySelected = new Set<string>();
+          cleanedScenes.forEach((scene: Scene) => {
+            scene.elements?.forEach((el: Element) => {
+              if (el.type === 'choiceItem' && el.isSelected) {
+                initiallySelected.add(el.id);
+              }
+            });
+          });
+          setSelectedChoices(initiallySelected);
         }
       } catch (err) {
         console.error('加载项目失败:', err);
