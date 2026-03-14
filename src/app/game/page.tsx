@@ -1499,10 +1499,28 @@ function GamePageContent() {
 
         case 'seekTo':
           // 跳转播放位置
+          console.log('seekTo 执行:', { 
+            targetElementId: action.targetElementId, 
+            value: action.value,
+            targetElement: targetElement ? 'found' : 'not found'
+          });
           if (targetElement && action.value !== undefined) {
-            const mediaElement = getMediaElement(action.targetElementId);
+            const mediaElement = getMediaElement(action.targetElementId!);
+            console.log('seekTo mediaElement:', mediaElement ? 'found' : 'not found');
             if (mediaElement) {
+              console.log('seekTo 设置 currentTime:', action.value);
               mediaElement.currentTime = action.value;
+            } else {
+              // 备用方案：直接通过 videoRef 查找
+              const container = document.querySelector(`[data-element-id="${action.targetElementId}"]`);
+              console.log('seekTo container:', container ? 'found' : 'not found');
+              if (container) {
+                const video = container.querySelector('video');
+                console.log('seekTo video:', video ? 'found' : 'not found');
+                if (video) {
+                  video.currentTime = action.value;
+                }
+              }
             }
           }
           break;
