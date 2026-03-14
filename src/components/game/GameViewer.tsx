@@ -144,6 +144,55 @@ export function GameViewer({
     }
   }, [updateHealth]);
 
+  // 执行事件动作
+  const executeActions = useCallback((actions: any[]) => {
+    actions.forEach((action: any) => {
+      switch (action.type) {
+        case 'addHealth':
+          if (action.targetElementId) {
+            updateHealth(action.targetElementId, action.value || 10);
+          }
+          break;
+        case 'reduceHealth':
+          if (action.targetElementId) {
+            updateHealth(action.targetElementId, -(action.value || 10));
+          }
+          break;
+        case 'setHealth':
+          if (action.targetElementId) {
+            setHealthValues(prev => ({
+              ...prev,
+              [action.targetElementId]: action.value ?? 100,
+            }));
+          }
+          break;
+        case 'jumpScene':
+          if (action.targetSceneId) {
+            handleSceneChange(action.targetSceneId);
+          }
+          break;
+        // 其他动作类型可以在这里添加
+      }
+    });
+  }, [updateHealth, handleSceneChange]);
+
+  // 处理元素点击事件
+  const handleElementClick = useCallback((element: any) => {
+    // 如果是选择项，使用特殊逻辑
+    if (element.type === 'choiceItem') {
+      handleChoiceClick(element);
+      return;
+    }
+    
+    // 执行元素的事件动作
+    if (element.events && element.events.length > 0) {
+      const clickEvent = element.events.find((e: any) => e.type === 'click');
+      if (clickEvent && clickEvent.actions) {
+        executeActions(clickEvent.actions);
+      }
+    }
+  }, [handleChoiceClick, executeActions]);
+
   // 计算缩放比例
   useEffect(() => {
     const updateScale = () => {
@@ -281,7 +330,7 @@ export function GameViewer({
               {/* 按钮 */}
               {element.type === 'button' && (
                 <button
-                  className="w-full h-full text-white rounded-lg text-sm font-medium transition-colors"
+                  className="w-full h-full text-white rounded-lg text-sm font-medium transition-colors hover:opacity-80 active:scale-95"
                   style={{
                     backgroundColor: getBackgroundColor(element),
                     fontSize: `${element.fontSize || 14}px`,
@@ -290,6 +339,7 @@ export function GameViewer({
                     textShadow: textShadow,
                     WebkitTextStroke: textStroke,
                   }}
+                  onClick={() => handleElementClick(element)}
                 >
                   {element.content || element.text || '按钮'}
                 </button>

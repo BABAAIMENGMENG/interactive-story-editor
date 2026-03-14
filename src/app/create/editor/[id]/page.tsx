@@ -2606,14 +2606,14 @@ export default function EditorPage() {
           <div className="space-y-3">
             <Select
               value={action.targetElementId || ''}
-              onValueChange={(v) => updateActionInEvent(eventIndex, action.id, { targetElementId: v })}
+              onValueChange={(v) => updateActionInEvent(eventIndex, action.id, { targetElementId: v, propertyName: '' })}
             >
               <SelectTrigger className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white data-[placeholder]:text-zinc-300">
                 <SelectValue placeholder="选择目标元素" />
               </SelectTrigger>
               <SelectContent position="popper" className="bg-zinc-800 border-zinc-600 z-[200]">
                 {availableElements.map((el) => (
-                  <SelectItem key={el.id} value={el.id}>{el.name}</SelectItem>
+                  <SelectItem key={el.id} value={el.id}>{el.name} ({elementNames[el.type]})</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -2627,6 +2627,7 @@ export default function EditorPage() {
                   <SelectValue placeholder="选择属性" />
                 </SelectTrigger>
                 <SelectContent position="popper" className="bg-zinc-800 border-zinc-600 z-[200]">
+                  {/* 通用属性 */}
                   <SelectItem value="visible">可见性</SelectItem>
                   <SelectItem value="opacity">透明度</SelectItem>
                   <SelectItem value="backgroundColor">背景颜色</SelectItem>
@@ -2636,6 +2637,12 @@ export default function EditorPage() {
                   <SelectItem value="rotation">旋转角度</SelectItem>
                   <SelectItem value="scale">缩放</SelectItem>
                   <SelectItem value="content">文本内容</SelectItem>
+                  {/* 血条特有属性 */}
+                  <SelectItem value="healthValue">血量值</SelectItem>
+                  <SelectItem value="maxHealth">最大血量</SelectItem>
+                  <SelectItem value="healthBarColor">血条颜色</SelectItem>
+                  {/* 选择项特有属性 */}
+                  <SelectItem value="isCorrectChoice">是否正确答案</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -2654,6 +2661,41 @@ export default function EditorPage() {
                     <SelectItem value="false">隐藏</SelectItem>
                   </SelectContent>
                 </Select>
+              ) : action.propertyName === 'isCorrectChoice' ? (
+                <Select
+                  value={action.propertyValue !== undefined ? String(action.propertyValue) : ''}
+                  onValueChange={(v) => updateActionInEvent(eventIndex, action.id, { propertyValue: v === 'true' })}
+                >
+                  <SelectTrigger className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white data-[placeholder]:text-zinc-300">
+                    <SelectValue placeholder="选择值" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="bg-zinc-800 border-zinc-600 z-[200]">
+                    <SelectItem value="true">正确</SelectItem>
+                    <SelectItem value="false">错误</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : action.propertyName === 'healthValue' || action.propertyName === 'maxHealth' ? (
+                <Input
+                  type="number"
+                  value={action.propertyValue ?? 100}
+                  onChange={(e) => updateActionInEvent(eventIndex, action.id, { propertyValue: parseInt(e.target.value) || 0 })}
+                  className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white"
+                  min={0}
+                />
+              ) : action.propertyName === 'healthBarColor' ? (
+                <div className="flex gap-2">
+                  <Input
+                    type="color"
+                    value={action.propertyValue || '#22C55E'}
+                    onChange={(e) => updateActionInEvent(eventIndex, action.id, { propertyValue: e.target.value })}
+                    className="w-10 h-8 p-1 bg-zinc-600 border-zinc-500"
+                  />
+                  <Input
+                    value={action.propertyValue || '#22C55E'}
+                    onChange={(e) => updateActionInEvent(eventIndex, action.id, { propertyValue: e.target.value })}
+                    className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white flex-1"
+                  />
+                </div>
               ) : action.propertyName === 'opacity' ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -2716,6 +2758,73 @@ export default function EditorPage() {
                   className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white"
                 />
               )}
+            </div>
+          </div>
+        );
+
+      case 'addHealth':
+      case 'reduceHealth':
+        return (
+          <div className="space-y-2">
+            <Select
+              value={action.targetElementId || ''}
+              onValueChange={(v) => updateActionInEvent(eventIndex, action.id, { targetElementId: v })}
+            >
+              <SelectTrigger className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white data-[placeholder]:text-zinc-300">
+                <SelectValue placeholder="选择血条组件" />
+              </SelectTrigger>
+              <SelectContent position="popper" className="bg-zinc-800 border-zinc-600 z-[200]">
+                {availableElements.filter(e => e.type === 'healthBar').map((el) => (
+                  <SelectItem key={el.id} value={el.id}>{el.name}</SelectItem>
+                ))}
+                {availableElements.filter(e => e.type === 'healthBar').length === 0 && (
+                  <SelectItem value="_none" disabled className="text-zinc-400">暂无血条组件，请先添加</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-400">{action.type === 'addHealth' ? '增加' : '减少'}</span>
+              <Input
+                type="number"
+                value={action.value ?? 10}
+                onChange={(e) => updateActionInEvent(eventIndex, action.id, { value: parseInt(e.target.value) ?? 10 })}
+                className="h-8 bg-zinc-600 border-zinc-500 text-xs w-16 text-white"
+                min={0}
+              />
+              <span className="text-xs text-zinc-400">点血量</span>
+            </div>
+          </div>
+        );
+
+      case 'setHealth':
+        return (
+          <div className="space-y-2">
+            <Select
+              value={action.targetElementId || ''}
+              onValueChange={(v) => updateActionInEvent(eventIndex, action.id, { targetElementId: v })}
+            >
+              <SelectTrigger className="h-8 bg-zinc-600 border-zinc-500 text-xs text-white data-[placeholder]:text-zinc-300">
+                <SelectValue placeholder="选择血条组件" />
+              </SelectTrigger>
+              <SelectContent position="popper" className="bg-zinc-800 border-zinc-600 z-[200]">
+                {availableElements.filter(e => e.type === 'healthBar').map((el) => (
+                  <SelectItem key={el.id} value={el.id}>{el.name}</SelectItem>
+                ))}
+                {availableElements.filter(e => e.type === 'healthBar').length === 0 && (
+                  <SelectItem value="_none" disabled className="text-zinc-400">暂无血条组件，请先添加</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-400">设置为</span>
+              <Input
+                type="number"
+                value={action.value ?? 100}
+                onChange={(e) => updateActionInEvent(eventIndex, action.id, { value: parseInt(e.target.value) ?? 100 })}
+                className="h-8 bg-zinc-600 border-zinc-500 text-xs w-16 text-white"
+                min={0}
+              />
+              <span className="text-xs text-zinc-400">点血量</span>
             </div>
           </div>
         );
@@ -7521,6 +7630,30 @@ export default function EditorPage() {
                         onClick={() => addActionToEvent(eventIndex, { type: 'setProperty' })}
                       >
                         设置属性
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs border-green-500 text-green-100 bg-green-700/80 hover:bg-green-600 hover:text-white"
+                        onClick={() => addActionToEvent(eventIndex, { type: 'addHealth', value: 10 })}
+                      >
+                        加血
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs border-red-500 text-red-100 bg-red-700/80 hover:bg-red-600 hover:text-white"
+                        onClick={() => addActionToEvent(eventIndex, { type: 'reduceHealth', value: 10 })}
+                      >
+                        减血
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs border-zinc-500 text-zinc-100 bg-zinc-700/80 hover:bg-zinc-600 hover:text-white"
+                        onClick={() => addActionToEvent(eventIndex, { type: 'setHealth', value: 100 })}
+                      >
+                        设置血量
                       </Button>
                     </div>
                   </div>
