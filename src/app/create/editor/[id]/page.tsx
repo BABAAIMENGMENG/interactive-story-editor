@@ -5094,30 +5094,41 @@ export default function EditorPage() {
                       // 放宽URL验证：只要有src且不是blob就尝试显示（与图片一致）
                       const isValidUrl = el.src && !el.src.startsWith('blob:');
                       
-                      return isValidUrl ? (
-                        <TransparentVideo
-                          src={el.src!}
+                      if (!isValidUrl) {
+                        return (
+                          <div className="w-full h-full flex items-center justify-center bg-zinc-600/30 border border-dashed border-zinc-500 pointer-events-none">
+                            <div className="text-center px-2 pointer-events-none">
+                              <PlayCircle className="w-8 h-8 mx-auto text-zinc-400 mb-1" />
+                              <span className="text-xs text-zinc-400">
+                                {el.src?.startsWith('blob:') ? '无效链接' : el.src ? '加载中...' : '视频'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      // 在编辑器中使用简单的 video 标签，避免自动播放问题
+                      return (
+                        <video
+                          src={el.src}
                           style={{ 
                             width: '100%',
                             height: '100%',
+                            objectFit: el.objectFit || 'cover',
+                            backgroundColor: 'transparent',
                           }}
-                          objectFit={el.objectFit || 'cover'}
                           loop={el.loop !== false}
                           muted={el.muted !== false}
-                          autoplay={el.autoplay !== false && !el.controls}
-                          controls={!!(el.controls || el.isMaximized)}
                           playsInline
-                          enableTransparency={el.enableTransparency !== false}
+                          autoPlay={false}
+                          poster=""
+                          onError={(e) => {
+                            console.warn('[编辑器] 视频资源无法加载:', el.src?.substring(0, 50) + '...');
+                          }}
+                          onLoadedData={() => {
+                            console.log('[编辑器] 视频加载成功:', el.name);
+                          }}
                         />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-zinc-600/30 border border-dashed border-zinc-500 pointer-events-none">
-                          <div className="text-center px-2 pointer-events-none">
-                            <PlayCircle className="w-8 h-8 mx-auto text-zinc-400 mb-1" />
-                            <span className="text-xs text-zinc-400">
-                              {el.src?.startsWith('blob:') ? '无效链接' : el.src ? '加载中...' : '视频'}
-                            </span>
-                          </div>
-                        </div>
                       );
                     })()
                   )}

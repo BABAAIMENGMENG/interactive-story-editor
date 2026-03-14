@@ -148,9 +148,17 @@ export function TransparentVideo({
   }, []);
 
   // 错误处理
-  const handleError = useCallback(() => {
-    setError('视频加载失败');
-  }, []);
+  const handleError = useCallback((e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    const video = e.currentTarget;
+    const errorCode = video?.error?.code;
+    const errorMessage = video?.error?.message;
+    console.error('[TransparentVideo] 视频加载失败:', { 
+      src: src?.substring(0, 100), 
+      errorCode, 
+      errorMessage 
+    });
+    setError('视频加载失败: ' + (errorMessage || '未知错误'));
+  }, [src]);
 
   // 清理
   useEffect(() => {
