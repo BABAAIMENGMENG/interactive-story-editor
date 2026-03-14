@@ -991,10 +991,29 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
   
   // 自动播放路径动画
   useEffect(() => {
-    if (!currentScene) return;
+    console.log('路径动画 useEffect 触发:', {
+      currentSceneId,
+      scenesLength: scenes.length,
+      currentScene: currentScene ? 'exists' : 'null',
+      elementsCount: currentScene?.elements?.length || 0,
+      animationRefsSize: pathAnimationRefs.current.size
+    });
+    
+    // 确保 currentScene 存在且有元素
+    if (!currentScene || !currentScene.elements || currentScene.elements.length === 0) {
+      console.log('路径动画跳过 - 场景未加载或无元素');
+      return;
+    }
+    
+    // 如果已经有动画在运行，跳过
+    if (pathAnimationRefs.current.size > 0) {
+      console.log('路径动画跳过 - 已有动画运行中');
+      return;
+    }
     
     const cleanupFns: (() => void)[] = [];
     
+    console.log('路径动画初始化 - 场景:', currentSceneId, '元素数:', currentScene.elements.length);
     console.log('路径动画检查 - 当前场景元素:', currentScene.elements.map(el => ({
       id: el.id,
       type: el.type,
@@ -1168,7 +1187,7 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
       cleanupFns.forEach(fn => fn());
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSceneId]); // 只依赖场景ID，避免 scenes 变化导致动画重置
+  }, [currentSceneId, scenes.length]); // 依赖场景ID和scenes长度
 
   // 加载项目数据
   useEffect(() => {
