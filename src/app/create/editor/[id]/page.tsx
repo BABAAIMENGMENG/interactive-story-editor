@@ -1332,10 +1332,22 @@ export default function EditorPage() {
       // 处理循环模式
       if (loopMode === 'none') {
         if (progress >= 1) {
-          // 恢复原始位置
+          // 动画结束，停在终点位置
           if (elementDom) {
+            const finalPoint = points[points.length - 1];
+            const dx = finalPoint.x - elementCenterX;
+            const dy = finalPoint.y - elementCenterY;
             elementDom.style.transition = 'transform 0.3s ease';
-            elementDom.style.transform = '';
+            elementDom.style.transform = `translate(${dx}px, ${dy}px)`;
+            
+            // 子元素也停在终点位置
+            allChildren.forEach(child => {
+              const childDom = document.querySelector(`[data-element-id="${child.id}"]`) as HTMLElement;
+              if (childDom) {
+                childDom.style.transition = 'transform 0.3s ease';
+                childDom.style.transform = `translate(${dx}px, ${dy}px)`;
+              }
+            });
           }
           setPathPreviewState(null);
           pathPreviewRef.current = null;
