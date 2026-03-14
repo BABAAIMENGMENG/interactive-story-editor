@@ -7555,7 +7555,7 @@ export default function EditorPage() {
                         >
                           <span className="text-lg" suppressHydrationWarning>{preset.icon}</span>
                           <p className="text-xs mt-1">{preset.name}</p>
-                          <p className="text-[10px] text-zinc-400">{preset.width}×{preset.height}</p>
+                          <p className="text-[10px] text-zinc-400" suppressHydrationWarning>{preset.width}×{preset.height}</p>
                         </button>
                       ))}
                     </div>
@@ -7575,7 +7575,7 @@ export default function EditorPage() {
                         className="h-8 bg-zinc-700 border-zinc-600 text-xs"
                         placeholder="宽度"
                       />
-                      <span className="text-zinc-400">×</span>
+                      <span className="text-zinc-400" suppressHydrationWarning>×</span>
                       <Input
                         type="number"
                         value={currentScene.canvasHeight || 1080}
