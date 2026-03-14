@@ -80,8 +80,13 @@ exports.handler = async (fcReq, fcResp, context) => {
           
           fcResp.setStatusCode(res.statusCode);
           Object.entries(res.headers).forEach(([key, value]) => {
-            fcResp.setHeader(key, value);
+            // 移除导致浏览器下载文件的header
+            if (key.toLowerCase() !== 'content-disposition') {
+              fcResp.setHeader(key, value);
+            }
           });
+          // 强制设置为inline，防止浏览器下载
+          fcResp.setHeader('Content-Disposition', 'inline');
           fcResp.send(body);
           resolve();
         });
