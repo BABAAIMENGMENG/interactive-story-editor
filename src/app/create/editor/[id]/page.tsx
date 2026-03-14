@@ -1118,6 +1118,11 @@ export default function EditorPage() {
       });
 
       if (response.ok) {
+        // 【关键】同步更新 localStorage，确保数据一致性
+        const savedProjects = JSON.parse(localStorage.getItem('interactive-stories') || '{}');
+        savedProjects[projectId] = projectData;
+        localStorage.setItem('interactive-stories', JSON.stringify(savedProjects));
+        
         setSaveStatus('saved');
         setShowSaveSuccess(true);
         setTimeout(() => setShowSaveSuccess(false), 2000);
@@ -1209,6 +1214,11 @@ export default function EditorPage() {
   // 加载项目
   const loadProject = useCallback(async () => {
     try {
+      // 【关键】先读取 localStorage 中的数据，获取其 updatedAt 时间戳
+      const savedProjects = JSON.parse(localStorage.getItem('interactive-stories') || '{}');
+      const localProjectData = savedProjects[projectId];
+      const localUpdatedAt = localProjectData?.updatedAt || 0;
+      
       // 获取授权 token
       const token = getAuthToken();
       
@@ -1223,6 +1233,36 @@ export default function EditorPage() {
         const data = await response.json();
         if (data.project) {
           const projectData = data.project.projectData;
+          const dbUpdatedAt = new Date(data.project.updated_at || 0).getTime();
+          
+          // 【关键】比较时间戳，优先使用最新的数据
+          if (localProjectData && localUpdatedAt > dbUpdatedAt) {
+            console.log('使用 localStorage 中的最新数据（比数据库新）');
+            setProjectName(localProjectData.name || '我的互动短剧');
+            if (localProjectData.scenes && localProjectData.scenes.length > 0) {
+              const cleanedScenes = localProjectData.scenes.map((scene: any) => ({
+                ...scene,
+                panoramaImage: validateVideoUrl(scene.panoramaImage).isValid ? scene.panoramaImage : '',
+                panoramaVideo: validateVideoUrl(scene.panoramaVideo).isValid ? scene.panoramaVideo : '',
+                elements: scene.elements?.map((el: any) => ({
+                  ...el,
+                  src: validateVideoUrl(el.src).isValid ? el.src : '',
+                })) || [],
+              }));
+              setScenes(cleanedScenes);
+              setCurrentSceneId(cleanedScenes[0].id);
+            }
+            if (localProjectData.mediaResources) {
+              const validResources = localProjectData.mediaResources.filter(
+                (r: MediaResource) => validateVideoUrl(r.url).isValid
+              );
+              setMediaResources(validResources);
+            }
+            setSaveStatus('saved');
+            return;
+          }
+          
+          // 使用数据库数据
           setProjectName(data.project.name || '我的互动短剧');
           setBeansPrice(data.project.beans_price || 0);
           setProjectCategory(data.project.category || 'other');
@@ -1250,13 +1290,22 @@ export default function EditorPage() {
             setMediaResources(validResources);
           }
           
+          // 同步到 localStorage
+          savedProjects[projectId] = {
+            ...savedProjects[projectId],
+            name: data.project.name,
+            scenes: projectData?.scenes || [],
+            mediaResources: projectData?.mediaResources || [],
+            updatedAt: dbUpdatedAt,
+          };
+          localStorage.setItem('interactive-stories', JSON.stringify(savedProjects));
+          
           setSaveStatus('saved');
           return;
         }
       }
       
       // 如果数据库加载失败，从 localStorage 加载
-      const savedProjects = JSON.parse(localStorage.getItem('interactive-stories') || '{}');
       const projectData = savedProjects[projectId];
       
       if (projectData) {
