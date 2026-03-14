@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Storage } from 'coze-coding-dev-sdk';
+import { createClient } from '@supabase/supabase-js';
 
 /**
- * 上传文件到对象存储
+ * 上传文件到 Supabase Storage
  * POST /api/upload
  */
 export async function POST(request: NextRequest) {
@@ -14,70 +14,68 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请选择要上传的文件' }, { status: 400 });
     }
 
-    // 检查文件大小（最大 10MB）
-    const maxSize = 10 * 1024 * 1024;
+    // 检查文件大小（最大 100MB）
+    const maxSize = 100 * 1024 * 1024;
     if (file.size > maxSize) {
-      return NextResponse.json({ error: '文件大小不能超过 10MB' }, { status: 400 });
+      return NextResponse.json({ error: '文件大小不能超过 100MB' }, { status: 400 });
     }
 
-    // 检查文件类型
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: '仅支持 JPG、PNG、GIF、WebP 格式的图片' }, { status: 400 });
-    }
-
-    // 检查环境变量
-    if (!process.env.COZE_BUCKET_ENDPOINT_URL || !process.env.COZE_BUCKET_NAME) {
-      console.error('对象存储环境变量未配置');
-      // 返回一个临时 URL 格式（开发环境）
-      const timestamp = Date.now();
-      const ext = file.name.split('.').pop() || 'jpg';
-      // 使用 Data URL 返回（开发环境）
-      const arrayBuffer = await file.arrayBuffer();
-      const base64 = Buffer.from(arrayBuffer).toString('base64');
-      const dataUrl = `data:${file.type};base64,${base64}`;
-      
-      return NextResponse.json({
-        success: true,
-        url: dataUrl,
-        key: `qrcodes/${timestamp}_${file.name}`,
-      });
-    }
-
-    // 初始化对象存储
-    const storage = new S3Storage({
-      endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-      accessKey: '',
-      secretKey: '',
-      bucketName: process.env.COZE_BUCKET_NAME,
-      region: 'cn-beijing',
+    // 初始化 Supabase 客户端
+    const supabaseUrl = process.env.COZE_SUPABASE_URL!;
+    const supabaseKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || process.env.COZE_SUPABASE_ANON_KEY!;
+    
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
     });
 
     // 读取文件内容
     const arrayBuffer = await file.arrayBuffer();
-    const fileContent = Buffer.from(arrayBuffer);
+    const fileBuffer = Buffer.from(arrayBuffer);
 
     // 生成文件名（使用时间戳避免重复）
     const timestamp = Date.now();
-    const fileName = `qrcodes/${timestamp}_${file.name}`;
+    const ext = file.name.split('.').pop() || 'jpg';
+    const fileName = `uploads/${timestamp}_${Math.random().toString(36).substring(7)}.${ext}`;
 
-    // 上传到对象存储
-    const key = await storage.uploadFile({
-      fileContent,
-      fileName,
-      contentType: file.type,
-    });
+    // 确保存储桶存在
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const bucketExists = buckets?.some(b => b.name === 'public');
+    
+    if (!bucketExists) {
+      // 创建公共存储桶
+      await supabase.storage.createBucket('public', {
+        public: true,
+      });
+    }
 
-    // 生成签名 URL（有效期 30 天）
-    const url = await storage.generatePresignedUrl({
-      key,
-      expireTime: 30 * 24 * 60 * 60, // 30 天
-    });
+    // 上传到 Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('public')
+      .upload(fileName, fileBuffer, {
+        contentType: file.type,
+        upsert: true,
+      });
+
+    if (error) {
+      console.error('上传到 Supabase Storage 失败:', error);
+      return NextResponse.json(
+        { error: '上传失败: ' + error.message },
+        { status: 500 }
+      );
+    }
+
+    // 获取公开 URL
+    const { data: urlData } = supabase.storage
+      .from('public')
+      .getPublicUrl(data.path);
 
     return NextResponse.json({
       success: true,
-      url,
-      key,
+      url: urlData.publicUrl,
+      key: data.path,
     });
   } catch (error) {
     console.error('上传文件失败:', error);
