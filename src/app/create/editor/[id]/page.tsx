@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getAuthToken } from '@/contexts/AuthContext';
+import { getAuthToken, fetchWithAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1619,15 +1619,11 @@ export default function EditorPage() {
       // 先保存项目
       await saveProject();
       
-      // 获取授权 token
-      const token = getAuthToken();
-      
-      // 更新公开状态和价格
-      const response = await fetch(`/api/projects/${projectId}`, {
+      // 使用 fetchWithAuth 自动处理 token 刷新
+      const response = await fetchWithAuth(`/api/projects/${projectId}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           isPublic: true,
