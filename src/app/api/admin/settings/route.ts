@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     // 使用 upsert 插入或更新设置
     const { error } = await supabase
-      .from('system_settings')
+      .from('admin_settings')
       .upsert(
         { key, value: JSON.stringify(value), updated_at: new Date().toISOString() },
         { onConflict: 'key' }
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
-    let query = supabase.from('system_settings').select('key, value');
+    let query = supabase.from('admin_settings').select('key, value');
     
     if (key) {
       query = query.eq('key', key);
