@@ -213,6 +213,7 @@ function VideoElement({
     >
       <video
         ref={videoRef}
+        id={`element-${element.id}`}
         src={element.src}
         style={{ objectFit: element.objectFit || 'cover', width: '100%', height: '100%' }}
         loop={element.loop ?? false}
