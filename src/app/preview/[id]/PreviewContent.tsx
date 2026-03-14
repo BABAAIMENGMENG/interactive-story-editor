@@ -591,6 +591,7 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('互动体验');
+  const [selectedChoices, setSelectedChoices] = useState<Set<string>>(new Set());
   
   const sceneContainerRef = useRef<HTMLDivElement>(null);
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
@@ -952,6 +953,7 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
         );
 
       case 'choiceItem':
+        const isSelected = selectedChoices.has(element.id);
         return (
           <div
             key={element.id}
@@ -962,13 +964,25 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
-              backgroundColor: style.backgroundColor || 'rgba(255,255,255,0.1)',
+              backgroundColor: isSelected ? 'rgba(139, 92, 246, 0.3)' : (style.backgroundColor || 'rgba(255,255,255,0.1)'),
               borderRadius: style.borderRadius || 8,
               cursor: 'pointer',
-              transition: 'background-color 0.2s',
+              transition: 'background-color 0.2s, border-color 0.2s',
+              border: isSelected ? '2px solid #8B5CF6' : '2px solid rgba(255,255,255,0.3)',
             }}
             onClick={async (e) => {
               handleClick(e);
+              
+              // 切换选中状态
+              setSelectedChoices(prev => {
+                const newSet = new Set(prev);
+                if (newSet.has(element.id)) {
+                  newSet.delete(element.id);
+                } else {
+                  newSet.add(element.id);
+                }
+                return newSet;
+              });
               
               // 执行点击动作序列
               const actions = element.clickActions || [];
@@ -988,14 +1002,22 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
                 width: '20px',
                 height: '20px',
                 borderRadius: '4px',
-                border: '2px solid rgba(255,255,255,0.5)',
+                border: isSelected ? '2px solid #8B5CF6' : '2px solid rgba(255,255,255,0.5)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                backgroundColor: isSelected ? '#8B5CF6' : 'transparent',
+                transition: 'all 0.2s',
               }}
-            />
+            >
+              {isSelected && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </div>
             {/* 选项文字 */}
-            <span style={{ flex: 1 }}>
+            <span style={{ flex: 1, color: isSelected ? '#fff' : 'inherit' }}>
               {element.content || element.text || '选项'}
             </span>
           </div>

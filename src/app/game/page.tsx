@@ -430,6 +430,7 @@ function GamePageContent() {
   // 状态管理
   const [storyId, setStoryId] = useState('demo');
   const [initialSceneId, setInitialSceneId] = useState<string | null>(null);
+  const [selectedChoices, setSelectedChoices] = useState<Set<string>>(new Set());
   
   // 从 URL 参数初始化
   useEffect(() => {
@@ -1866,12 +1867,64 @@ function GamePageContent() {
                 </div>
               )}
               {/* 选择项组件 */}
-              {el.type === 'choiceItem' && (
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `0 ${16 * scaleToFit}px`, gap: `${8 * scaleToFit}px`, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 8 * scaleToFit, border: `${2 * scaleToFit}px solid rgba(255,255,255,0.3)` }}>
-                  <div style={{ width: 16 * scaleToFit, height: 16 * scaleToFit, borderRadius: 4 * scaleToFit, border: `${2 * scaleToFit}px solid rgba(255,255,255,0.5)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} />
-                  <span style={{ fontSize: `${14 * scaleToFit}px`, fontWeight: 500, color: '#E4E4E7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.content || '选项文字'}</span>
+              {el.type === 'choiceItem' && (() => {
+                const isSelected = selectedChoices.has(el.id);
+                return (
+                <div 
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    padding: `0 ${16 * scaleToFit}px`, 
+                    gap: `${8 * scaleToFit}px`, 
+                    backgroundColor: isSelected ? 'rgba(139, 92, 246, 0.3)' : 'rgba(255,255,255,0.1)', 
+                    borderRadius: 8 * scaleToFit, 
+                    border: `${2 * scaleToFit}px solid ${isSelected ? '#8B5CF6' : 'rgba(255,255,255,0.3)'}`,
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s, border-color 0.2s',
+                  }}
+                  onClick={() => {
+                    // 切换选中状态
+                    setSelectedChoices(prev => {
+                      const newSet = new Set(prev);
+                      if (newSet.has(el.id)) {
+                        newSet.delete(el.id);
+                      } else {
+                        newSet.add(el.id);
+                      }
+                      return newSet;
+                    });
+                    
+                    // 执行点击动作
+                    const actions = el.clickActions || [];
+                    if (actions.length > 0) {
+                      executeEventActions(actions, el);
+                    }
+                  }}
+                >
+                  <div style={{ 
+                    width: 16 * scaleToFit, 
+                    height: 16 * scaleToFit, 
+                    borderRadius: 4 * scaleToFit, 
+                    border: `${2 * scaleToFit}px solid ${isSelected ? '#8B5CF6' : 'rgba(255,255,255,0.5)'}`, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    flexShrink: 0,
+                    backgroundColor: isSelected ? '#8B5CF6' : 'transparent',
+                    transition: 'all 0.2s',
+                  }}>
+                    {isSelected && (
+                      <svg width={12 * scaleToFit} height={12 * scaleToFit} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </div>
+                  <span style={{ fontSize: `${14 * scaleToFit}px`, fontWeight: 500, color: isSelected ? '#fff' : '#E4E4E7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.content || '选项文字'}</span>
                 </div>
-              )}
+              )})()}
             </div>
           )})}
                 </div>
