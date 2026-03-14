@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 
 interface TransparentVideoProps {
   src: string;
@@ -18,6 +18,14 @@ interface TransparentVideoProps {
   enableTransparency?: boolean; // 是否启用透明通道
 }
 
+export interface TransparentVideoRef {
+  getVideo: () => HTMLVideoElement | null;
+  play: () => Promise<void>;
+  pause: () => void;
+  getCurrentTime: () => number;
+  setCurrentTime: (time: number) => void;
+}
+
 /**
  * 透明视频渲染组件
  * 
@@ -29,7 +37,7 @@ interface TransparentVideoProps {
  * - 对于支持透明 WebM 的浏览器，直接使用 <video> 标签
  * - 对于需要特殊处理的视频，使用 Canvas 渲染
  */
-export function TransparentVideo({
+export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideoProps>(function TransparentVideo({
   src,
   className = '',
   style = {},
@@ -43,7 +51,7 @@ export function TransparentVideo({
   onMouseLeave,
   objectFit = 'contain',
   enableTransparency = true,
-}: TransparentVideoProps) {
+}, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -52,6 +60,19 @@ export function TransparentVideo({
   const [useCanvas, setUseCanvas] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 暴露 ref 方法
+  useImperativeHandle(ref, () => ({
+    getVideo: () => videoRef.current,
+    play: () => videoRef.current?.play() || Promise.resolve(),
+    pause: () => videoRef.current?.pause(),
+    getCurrentTime: () => videoRef.current?.currentTime || 0,
+    setCurrentTime: (time: number) => {
+      if (videoRef.current) {
+        videoRef.current.currentTime = time;
+      }
+    },
+  }), []);
 
   // 检测是否需要使用 Canvas 渲染
   const checkTransparencySupport = useCallback(() => {
@@ -254,6 +275,6 @@ export function TransparentVideo({
       )}
     </div>
   );
-}
+});
 
 export default TransparentVideo;

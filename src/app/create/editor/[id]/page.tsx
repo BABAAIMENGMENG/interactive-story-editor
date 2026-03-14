@@ -5171,6 +5171,13 @@ export default function EditorPage() {
                       // 在编辑器中使用简单的 video 标签，避免自动播放问题
                       return (
                         <video
+                          ref={(videoEl) => {
+                            if (videoEl) {
+                              videoRefs.current.set(el.id, videoEl);
+                            } else {
+                              videoRefs.current.delete(el.id);
+                            }
+                          }}
                           src={el.src}
                           style={{ 
                             width: '100%',
@@ -5188,6 +5195,16 @@ export default function EditorPage() {
                           }}
                           onLoadedData={() => {
                             console.log('[编辑器] 视频加载成功:', el.name);
+                          }}
+                          onPlay={() => {
+                            setPlayingVideos(prev => new Set(prev).add(el.id));
+                          }}
+                          onPause={() => {
+                            setPlayingVideos(prev => {
+                              const next = new Set(prev);
+                              next.delete(el.id);
+                              return next;
+                            });
                           }}
                         />
                       );

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import TransparentVideo from '@/components/ui/transparent-video';
+import TransparentVideo, { TransparentVideoRef } from '@/components/ui/transparent-video';
 
 // 辅助函数：将十六进制颜色转换为 rgba
 function hexToRgba(hex: string, alpha: number): string {
@@ -48,22 +48,26 @@ interface PathAnimation {
   delay: number;
 }
 
-// 视频元素组件（支持可见性控制和拖拽）
+// 视频元素组件（支持可见性控制、拖拽和时间触发器）
 function VideoElement({ 
   element, 
   style, 
   onClick, 
-  onMouseEnter 
+  onMouseEnter,
+  onTimeTrigger,
 }: { 
   element: any; 
   style: React.CSSProperties; 
   onClick: (e: React.MouseEvent) => void;
   onMouseEnter: (e: React.MouseEvent) => void;
+  onTimeTrigger?: (trigger: any) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<TransparentVideoRef>(null);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
+  const triggerStatesRef = useRef<Map<string, boolean>>(new Map());
 
   // 可见性控制
   useEffect(() => {
@@ -143,9 +147,52 @@ function VideoElement({
     };
   }, [element.draggable, isDragging, position]);
 
+  // 视频时间触发器
+  useEffect(() => {
+    const transparentVideo = videoRef.current;
+    if (!transparentVideo || !element.timeTriggers || !onTimeTrigger) return;
+
+    const video = transparentVideo.getVideo();
+    if (!video) return;
+
+    const triggers: VideoTimeTrigger[] = element.timeTriggers;
+
+    const handleTimeUpdate = () => {
+      const currentTime = video.currentTime;
+      
+      triggers.forEach((trigger) => {
+        const triggerKey = trigger.id || `trigger-${trigger.time}`;
+        const hasTriggered = triggerStatesRef.current.get(triggerKey);
+        
+        // 检查是否应该触发
+        if (currentTime >= trigger.time && (!hasTriggered || !trigger.once)) {
+          // 如果是单次触发且已经触发过，跳过
+          if (hasTriggered && trigger.once) return;
+          
+          // 标记为已触发
+          triggerStatesRef.current.set(triggerKey, true);
+          
+          // 执行触发器回调
+          onTimeTrigger(trigger);
+        }
+        
+        // 如果视频循环播放且时间重置，清除触发状态
+        if (element.loop && currentTime < 0.5) {
+          triggerStatesRef.current.clear();
+        }
+      });
+    };
+
+    video.addEventListener('timeupdate', handleTimeUpdate);
+    
+    return () => {
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+    };
+  }, [element.timeTriggers, element.loop, onTimeTrigger]);
+
   const draggableStyle: React.CSSProperties = element.draggable ? {
     transform: `translate(${position.x}px, ${position.y}px)`,
-    cursor: isDragging ? 'grabbing' : 'grab',
+    cursor: isDragging ? 'grab' : 'grab',
   } : {};
 
   return (
@@ -154,6 +201,7 @@ function VideoElement({
       style={{ ...style, ...draggableStyle }}
     >
       <TransparentVideo
+        ref={videoRef}
         src={element.src}
         style={{ objectFit: element.objectFit || 'cover', width: '100%', height: '100%' }}
         loop={element.loop ?? false}
@@ -289,6 +337,18 @@ interface Element {
   path?: ElementPath;
   // 路径动画（旧版，向后兼容）
   pathAnimations?: PathAnimation[];
+  // 视频时间触发器
+  timeTriggers?: VideoTimeTrigger[];
+}
+
+// 视频时间触发器
+interface VideoTimeTrigger {
+  id: string;
+  time: number;
+  actions: any[];
+  description?: string;
+  triggered?: boolean;
+  once?: boolean;  // 是否只触发一次
 }
 
 // 元素路径配置（新版）
@@ -1251,6 +1311,11 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
             style={style}
             onClick={handleClick}
             onMouseEnter={handleMouseEnter}
+            onTimeTrigger={(trigger) => {
+              if (trigger.actions && trigger.actions.length > 0) {
+                executeActions(trigger.actions, eventContext);
+              }
+            }}
           />
         ) : null;
 
