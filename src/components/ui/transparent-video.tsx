@@ -244,8 +244,7 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
   // 视频样式
   const videoStyle: React.CSSProperties = {
     position: 'absolute',
-    top: 0,
-    left: 0,
+    inset: 0,
     width: '100%',
     height: '100%',
     objectFit,
@@ -255,8 +254,7 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
   // Canvas 样式
   const canvasStyle: React.CSSProperties = {
     position: 'absolute',
-    top: 0,
-    left: 0,
+    inset: 0,
     width: '100%',
     height: '100%',
     objectFit,
@@ -307,13 +305,6 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
           ref={canvasRef}
           style={canvasStyle}
         />
-      )}
-      
-      {/* 加载状态 */}
-      {!isLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-          <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-        </div>
       )}
     </div>
   );

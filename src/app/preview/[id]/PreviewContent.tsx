@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import TransparentVideo, { TransparentVideoRef } from '@/components/ui/transparent-video';
 
 // 辅助函数：将十六进制颜色转换为 rgba
 function hexToRgba(hex: string, alpha: number): string {
@@ -63,7 +62,7 @@ function VideoElement({
   onTimeTrigger?: (trigger: any) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<TransparentVideoRef>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
@@ -114,11 +113,8 @@ function VideoElement({
 
   // 视频时间触发器
   useEffect(() => {
-    const transparentVideo = videoRef.current;
-    if (!transparentVideo || !element.timeTriggers || !onTimeTrigger) return;
-
-    const video = transparentVideo.getVideo();
-    if (!video) return;
+    const video = videoRef.current;
+    if (!video || !element.timeTriggers || !onTimeTrigger) return;
 
     const triggers: VideoTimeTrigger[] = element.timeTriggers;
 
@@ -165,17 +161,15 @@ function VideoElement({
       ref={containerRef} 
       style={{ ...style, ...draggableStyle }}
     >
-      <TransparentVideo
+      <video
         ref={videoRef}
         src={element.src}
         style={{ objectFit: element.objectFit || 'cover', width: '100%', height: '100%' }}
         loop={element.loop ?? false}
         muted={element.muted ?? true}
-        autoplay={element.autoplay ?? false}
-        controls={element.controls ?? true}
+        autoPlay
         playsInline
-        enableTransparency={element.enableTransparency !== false}
-        playOnVisible={element.playOnVisible !== false}
+        controls={element.controls ?? true}
         onClick={onClick}
         onMouseEnter={onMouseEnter}
       />

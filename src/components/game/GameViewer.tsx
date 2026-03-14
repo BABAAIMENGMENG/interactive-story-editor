@@ -397,17 +397,15 @@ export function GameViewer({
 
               {/* 视频 */}
               {element.type === 'video' && element.src && (
-                <TransparentVideo
+                <video
                   src={element.src}
                   className="w-full h-full"
-                  objectFit={element.objectFit || 'contain'}
+                  style={{ objectFit: element.objectFit || 'contain' }}
                   loop={element.loop ?? false}
                   muted={element.muted ?? true}
-                  autoplay={element.autoplay ?? false}
-                  playOnVisible={element.playOnVisible !== false}
-                  controls={element.controls ?? true}
+                  autoPlay
                   playsInline
-                  enableTransparency={element.enableTransparency !== false}
+                  controls={element.controls ?? true}
                 />
               )}
 
