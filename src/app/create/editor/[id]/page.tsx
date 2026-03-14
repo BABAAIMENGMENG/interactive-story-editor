@@ -6470,18 +6470,35 @@ export default function EditorPage() {
                                 
                                 {/* 视频设置 */}
                                 <div className="space-y-3">
+                                  <p className="text-[10px] text-zinc-500 -mt-1">以下设置同时影响编辑器和预览页面</p>
                                   <div className="flex items-center justify-between">
                                     <Label className="text-xs text-white">自动播放</Label>
                                     <Switch
                                       checked={displayElement.autoplay || false}
-                                      onCheckedChange={(v) => updateElement({ autoplay: v })}
+                                      onCheckedChange={(v) => {
+                                        updateElement({ autoplay: v });
+                                        const video = videoRefs.current.get(selectedElement.id);
+                                        if (video) {
+                                          if (v) {
+                                            video.play().catch(() => {});
+                                          } else {
+                                            video.pause();
+                                          }
+                                        }
+                                      }}
                                     />
                                   </div>
                                   <div className="flex items-center justify-between">
                                     <Label className="text-xs text-white">循环播放</Label>
                                     <Switch
                                       checked={displayElement.loop !== false}
-                                      onCheckedChange={(v) => updateElement({ loop: v })}
+                                      onCheckedChange={(v) => {
+                                        updateElement({ loop: v });
+                                        const video = videoRefs.current.get(selectedElement.id);
+                                        if (video) {
+                                          video.loop = v;
+                                        }
+                                      }}
                                     />
                                   </div>
                                   <div className="flex items-center justify-between">
