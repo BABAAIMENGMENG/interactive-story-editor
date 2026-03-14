@@ -892,8 +892,8 @@ export default function EditorPage() {
   // 视频播放状态
   const [playingVideos, setPlayingVideos] = useState<Set<string>>(new Set());
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
-  // 视频时间状态 { elementId: { currentTime, duration } }
-  const [videoTimes, setVideoTimes] = useState<Record<string, { currentTime: number; duration: number }>>({});
+  // 视频时间状态 { elementId: { currentTime, duration, fps } }
+  const [videoTimes, setVideoTimes] = useState<Record<string, { currentTime: number; duration: number; fps: number }>>({});
 
   // 编辑模式：2D或3D
   const [editorMode, setEditorMode] = useState<'2d' | '3d'>('2d');
@@ -5206,9 +5206,51 @@ export default function EditorPage() {
                           onLoadedData={(e) => {
                             const video = e.currentTarget;
                             console.log('[编辑器] 视频加载成功:', el.name, '时长:', video.duration);
+                            
+                            // 尝试获取帧率（使用 requestVideoFrameCallback 计算实际帧率）
+                            let fps = 30; // 默认假设 30fps
+                            
+                            // 使用 requestVideoFrameCallback 计算实际帧率（如果浏览器支持）
+                            if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+                              let frameCount = 0;
+                              let lastTime = performance.now();
+                              
+                              const calculateFPS = () => {
+                                frameCount++;
+                                const now = performance.now();
+                                const elapsed = now - lastTime;
+                                
+                                if (elapsed >= 1000) { // 每秒更新一次
+                                  const calculatedFps = Math.round(frameCount * 1000 / elapsed);
+                                  setVideoTimes(prev => ({
+                                    ...prev,
+                                    [el.id]: { 
+                                      currentTime: video.currentTime, 
+                                      duration: video.duration,
+                                      fps: calculatedFps
+                                    }
+                                  }));
+                                  frameCount = 0;
+                                  lastTime = now;
+                                }
+                                
+                                // 只在播放时继续追踪
+                                if (!video.paused) {
+                                  (video as any).requestVideoFrameCallback(calculateFPS);
+                                }
+                              };
+                              
+                              // 添加播放时开始追踪
+                              video.addEventListener('play', () => {
+                                lastTime = performance.now();
+                                frameCount = 0;
+                                (video as any).requestVideoFrameCallback(calculateFPS);
+                              }, { once: false });
+                            }
+                            
                             setVideoTimes(prev => ({
                               ...prev,
-                              [el.id]: { currentTime: video.currentTime, duration: video.duration }
+                              [el.id]: { currentTime: video.currentTime, duration: video.duration, fps }
                             }));
                           }}
                           onTimeUpdate={(e) => {
@@ -5217,7 +5259,8 @@ export default function EditorPage() {
                               ...prev,
                               [el.id]: { 
                                 currentTime: video.currentTime, 
-                                duration: prev[el.id]?.duration || video.duration 
+                                duration: prev[el.id]?.duration || video.duration,
+                                fps: prev[el.id]?.fps || 30
                               }
                             }));
                           }}
@@ -6108,7 +6151,7 @@ export default function EditorPage() {
               
               {/* 帧率信息 */}
               <div className="flex items-center gap-2 text-xs text-zinc-500">
-                <span>FPS: --</span>
+                <span>FPS: {videoTimes[selectedElement.id]?.fps || '--'}</span>
                 <span className="text-zinc-600">|</span>
                 <span>{currentScene?.canvasWidth || 1920}×{currentScene?.canvasHeight || 1080}</span>
               </div>
