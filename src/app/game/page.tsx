@@ -332,24 +332,15 @@ function VideoElement({
   // 验证 URL 有效性（包括流媒体网站检测）
   const validation = validateVideoUrl(src);
 
-  // 组件挂载后根据 playOnVisible 设置决定是否自动播放
+  // 组件挂载后自动播放视频
   useEffect(() => {
-    // 调试日志
-    console.log('VideoElement: playOnVisible=', playOnVisible, ', shouldAutoplay=', shouldAutoplay);
-    
-    // 如果 playOnVisible 为 false，不自动播放
-    if (!shouldAutoplay) {
-      console.log('VideoElement: playOnVisible 为 false，不自动播放');
-      return;
-    }
-    
     const video = videoRef.current;
     if (!video) {
       console.log('VideoElement: video ref 不存在');
       return;
     }
     
-    console.log('VideoElement: 开始设置视频播放');
+    console.log('VideoElement: 开始设置视频播放, playOnVisible=', playOnVisible);
     console.log('VideoElement: src=', src?.substring(0, 50));
     
     // 强制静音并尝试播放（符合浏览器自动播放策略）

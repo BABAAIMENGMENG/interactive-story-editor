@@ -73,12 +73,7 @@ function VideoElement({
     const video = videoRef.current;
     if (!video) return;
     
-    // 检查是否应该自动播放
-    const shouldAutoplay = element.playOnVisible !== false;
-    if (!shouldAutoplay) {
-      console.log('Preview VideoElement: playOnVisible 为 false，不自动播放');
-      return;
-    }
+    console.log('Preview VideoElement: 开始设置视频播放, playOnVisible=', element.playOnVisible);
     
     // 确保视频静音（浏览器策略要求）
     video.muted = true;
