@@ -8776,7 +8776,7 @@ export default function EditorPage() {
                                                 <Input
                                                   type="number"
                                                   min={0}
-                                                  step={0.1}
+                                                  step={1}
                                                   placeholder="0"
                                                   value={action.value ?? ''}
                                                 onChange={(e) => {
@@ -8784,14 +8784,14 @@ export default function EditorPage() {
                                                   newTriggers[index] = {
                                                     ...trigger,
                                                     actions: trigger.actions.map((a, i) => 
-                                                      i === actionIndex ? { ...a, value: parseFloat(e.target.value) || 0 } : a
+                                                      i === actionIndex ? { ...a, value: parseInt(e.target.value) || 0 } : a
                                                     )
                                                   };
                                                   updateElement({ timeTriggers: newTriggers });
                                                 }}
                                                 className="h-6 w-16 bg-white border-zinc-300 text-xs text-zinc-900"
                                               />
-                                              <span className="text-xs text-zinc-400">秒</span>
+                                              <span className="text-xs text-zinc-400">帧</span>
                                               </div>
                                             </div>
                                           )}

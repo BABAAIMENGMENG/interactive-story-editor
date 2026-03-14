@@ -1506,18 +1506,20 @@ function GamePageContent() {
           break;
 
         case 'seekTo':
-          // 跳转播放位置
+          // 跳转播放位置（value 为帧数，需转换为秒）
           console.log('seekTo 执行:', { 
             targetElementId: action.targetElementId, 
             value: action.value,
             targetElement: targetElement ? 'found' : 'not found'
           });
           if (targetElement && action.value !== undefined) {
+            const FPS = 30;
+            const seekTime = action.value / FPS; // 帧数转秒数
             const mediaElement = getMediaElement(action.targetElementId!);
             console.log('seekTo mediaElement:', mediaElement ? 'found' : 'not found');
             if (mediaElement) {
-              console.log('seekTo 设置 currentTime:', action.value);
-              mediaElement.currentTime = action.value;
+              console.log('seekTo 设置 currentTime:', seekTime, '秒 (帧数:', action.value, ')');
+              mediaElement.currentTime = seekTime;
             } else {
               // 备用方案：直接通过 videoRef 查找
               const container = document.querySelector(`[data-element-id="${action.targetElementId}"]`);
@@ -1526,7 +1528,7 @@ function GamePageContent() {
                 const video = container.querySelector('video');
                 console.log('seekTo video:', video ? 'found' : 'not found');
                 if (video) {
-                  video.currentTime = action.value;
+                  video.currentTime = seekTime;
                 }
               }
             }
