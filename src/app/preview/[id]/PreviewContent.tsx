@@ -562,6 +562,16 @@ const executeActions = async (
           pauseMediaEl.pause();
         }
         break;
+      case 'seekTo':
+        // 跳转播放位置（value 为帧数，需转换为秒）
+        const seekMediaEl = context.sceneContainerRef.current?.querySelector(
+          `#element-${config.targetElementId || config.elementId} video`
+        ) as HTMLMediaElement;
+        if (seekMediaEl && config.value !== undefined) {
+          const FPS = 30;
+          seekMediaEl.currentTime = config.value / FPS;
+        }
+        break;
       case 'stopMedia':
         const stopMediaEl = context.sceneContainerRef.current?.querySelector(
           `#element-${config.targetElementId || config.elementId} audio, #element-${config.targetElementId || config.elementId} video`
