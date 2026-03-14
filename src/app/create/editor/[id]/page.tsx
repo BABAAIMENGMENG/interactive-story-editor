@@ -400,6 +400,8 @@ interface PathPoint {
   // 贝塞尔曲线控制点（用于平滑曲线）
   controlIn?: { x: number; y: number };   // 入方向控制点（相对于路径点）
   controlOut?: { x: number; y: number };  // 出方向控制点（相对于路径点）
+  // 控制点类型
+  controlType?: 'auto' | 'symmetric' | 'angle' | 'separate'; // 自动、对称、角度、分离
 }
 
 // 路径动画
@@ -764,6 +766,19 @@ export default function EditorPage() {
   const [showMediaDialog, setShowMediaDialog] = useState(false);
   const [showChoiceActionDialog, setShowChoiceActionDialog] = useState<{ elementId: string } | null>(null);
   const [showPathAnimationEditor, setShowPathAnimationEditor] = useState<{ animationId: string; elementId: string } | null>(null);
+  // 路径编辑模式 - 在画布上直接编辑路径点
+  const [pathEditMode, setPathEditMode] = useState<{ animationId: string; elementId: string } | null>(null);
+  // 拖拽中的路径点或控制点
+  const [draggingPathPoint, setDraggingPathPoint] = useState<{
+    pointId: string;
+    type: 'point' | 'controlIn' | 'controlOut';
+    startX: number;
+    startY: number;
+    startPointX: number;
+    startPointY: number;
+    startControlX?: number;
+    startControlY?: number;
+  } | null>(null);
   const [newSceneName, setNewSceneName] = useState('');
   const [mediaType, setMediaType] = useState<'image' | 'video' | 'panorama' | 'panoramaVideo' | 'audio'>('image');
   const [mediaUrl, setMediaUrl] = useState('');
@@ -4957,6 +4972,373 @@ export default function EditorPage() {
                 </div>
                 );
               })}
+            
+            {/* 路径动画预览 - 在画布上显示路径 */}
+            {pathEditMode && (() => {
+              const pathElement = currentScene?.elements.find(el => el.id === pathEditMode.elementId);
+              const animation = pathElement?.pathAnimations?.find(a => a.id === pathEditMode.animationId);
+              if (!animation || !pathElement) return null;
+              
+              // 生成贝塞尔曲线路径
+              const generatePathD = () => {
+                if (animation.pathPoints.length < 2) return '';
+                
+                let d = `M ${animation.pathPoints[0].x} ${animation.pathPoints[0].y}`;
+                
+                for (let i = 1; i < animation.pathPoints.length; i++) {
+                  const prev = animation.pathPoints[i - 1];
+                  const curr = animation.pathPoints[i];
+                  
+                  // 如果前一个点有出方向控制点，且当前点有入方向控制点，使用三次贝塞尔曲线
+                  if (prev.controlOut && curr.controlIn) {
+                    const cp1x = prev.x + prev.controlOut.x;
+                    const cp1y = prev.y + prev.controlOut.y;
+                    const cp2x = curr.x + curr.controlIn.x;
+                    const cp2y = curr.y + curr.controlIn.y;
+                    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${curr.x} ${curr.y}`;
+                  } else if (prev.controlOut) {
+                    // 只有前一个点有控制点
+                    const cpx = prev.x + prev.controlOut.x;
+                    const cpy = prev.y + prev.controlOut.y;
+                    d += ` Q ${cpx} ${cpy}, ${curr.x} ${curr.y}`;
+                  } else if (curr.controlIn) {
+                    // 只有当前点有控制点
+                    const cpx = curr.x + curr.controlIn.x;
+                    const cpy = curr.y + curr.controlIn.y;
+                    d += ` Q ${cpx} ${cpy}, ${curr.x} ${curr.y}`;
+                  } else {
+                    // 直线连接
+                    d += ` L ${curr.x} ${curr.y}`;
+                  }
+                }
+                
+                return d;
+              };
+              
+              // 更新路径点的函数
+              const updatePathPoint = (pointIndex: number, updates: Partial<PathPoint>) => {
+                if (!pathElement) return;
+                const newAnimations = [...(pathElement.pathAnimations || [])];
+                const animIndex = newAnimations.findIndex(a => a.id === animation.id);
+                if (animIndex === -1) return;
+                
+                const newPoints = [...animation.pathPoints];
+                newPoints[pointIndex] = { ...newPoints[pointIndex], ...updates };
+                newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
+                
+                updateElement({ pathAnimations: newAnimations });
+              };
+              
+              return (
+                <svg 
+                  className="absolute inset-0 pointer-events-none"
+                  style={{ 
+                    width: currentScene?.canvasWidth || 1920, 
+                    height: currentScene?.canvasHeight || 1080,
+                    overflow: 'visible'
+                  }}
+                >
+                  {/* 路径线 */}
+                  <path 
+                    d={generatePathD()} 
+                    fill="none" 
+                    stroke="rgba(139, 92, 246, 0.8)" 
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                  />
+                  
+                  {/* 路径点和控制点 - 可交互 */}
+                  {animation.pathPoints.map((point, pointIndex) => {
+                    // 计算自动贝塞尔控制点
+                    const getAutoControlPoints = (prev: PathPoint | null, next: PathPoint | null, curr: PathPoint) => {
+                      if (!prev && !next) return { controlIn: { x: 0, y: 0 }, controlOut: { x: 0, y: 0 } };
+                      
+                      // 计算相邻点的方向
+                      const dx = (next?.x || curr.x) - (prev?.x || curr.x);
+                      const dy = (next?.y || curr.y) - (prev?.y || curr.y);
+                      const dist = Math.sqrt(dx * dx + dy * dy);
+                      
+                      if (dist === 0) return { controlIn: { x: 0, y: 0 }, controlOut: { x: 0, y: 0 } };
+                      
+                      // 控制点距离
+                      const controlDist = Math.min(50, dist * 0.3);
+                      const controlX = (dx / dist) * controlDist;
+                      const controlY = (dy / dist) * controlDist;
+                      
+                      return {
+                        controlIn: { x: -controlX, y: -controlY },
+                        controlOut: { x: controlX, y: controlY }
+                      };
+                    };
+                    
+                    const prev = pointIndex > 0 ? animation.pathPoints[pointIndex - 1] : null;
+                    const next = pointIndex < animation.pathPoints.length - 1 ? animation.pathPoints[pointIndex + 1] : null;
+                    
+                    // 根据控制点类型确定实际使用的控制点
+                    let effectiveControlIn = point.controlIn;
+                    let effectiveControlOut = point.controlOut;
+                    
+                    if (point.controlType === 'auto' || (!point.controlIn && !point.controlOut)) {
+                      const auto = getAutoControlPoints(prev, next, point);
+                      effectiveControlIn = auto.controlIn;
+                      effectiveControlOut = auto.controlOut;
+                    }
+                    
+                    return (
+                      <g key={point.id}>
+                        {/* 控制点连接线 */}
+                        {effectiveControlIn && (
+                          <line 
+                            x1={point.x} 
+                            y1={point.y} 
+                            x2={point.x + effectiveControlIn.x} 
+                            y2={point.y + effectiveControlIn.y}
+                            stroke="rgba(236, 72, 153, 0.6)"
+                            strokeWidth="1"
+                            className="pointer-events-none"
+                          />
+                        )}
+                        {effectiveControlOut && (
+                          <line 
+                            x1={point.x} 
+                            y1={point.y} 
+                            x2={point.x + effectiveControlOut.x} 
+                            y2={point.y + effectiveControlOut.y}
+                            stroke="rgba(34, 197, 94, 0.6)"
+                            strokeWidth="1"
+                            className="pointer-events-none"
+                          />
+                        )}
+                        
+                        {/* 入方向控制点 */}
+                        {effectiveControlIn && (
+                          <circle
+                            cx={point.x + effectiveControlIn.x}
+                            cy={point.y + effectiveControlIn.y}
+                            r="6"
+                            fill="rgba(236, 72, 153, 0.8)"
+                            stroke="white"
+                            strokeWidth="2"
+                            className="pointer-events-auto cursor-move hover:fill-pink-400"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              
+                              const startX = e.clientX;
+                              const startY = e.clientY;
+                              const startControlIn = point.controlIn || effectiveControlIn;
+                              
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const deltaX = moveEvent.clientX - startX;
+                                const deltaY = moveEvent.clientY - startY;
+                                
+                                const newControlIn = {
+                                  x: startControlIn.x + deltaX,
+                                  y: startControlIn.y + deltaY
+                                };
+                                
+                                // 如果是对称模式，同步更新出方向控制点
+                                if (point.controlType === 'symmetric' && point.controlOut) {
+                                  updatePathPoint(pointIndex, {
+                                    controlIn: newControlIn,
+                                    controlOut: { x: -newControlIn.x, y: -newControlIn.y }
+                                  });
+                                } else {
+                                  updatePathPoint(pointIndex, { controlIn: newControlIn });
+                                }
+                              };
+                              
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+                              
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          />
+                        )}
+                        
+                        {/* 出方向控制点 */}
+                        {effectiveControlOut && (
+                          <circle
+                            cx={point.x + effectiveControlOut.x}
+                            cy={point.y + effectiveControlOut.y}
+                            r="6"
+                            fill="rgba(34, 197, 94, 0.8)"
+                            stroke="white"
+                            strokeWidth="2"
+                            className="pointer-events-auto cursor-move hover:fill-green-400"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              
+                              const startX = e.clientX;
+                              const startY = e.clientY;
+                              const startControlOut = point.controlOut || effectiveControlOut;
+                              
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const deltaX = moveEvent.clientX - startX;
+                                const deltaY = moveEvent.clientY - startY;
+                                
+                                const newControlOut = {
+                                  x: startControlOut.x + deltaX,
+                                  y: startControlOut.y + deltaY
+                                };
+                                
+                                // 如果是对称模式，同步更新入方向控制点
+                                if (point.controlType === 'symmetric' && point.controlIn) {
+                                  updatePathPoint(pointIndex, {
+                                    controlOut: newControlOut,
+                                    controlIn: { x: -newControlOut.x, y: -newControlOut.y }
+                                  });
+                                } else {
+                                  updatePathPoint(pointIndex, { controlOut: newControlOut });
+                                }
+                              };
+                              
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+                              
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          />
+                        )}
+                        
+                        {/* 主路径点 */}
+                        <circle
+                          cx={point.x}
+                          cy={point.y}
+                          r="10"
+                          fill="rgba(139, 92, 246, 0.9)"
+                          stroke="white"
+                          strokeWidth="2"
+                          className="pointer-events-auto cursor-move hover:fill-purple-400"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            
+                            const startX = e.clientX;
+                            const startY = e.clientY;
+                            const startPointX = point.x;
+                            const startPointY = point.y;
+                            const startControlIn = point.controlIn;
+                            const startControlOut = point.controlOut;
+                            
+                            const handleMouseMove = (moveEvent: MouseEvent) => {
+                              const deltaX = moveEvent.clientX - startX;
+                              const deltaY = moveEvent.clientY - startY;
+                              
+                              const newPoint = {
+                                x: startPointX + deltaX,
+                                y: startPointY + deltaY
+                              };
+                              
+                              updatePathPoint(pointIndex, newPoint);
+                            };
+                            
+                            const handleMouseUp = () => {
+                              document.removeEventListener('mousemove', handleMouseMove);
+                              document.removeEventListener('mouseup', handleMouseUp);
+                            };
+                            
+                            document.addEventListener('mousemove', handleMouseMove);
+                            document.addEventListener('mouseup', handleMouseUp);
+                          }}
+                        />
+                        
+                        {/* 点序号 */}
+                        <text
+                          x={point.x}
+                          y={point.y}
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          fill="white"
+                          fontSize="10"
+                          fontWeight="bold"
+                          className="pointer-events-none select-none"
+                        >
+                          {pointIndex + 1}
+                        </text>
+                      </g>
+                    );
+                  })}
+                  
+                  {/* 元素位置指示器 - 起点位置 */}
+                  <rect
+                    x={animation.pathPoints[0]?.x - pathElement.width / 2}
+                    y={animation.pathPoints[0]?.y - pathElement.height / 2}
+                    width={pathElement.width}
+                    height={pathElement.height}
+                    fill="none"
+                    stroke="rgba(139, 92, 246, 0.5)"
+                    strokeWidth="1"
+                    strokeDasharray="4,4"
+                    rx={pathElement.borderRadius}
+                    className="pointer-events-none"
+                  />
+                </svg>
+              );
+            })()}
+            
+            {/* 元素路径动画预览（非编辑模式时显示选中元素的路径） */}
+            {!pathEditMode && selectedElement?.pathAnimations && selectedElement.pathAnimations.length > 0 && (
+              <svg 
+                className="absolute inset-0 pointer-events-none"
+                style={{ 
+                  width: currentScene?.canvasWidth || 1920, 
+                  height: currentScene?.canvasHeight || 1080,
+                  overflow: 'visible'
+                }}
+              >
+                {selectedElement.pathAnimations.map((animation) => {
+                  if (animation.pathPoints.length < 2) return null;
+                  
+                  let d = `M ${animation.pathPoints[0].x} ${animation.pathPoints[0].y}`;
+                  for (let i = 1; i < animation.pathPoints.length; i++) {
+                    const prev = animation.pathPoints[i - 1];
+                    const curr = animation.pathPoints[i];
+                    
+                    if (prev.controlOut && curr.controlIn) {
+                      const cp1x = prev.x + prev.controlOut.x;
+                      const cp1y = prev.y + prev.controlOut.y;
+                      const cp2x = curr.x + curr.controlIn.x;
+                      const cp2y = curr.y + curr.controlIn.y;
+                      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${curr.x} ${curr.y}`;
+                    } else {
+                      d += ` L ${curr.x} ${curr.y}`;
+                    }
+                  }
+                  
+                  return (
+                    <g key={animation.id}>
+                      <path 
+                        d={d} 
+                        fill="none" 
+                        stroke="rgba(139, 92, 246, 0.4)" 
+                        strokeWidth="2"
+                        strokeDasharray="5,5"
+                      />
+                      {animation.pathPoints.map((point, idx) => (
+                        <circle
+                          key={point.id}
+                          cx={point.x}
+                          cy={point.y}
+                          r="4"
+                          fill="rgba(139, 92, 246, 0.6)"
+                          stroke="white"
+                          strokeWidth="1"
+                        />
+                      ))}
+                    </g>
+                  );
+                })}
+              </svg>
+            )}
+            
             </>
             )}
             </div>
@@ -8413,11 +8795,57 @@ export default function EditorPage() {
       <Dialog open={!!showPathAnimationEditor} onOpenChange={(open) => !open && setShowPathAnimationEditor(null)}>
         <DialogContent className="bg-zinc-800 border-zinc-600 max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <Route className="w-5 h-5" />
-              路径动画编辑器
+            <DialogTitle className="text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Route className="w-5 h-5" />
+                路径动画编辑器
+              </div>
+              <div className="flex items-center gap-2">
+                {pathEditMode?.animationId === showPathAnimationEditor?.animationId ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs border-green-500 text-green-400 hover:bg-green-500/20"
+                    onClick={() => setPathEditMode(null)}
+                  >
+                    <Check className="w-4 h-4 mr-1" />
+                    完成编辑
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs border-purple-500 text-purple-400 hover:bg-purple-500/20"
+                    onClick={() => {
+                      if (showPathAnimationEditor) {
+                        setPathEditMode({
+                          animationId: showPathAnimationEditor.animationId,
+                          elementId: showPathAnimationEditor.elementId
+                        });
+                      }
+                    }}
+                  >
+                    <Edit3 className="w-4 h-4 mr-1" />
+                    在画布上编辑
+                  </Button>
+                )}
+              </div>
             </DialogTitle>
           </DialogHeader>
+          
+          {/* 编辑模式提示 */}
+          {pathEditMode?.animationId === showPathAnimationEditor?.animationId && (
+            <div className="bg-purple-500/20 border border-purple-500/40 rounded-lg p-3 mb-2">
+              <div className="flex items-start gap-2">
+                <div className="text-purple-400 text-sm">💡</div>
+                <div className="text-xs text-purple-300">
+                  <p className="font-medium mb-1">画布编辑模式已开启</p>
+                  <p>在画布上拖拽路径点（紫色圆点）调整位置，拖拽控制点（绿色/粉色圆点）调整曲线形状。</p>
+                  <p className="mt-1">控制点说明：🟢 出方向控制点 | 🩷 入方向控制点</p>
+                </div>
+              </div>
+            </div>
+          )}
           
           {showPathAnimationEditor && (() => {
             const animation = displayElement?.pathAnimations?.find(a => a.id === showPathAnimationEditor.animationId);
@@ -8556,72 +8984,234 @@ export default function EditorPage() {
                     </Button>
                   </div>
 
-                  <div className="space-y-2 max-h-60 overflow-auto">
+                  <div className="space-y-2 max-h-80 overflow-auto">
                     {animation.pathPoints.map((point, pointIndex) => (
-                      <div key={point.id} className="flex items-center gap-2 p-2 bg-zinc-700/50 rounded">
-                        <span className="text-xs text-zinc-400 w-6">{pointIndex + 1}</span>
-                        <div className="flex-1 grid grid-cols-2 gap-2">
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs text-zinc-400">X:</span>
-                            <Input
-                              type="number"
-                              value={Math.round(point.x)}
-                              onChange={(e) => {
-                                const newPoints = [...animation.pathPoints];
-                                newPoints[pointIndex] = { ...point, x: parseInt(e.target.value) || 0 };
-                                const newAnimations = [...(displayElement?.pathAnimations || [])];
-                                newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
-                                updateElement({ pathAnimations: newAnimations });
-                              }}
-                              className="h-7 bg-zinc-600 border-zinc-500 text-xs text-white"
-                            />
+                      <div key={point.id} className="p-3 bg-zinc-700/50 rounded-lg space-y-2">
+                        {/* 路径点基本信息 */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-zinc-400 w-6 font-medium">{pointIndex + 1}</span>
+                          <div className="flex-1 grid grid-cols-2 gap-2">
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-zinc-400">X:</span>
+                              <Input
+                                type="number"
+                                value={Math.round(point.x)}
+                                onChange={(e) => {
+                                  const newPoints = [...animation.pathPoints];
+                                  newPoints[pointIndex] = { ...point, x: parseInt(e.target.value) || 0 };
+                                  const newAnimations = [...(displayElement?.pathAnimations || [])];
+                                  newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
+                                  updateElement({ pathAnimations: newAnimations });
+                                }}
+                                className="h-7 bg-zinc-600 border-zinc-500 text-xs text-white"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-zinc-400">Y:</span>
+                              <Input
+                                type="number"
+                                value={Math.round(point.y)}
+                                onChange={(e) => {
+                                  const newPoints = [...animation.pathPoints];
+                                  newPoints[pointIndex] = { ...point, y: parseInt(e.target.value) || 0 };
+                                  const newAnimations = [...(displayElement?.pathAnimations || [])];
+                                  newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
+                                  updateElement({ pathAnimations: newAnimations });
+                                }}
+                                className="h-7 bg-zinc-600 border-zinc-500 text-xs text-white"
+                              />
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs text-zinc-400">Y:</span>
-                            <Input
-                              type="number"
-                              value={Math.round(point.y)}
-                              onChange={(e) => {
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-zinc-400 hover:text-red-400"
+                            disabled={animation.pathPoints.length <= 2}
+                            onClick={() => {
+                              const newPoints = animation.pathPoints.filter((_, i) => i !== pointIndex);
+                              const newAnimations = [...(displayElement?.pathAnimations || [])];
+                              newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
+                              updateElement({ pathAnimations: newAnimations });
+                            }}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        
+                        {/* 控制点类型选择 */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-zinc-500 w-6"></span>
+                          <div className="flex-1">
+                            <Select
+                              value={point.controlType || 'auto'}
+                              onValueChange={(v) => {
                                 const newPoints = [...animation.pathPoints];
-                                newPoints[pointIndex] = { ...point, y: parseInt(e.target.value) || 0 };
+                                newPoints[pointIndex] = { 
+                                  ...point, 
+                                  controlType: v as 'auto' | 'symmetric' | 'angle' | 'separate'
+                                };
                                 const newAnimations = [...(displayElement?.pathAnimations || [])];
                                 newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
                                 updateElement({ pathAnimations: newAnimations });
                               }}
-                              className="h-7 bg-zinc-600 border-zinc-500 text-xs text-white"
-                            />
+                            >
+                              <SelectTrigger className="h-6 bg-zinc-600 border-zinc-500 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-zinc-700 border-zinc-600">
+                                <SelectItem value="auto">🔵 自动曲线</SelectItem>
+                                <SelectItem value="symmetric">🔄 对称控制</SelectItem>
+                                <SelectItem value="angle">📐 角度控制</SelectItem>
+                                <SelectItem value="separate">✂️ 独立控制</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-zinc-400 hover:text-red-400"
-                          disabled={animation.pathPoints.length <= 2}
-                          onClick={() => {
-                            const newPoints = animation.pathPoints.filter((_, i) => i !== pointIndex);
-                            const newAnimations = [...(displayElement?.pathAnimations || [])];
-                            newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
-                            updateElement({ pathAnimations: newAnimations });
-                          }}
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
+                        
+                        {/* 贝塞尔控制点（仅在非自动模式下显示） */}
+                        {point.controlType && point.controlType !== 'auto' && (
+                          <div className="pl-6 space-y-2">
+                            {/* 入方向控制点 */}
+                            {(point.controlType === 'separate' || point.controlType === 'symmetric' || point.controlType === 'angle') && (
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full bg-pink-500 shrink-0" title="入方向控制点"></div>
+                                <span className="text-xs text-zinc-500 w-8">入:</span>
+                                <div className="flex gap-1 flex-1">
+                                  <Input
+                                    type="number"
+                                    value={Math.round(point.controlIn?.x || 0)}
+                                    onChange={(e) => {
+                                      const newControlIn = { 
+                                        x: parseInt(e.target.value) || 0, 
+                                        y: point.controlIn?.y || 0 
+                                      };
+                                      const newPoints = [...animation.pathPoints];
+                                      
+                                      // 对称模式下同步更新出方向
+                                      if (point.controlType === 'symmetric') {
+                                        newPoints[pointIndex] = { 
+                                          ...point, 
+                                          controlIn: newControlIn,
+                                          controlOut: { x: -newControlIn.x, y: -newControlIn.y }
+                                        };
+                                      } else {
+                                        newPoints[pointIndex] = { ...point, controlIn: newControlIn };
+                                      }
+                                      
+                                      const newAnimations = [...(displayElement?.pathAnimations || [])];
+                                      newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
+                                      updateElement({ pathAnimations: newAnimations });
+                                    }}
+                                    className="h-6 w-16 bg-zinc-600 border-zinc-500 text-xs text-white"
+                                  />
+                                  <Input
+                                    type="number"
+                                    value={Math.round(point.controlIn?.y || 0)}
+                                    onChange={(e) => {
+                                      const newControlIn = { 
+                                        x: point.controlIn?.x || 0, 
+                                        y: parseInt(e.target.value) || 0 
+                                      };
+                                      const newPoints = [...animation.pathPoints];
+                                      
+                                      if (point.controlType === 'symmetric') {
+                                        newPoints[pointIndex] = { 
+                                          ...point, 
+                                          controlIn: newControlIn,
+                                          controlOut: { x: -newControlIn.x, y: -newControlIn.y }
+                                        };
+                                      } else {
+                                        newPoints[pointIndex] = { ...point, controlIn: newControlIn };
+                                      }
+                                      
+                                      const newAnimations = [...(displayElement?.pathAnimations || [])];
+                                      newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
+                                      updateElement({ pathAnimations: newAnimations });
+                                    }}
+                                    className="h-6 w-16 bg-zinc-600 border-zinc-500 text-xs text-white"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* 出方向控制点（仅独立模式下显示） */}
+                            {point.controlType === 'separate' && (
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full bg-green-500 shrink-0" title="出方向控制点"></div>
+                                <span className="text-xs text-zinc-500 w-8">出:</span>
+                                <div className="flex gap-1 flex-1">
+                                  <Input
+                                    type="number"
+                                    value={Math.round(point.controlOut?.x || 0)}
+                                    onChange={(e) => {
+                                      const newControlOut = { 
+                                        x: parseInt(e.target.value) || 0, 
+                                        y: point.controlOut?.y || 0 
+                                      };
+                                      const newPoints = [...animation.pathPoints];
+                                      newPoints[pointIndex] = { ...point, controlOut: newControlOut };
+                                      const newAnimations = [...(displayElement?.pathAnimations || [])];
+                                      newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
+                                      updateElement({ pathAnimations: newAnimations });
+                                    }}
+                                    className="h-6 w-16 bg-zinc-600 border-zinc-500 text-xs text-white"
+                                  />
+                                  <Input
+                                    type="number"
+                                    value={Math.round(point.controlOut?.y || 0)}
+                                    onChange={(e) => {
+                                      const newControlOut = { 
+                                        x: point.controlOut?.x || 0, 
+                                        y: parseInt(e.target.value) || 0 
+                                      };
+                                      const newPoints = [...animation.pathPoints];
+                                      newPoints[pointIndex] = { ...point, controlOut: newControlOut };
+                                      const newAnimations = [...(displayElement?.pathAnimations || [])];
+                                      newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
+                                      updateElement({ pathAnimations: newAnimations });
+                                    }}
+                                    className="h-6 w-16 bg-zinc-600 border-zinc-500 text-xs text-white"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
+                  </div>
+                  
+                  {/* 曲线类型说明 */}
+                  <div className="text-xs text-zinc-500 space-y-1 pt-2 border-t border-zinc-700 mt-2">
+                    <p className="font-medium text-zinc-400">控制点类型说明：</p>
+                    <p>🔵 <span className="text-zinc-400">自动曲线</span> - 根据相邻点自动计算平滑曲线</p>
+                    <p>🔄 <span className="text-zinc-400">对称控制</span> - 入/出方向控制点联动，保持平滑</p>
+                    <p>📐 <span className="text-zinc-400">角度控制</span> - 入方向控制角度，出方向自动计算</p>
+                    <p>✂️ <span className="text-zinc-400">独立控制</span> - 入/出方向控制点完全独立</p>
                   </div>
                 </div>
               </div>
             );
           })()}
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowPathAnimationEditor(null)}
-              className="border-zinc-600 text-zinc-300 hover:bg-zinc-700"
-            >
-              关闭
-            </Button>
+          <DialogFooter className="flex gap-2">
+            {pathEditMode?.animationId === showPathAnimationEditor?.animationId ? (
+              <Button
+                className="bg-green-600 hover:bg-green-700"
+                onClick={() => setPathEditMode(null)}
+              >
+                <Check className="w-4 h-4 mr-1" />
+                完成编辑
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => setShowPathAnimationEditor(null)}
+                className="border-zinc-600 text-zinc-300 hover:bg-zinc-700"
+              >
+                关闭
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -565,20 +565,75 @@ const executeActions = async (
           };
           const easingFn = easingFunctions[animation.easing] || easingFunctions.linear;
           
-          // 计算路径上某点的位置（线性插值）
+          // 三次贝塞尔曲线计算
+          const cubicBezier = (p0: number, p1: number, p2: number, p3: number, t: number): number => {
+            const mt = 1 - t;
+            return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3;
+          };
+          
+          // 二次贝塞尔曲线计算
+          const quadraticBezier = (p0: number, p1: number, p2: number, t: number): number => {
+            const mt = 1 - t;
+            return mt * mt * p0 + 2 * mt * t * p1 + t * t * p2;
+          };
+          
+          // 计算路径上某点的位置（支持贝塞尔曲线）
           const getPointOnPath = (progress: number): { x: number; y: number } => {
             if (points.length === 0) return { x: pathElement.x, y: pathElement.y };
             if (points.length === 1) return { x: points[0].x, y: points[0].y };
             
-            // 计算总路径长度
+            // 计算总路径长度（采样估算贝塞尔曲线长度）
+            const sampleCount = 100;
             let totalLength = 0;
-            const segments: { length: number; start: PathPoint; end: PathPoint }[] = [];
+            const segmentLengths: number[] = [];
+            
             for (let i = 0; i < points.length - 1; i++) {
-              const dx = points[i + 1].x - points[i].x;
-              const dy = points[i + 1].y - points[i].y;
-              const length = Math.sqrt(dx * dx + dy * dy);
-              segments.push({ length, start: points[i], end: points[i + 1] });
-              totalLength += length;
+              const start = points[i];
+              const end = points[i + 1];
+              let segmentLength = 0;
+              let prevX = start.x;
+              let prevY = start.y;
+              
+              for (let j = 1; j <= sampleCount; j++) {
+                const t = j / sampleCount;
+                let x: number, y: number;
+                
+                // 根据控制点类型计算曲线上的点
+                if (start.controlOut && end.controlIn) {
+                  // 三次贝塞尔曲线
+                  const cp1x = start.x + start.controlOut.x;
+                  const cp1y = start.y + start.controlOut.y;
+                  const cp2x = end.x + end.controlIn.x;
+                  const cp2y = end.y + end.controlIn.y;
+                  x = cubicBezier(start.x, cp1x, cp2x, end.x, t);
+                  y = cubicBezier(start.y, cp1y, cp2y, end.y, t);
+                } else if (start.controlOut) {
+                  // 二次贝塞尔曲线（只有出方向控制点）
+                  const cpx = start.x + start.controlOut.x;
+                  const cpy = start.y + start.controlOut.y;
+                  x = quadraticBezier(start.x, cpx, end.x, t);
+                  y = quadraticBezier(start.y, cpy, end.y, t);
+                } else if (end.controlIn) {
+                  // 二次贝塞尔曲线（只有入方向控制点）
+                  const cpx = end.x + end.controlIn.x;
+                  const cpy = end.y + end.controlIn.y;
+                  x = quadraticBezier(start.x, cpx, end.x, t);
+                  y = quadraticBezier(start.y, cpy, end.y, t);
+                } else {
+                  // 直线
+                  x = start.x + (end.x - start.x) * t;
+                  y = start.y + (end.y - start.y) * t;
+                }
+                
+                const dx = x - prevX;
+                const dy = y - prevY;
+                segmentLength += Math.sqrt(dx * dx + dy * dy);
+                prevX = x;
+                prevY = y;
+              }
+              
+              segmentLengths.push(segmentLength);
+              totalLength += segmentLength;
             }
             
             if (totalLength === 0) return { x: points[0].x, y: points[0].y };
@@ -587,15 +642,43 @@ const executeActions = async (
             const targetLength = progress * totalLength;
             let currentLength = 0;
             
-            for (const segment of segments) {
-              if (currentLength + segment.length >= targetLength) {
-                const segmentProgress = (targetLength - currentLength) / segment.length;
-                return {
-                  x: segment.start.x + (segment.end.x - segment.start.x) * segmentProgress,
-                  y: segment.start.y + (segment.end.y - segment.start.y) * segmentProgress,
-                };
+            for (let i = 0; i < points.length - 1; i++) {
+              if (currentLength + segmentLengths[i] >= targetLength) {
+                const start = points[i];
+                const end = points[i + 1];
+                
+                // 计算该线段内的进度
+                const segmentProgress = (targetLength - currentLength) / segmentLengths[i];
+                
+                // 根据控制点计算位置
+                let x: number, y: number;
+                
+                if (start.controlOut && end.controlIn) {
+                  // 三次贝塞尔曲线
+                  const cp1x = start.x + start.controlOut.x;
+                  const cp1y = start.y + start.controlOut.y;
+                  const cp2x = end.x + end.controlIn.x;
+                  const cp2y = end.y + end.controlIn.y;
+                  x = cubicBezier(start.x, cp1x, cp2x, end.x, segmentProgress);
+                  y = cubicBezier(start.y, cp1y, cp2y, end.y, segmentProgress);
+                } else if (start.controlOut) {
+                  const cpx = start.x + start.controlOut.x;
+                  const cpy = start.y + start.controlOut.y;
+                  x = quadraticBezier(start.x, cpx, end.x, segmentProgress);
+                  y = quadraticBezier(start.y, cpy, end.y, segmentProgress);
+                } else if (end.controlIn) {
+                  const cpx = end.x + end.controlIn.x;
+                  const cpy = end.y + end.controlIn.y;
+                  x = quadraticBezier(start.x, cpx, end.x, segmentProgress);
+                  y = quadraticBezier(start.y, cpy, end.y, segmentProgress);
+                } else {
+                  x = start.x + (end.x - start.x) * segmentProgress;
+                  y = start.y + (end.y - start.y) * segmentProgress;
+                }
+                
+                return { x, y };
               }
-              currentLength += segment.length;
+              currentLength += segmentLengths[i];
             }
             
             return { x: points[points.length - 1].x, y: points[points.length - 1].y };
