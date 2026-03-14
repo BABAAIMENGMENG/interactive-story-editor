@@ -8656,7 +8656,7 @@ export default function EditorPage() {
                                                 updateElement({ timeTriggers: newTriggers });
                                               }}
                                             >
-                                              <SelectTrigger className="h-6 bg-white border-zinc-300 text-xs text-zinc-900">
+                                              <SelectTrigger className="h-6 bg-white border-zinc-300 text-xs text-zinc-900 w-auto min-w-[100px]">
                                                 <SelectValue />
                                               </SelectTrigger>
                                               <SelectContent>
@@ -8703,13 +8703,13 @@ export default function EditorPage() {
                                                 updateElement({ timeTriggers: newTriggers });
                                               }}
                                             >
-                                              <SelectTrigger className="h-6 bg-white border-zinc-300 text-xs text-zinc-900">
-                                                <SelectValue placeholder="选择元素" />
+                                              <SelectTrigger className="h-6 bg-white border-zinc-300 text-xs text-zinc-900 max-w-[120px]">
+                                                <SelectValue className="truncate" placeholder="选择元素" />
                                               </SelectTrigger>
                                               <SelectContent>
                                                 {currentScene?.elements.map(e => (
                                                   <SelectItem key={e.id} value={e.id}>
-                                                    {e.name} ({e.type})
+                                                    {e.name.length > 15 ? e.name.substring(0, 15) + '...' : e.name} ({e.type})
                                                   </SelectItem>
                                                 ))}
                                               </SelectContent>
@@ -8731,13 +8731,13 @@ export default function EditorPage() {
                                                 updateElement({ timeTriggers: newTriggers });
                                               }}
                                             >
-                                              <SelectTrigger className="h-6 bg-white border-zinc-300 text-xs text-zinc-900">
-                                                <SelectValue placeholder="选择场景" />
+                                              <SelectTrigger className="h-6 bg-white border-zinc-300 text-xs text-zinc-900 max-w-[120px]">
+                                                <SelectValue className="truncate" placeholder="选择场景" />
                                               </SelectTrigger>
                                               <SelectContent>
                                                 {scenes.map(s => (
                                                   <SelectItem key={s.id} value={s.id}>
-                                                    {s.name}
+                                                    {s.name.length > 15 ? s.name.substring(0, 15) + '...' : s.name}
                                                   </SelectItem>
                                                 ))}
                                               </SelectContent>
@@ -8760,8 +8760,8 @@ export default function EditorPage() {
                                                   updateElement({ timeTriggers: newTriggers });
                                                 }}
                                               >
-                                                <SelectTrigger className="h-6 bg-white border-zinc-300 text-xs text-zinc-900 w-full">
-                                                  <SelectValue placeholder="选择视频" />
+                                                <SelectTrigger className="h-6 bg-white border-zinc-300 text-xs text-zinc-900 w-full max-w-[200px]">
+                                                  <SelectValue className="truncate" placeholder="选择视频" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                   {currentScene?.elements.filter(e => e.type === 'video').map(e => (
