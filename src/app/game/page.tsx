@@ -340,6 +340,12 @@ function VideoElement({
       return;
     }
     
+    // 检查是否应该自动播放
+    if (playOnVisible === false) {
+      console.log('VideoElement: playOnVisible=false，不自动播放');
+      return;
+    }
+    
     console.log('VideoElement: 开始设置视频播放, playOnVisible=', playOnVisible);
     console.log('VideoElement: src=', src?.substring(0, 50));
     
