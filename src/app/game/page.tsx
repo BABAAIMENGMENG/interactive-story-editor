@@ -1924,6 +1924,12 @@ function GamePageContent() {
                     transition: 'background-color 0.2s, border-color 0.2s',
                   }}
                   onClick={() => {
+                    console.log('[choiceItem] 点击选择项', { 
+                      elementId: el.id, 
+                      clickActions: el.clickActions,
+                      clickActionsLength: el.clickActions?.length || 0
+                    });
+                    
                     // 切换选中状态
                     setSelectedChoices(prev => {
                       const newSet = new Set(prev);
@@ -1937,8 +1943,11 @@ function GamePageContent() {
                     
                     // 执行点击动作
                     const actions = el.clickActions || [];
+                    console.log('[choiceItem] 准备执行动作', { actionsLength: actions.length, actions });
                     if (actions.length > 0) {
                       executeEventActions(actions, el);
+                    } else {
+                      console.log('[choiceItem] 没有配置点击动作');
                     }
                   }}
                 >
