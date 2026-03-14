@@ -219,52 +219,38 @@ export default function DashboardPage() {
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
+    
+    // 未登录不允许创建项目
+    if (!isAuthenticated) {
+      alert('请先登录');
+      return;
+    }
 
     setIsCreating(true);
     try {
-      if (isAuthenticated) {
-        // 云端创建
-        const token = getAuthToken();
-        const response = await fetch('/api/projects', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            name: newProjectName,
-            projectData: {
-              scenes: [],
-              mediaResources: [],
-            },
-          }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          router.push(`/create/editor/${data.project.id}`);
-        } else {
-          const error = await response.json();
-          alert(error.error || '创建项目失败');
-        }
-      } else {
-        // 本地创建 (使用 IndexedDB)
-        const projectId = `local-${Date.now()}`;
-        const now = Date.now();
-        const newProject: ProjectData = {
-          id: projectId,
+      // 云端创建
+      const token = getAuthToken();
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
           name: newProjectName,
-          description: '',
-          canvasWidth: 1920,
-          canvasHeight: 1080,
-          scenes: [],
-          globalVariables: [],
-          createdAt: now,
-          updatedAt: now,
-        };
-        
-        await indexedDBStorage.saveProject(newProject);
-        router.push(`/create/editor/${projectId}`);
+          projectData: {
+            scenes: [],
+            mediaResources: [],
+          },
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        router.push(`/create/editor/${data.project.id}`);
+      } else {
+        const error = await response.json();
+        alert(error.error || '创建项目失败');
       }
     } catch (error) {
       console.error('创建项目失败:', error);
@@ -603,7 +589,7 @@ export default function DashboardPage() {
             <p className="text-zinc-500 text-xs mb-3">
               {searchQuery ? '尝试其他搜索词' : '创建你的第一个互动项目吧'}
             </p>
-            {!searchQuery && (
+            {!searchQuery && isAuthenticated && (
               <Button
                 size="sm"
                 onClick={() => setShowNewProjectDialog(true)}
@@ -732,7 +718,7 @@ export default function DashboardPage() {
       </main>
 
       {/* 新建项目对话框 */}
-      {showNewProjectDialog && (
+      {showNewProjectDialog && isAuthenticated && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3">
           <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-4 w-full max-w-xs">
             <h2 className="text-sm font-bold text-white mb-3">新建项目</h2>
