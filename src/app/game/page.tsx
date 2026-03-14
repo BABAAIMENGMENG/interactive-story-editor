@@ -73,7 +73,7 @@ function validateVideoUrl(url: string | undefined | null): { isValid: boolean; e
 // 编辑器元素类型
 type ElementType = 
   | 'button' | 'text' | 'image' | 'hotspot' | 'panel' | 'video' | 'audio'
-  | 'divider' | 'tooltip' | 'label';
+  | 'divider' | 'tooltip' | 'label' | 'healthBar' | 'choiceItem';
 
 // 标签子类型
 type LabelSubType = 
@@ -146,6 +146,25 @@ interface CanvasElement {
   content: string;
   src?: string;
   events: any[];
+  // 血条属性
+  healthValue?: number;
+  maxHealth?: number;
+  healthBarColor?: string;
+  healthBarBgColor?: string;
+  lowHealthThreshold?: number;
+  lowHealthColor?: string;
+  showHealthText?: boolean;
+  showColorPicker?: boolean;
+  colorOptions?: string[];
+  // 选择项属性
+  isCorrectChoice?: boolean;
+  correctFeedback?: string;
+  wrongFeedback?: string;
+  targetHealthBarId?: string;
+  healthChangeOnCorrect?: number;
+  healthChangeOnWrong?: number;
+  correctActions?: any[];
+  wrongActions?: any[];
 }
 
 // 编辑器场景类型
@@ -1828,6 +1847,44 @@ function GamePageContent() {
                     );
                 }
               })()}
+              {/* 血条组件 */}
+              {el.type === 'healthBar' && (
+                <div className="w-full h-full flex items-center gap-2 px-2">
+                  {/* 血条背景 */}
+                  <div 
+                    className="flex-1 h-full rounded overflow-hidden relative"
+                    style={{ backgroundColor: el.healthBarBgColor || '#374151' }}
+                  >
+                    {/* 当前血量 */}
+                    <div
+                      className="h-full transition-all duration-300"
+                      style={{
+                        width: `${((el.healthValue || 100) / (el.maxHealth || 100)) * 100}%`,
+                        backgroundColor: ((el.healthValue || 100) / (el.maxHealth || 100)) * 100 <= (el.lowHealthThreshold || 30)
+                          ? (el.lowHealthColor || '#EF4444')
+                          : (el.healthBarColor || '#22C55E'),
+                      }}
+                    />
+                  </div>
+                  {/* 血量文字 */}
+                  {el.showHealthText !== false && (
+                    <span className="text-xs font-medium shrink-0" style={{ color: el.color || '#FFFFFF', minWidth: '40px', textAlign: 'right' }}>
+                      {el.healthValue || 100}/{el.maxHealth || 100}
+                    </span>
+                  )}
+                </div>
+              )}
+              {/* 选择项组件 */}
+              {el.type === 'choiceItem' && (
+                <div className="w-full h-full flex items-center justify-center px-4 gap-2 bg-white/10 hover:bg-white/20 transition-colors rounded-lg border-2 border-white/30">
+                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                    el.isCorrectChoice ? 'border-green-400' : 'border-zinc-400'
+                  }`}>
+                    {el.isCorrectChoice && <Check className="w-3 h-3 text-green-400" />}
+                  </div>
+                  <span className="text-sm font-medium text-zinc-200 truncate">{el.content || '选项文字'}</span>
+                </div>
+              )}
             </div>
           )})}
                 </div>
