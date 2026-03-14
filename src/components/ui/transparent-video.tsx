@@ -16,6 +16,7 @@ interface TransparentVideoProps {
   onMouseLeave?: (e: React.MouseEvent) => void;
   objectFit?: 'cover' | 'contain' | 'fill' | 'none';
   enableTransparency?: boolean; // 是否启用透明通道
+  playOnVisible?: boolean; // 进入视口时自动播放
 }
 
 export interface TransparentVideoRef {
@@ -51,6 +52,7 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
   onMouseLeave,
   objectFit = 'contain',
   enableTransparency = true,
+  playOnVisible = true,
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -189,6 +191,45 @@ export const TransparentVideo = forwardRef<TransparentVideoRef, TransparentVideo
       }
     };
   }, []);
+
+  // 可见性播放控制：当视频进入视口时自动播放
+  useEffect(() => {
+    const video = videoRef.current;
+    const container = containerRef.current;
+    
+    // 如果已经设置了 autoplay，不需要可见性控制
+    if (autoplay || !playOnVisible || !video || !container) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            if (video.paused) {
+              video.play().catch(() => {});
+            }
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(container);
+
+    // 立即检查一次是否在视口内
+    const rect = container.getBoundingClientRect();
+    const isInViewport = (
+      rect.top < window.innerHeight &&
+      rect.bottom > 0 &&
+      rect.left < window.innerWidth &&
+      rect.right > 0
+    );
+    
+    if (isInViewport && video.paused) {
+      video.play().catch(() => {});
+    }
+
+    return () => observer.disconnect();
+  }, [autoplay, playOnVisible]);
 
   // 容器样式
   const containerStyle: React.CSSProperties = {
