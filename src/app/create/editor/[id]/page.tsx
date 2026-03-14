@@ -177,7 +177,7 @@ function getAnimationStyle(element: any, isPreviewing: boolean): React.CSSProper
 // 元素类型
 type ElementType = 
   | 'button' | 'text' | 'image' | 'hotspot' | 'panel' | 'video' | 'audio'
-  | 'divider' | 'tooltip' | 'label';
+  | 'divider' | 'tooltip' | 'label' | 'healthBar' | 'choiceItem';
 
 // 标签子类型
 type LabelSubType = 
@@ -323,7 +323,11 @@ type EventActionType =
   | 'rotateTo'       // 旋转到
   | 'setOpacity'     // 设置透明度
   | 'setVolume'      // 设置音量
-  | 'seekTo';        // 跳转到播放位置
+  | 'seekTo'         // 跳转到播放位置
+  | 'addHealth'      // 加血
+  | 'reduceHealth'   // 减血
+  | 'setHealth'      // 设置血量
+  | 'checkAnswer';   // 检查答案
 
 // 事件动作
 interface EventAction {
@@ -350,6 +354,11 @@ interface EventAction {
   volume?: number;            // 音量 (0-100)
   loop?: boolean;             // 是否循环
   muted?: boolean;            // 是否静音
+  // 血条/游戏参数
+  healthValue?: number;       // 血量变化值（正数加血，负数减血）
+  isCorrectAnswer?: boolean;  // 是否是正确答案
+  successSceneId?: string;    // 答对跳转场景
+  failSceneId?: string;       // 答错跳转场景
 }
 
 // 元素事件
@@ -464,6 +473,21 @@ interface CanvasElement {
   clickAudio?: string; // 点击时播放的音效URL
   // 视频时间触发器
   timeTriggers?: VideoTimeTrigger[]; // 视频播放到指定时间时触发的动作
+  // 血条特有属性
+  healthValue?: number;       // 当前血量
+  maxHealth?: number;         // 最大血量
+  healthBarColor?: string;    // 血条颜色
+  healthBarBgColor?: string;  // 血条背景颜色
+  lowHealthThreshold?: number; // 低血量阈值（百分比）
+  lowHealthColor?: string;    // 低血量颜色
+  showHealthText?: boolean;   // 是否显示血量文字
+  // 选择项特有属性
+  isCorrectChoice?: boolean;  // 是否是正确答案
+  correctFeedback?: string;   // 答对反馈文字
+  wrongFeedback?: string;     // 答错反馈文字
+  targetHealthBarId?: string; // 关联的血条ID
+  healthChangeOnCorrect?: number; // 答对加血量
+  healthChangeOnWrong?: number;   // 答错减血量
   // children 通过计算得出，不需要存储
 }
 
@@ -506,6 +530,8 @@ const elementIcons: Record<ElementType, React.ReactNode> = {
   divider: <div className="w-5 h-5 flex items-center justify-center"><div className="w-4 h-0.5 bg-current rounded" /></div>,
   tooltip: <div className="w-5 h-5 flex items-center justify-center text-xs" suppressHydrationWarning>💬</div>,
   label: <Tag className="w-5 h-5" />,
+  healthBar: <Heart className="w-5 h-5" />,
+  choiceItem: <Check className="w-5 h-5" />,
 };
 
 // 标签子类型图标
@@ -554,6 +580,8 @@ const elementNames: Record<ElementType, string> = {
   divider: '分割线',
   tooltip: '提示框',
   label: '标签',
+  healthBar: '血条',
+  choiceItem: '选择项',
 };
 
 // 元素默认值
@@ -610,6 +638,21 @@ const defaultElement = {
   pauseOnHidden: true,
   draggable: false,
   clickAudio: '', // 点击音效URL
+  // 血条默认属性
+  healthValue: 100,
+  maxHealth: 100,
+  healthBarColor: '#22C55E', // 绿色
+  healthBarBgColor: '#374151', // 深灰色背景
+  lowHealthThreshold: 30, // 30%以下为低血量
+  lowHealthColor: '#EF4444', // 红色
+  showHealthText: true,
+  // 选择项默认属性
+  isCorrectChoice: false,
+  correctFeedback: '回答正确！',
+  wrongFeedback: '回答错误！',
+  targetHealthBarId: '',
+  healthChangeOnCorrect: 0,
+  healthChangeOnWrong: 0,
 };
 
 export default function EditorPage() {
@@ -812,6 +855,8 @@ export default function EditorPage() {
       divider: { w: 200, h: 2 },
       tooltip: { w: 200, h: 40 },
       label: { w: 120, h: 36 },
+      healthBar: { w: 200, h: 30 },
+      choiceItem: { w: 280, h: 50 },
     };
 
     // 文本元素默认无边框、透明背景
@@ -859,6 +904,8 @@ export default function EditorPage() {
       divider: { w: 200, h: 2 },
       tooltip: { w: 200, h: 40 },
       label: { w: 120, h: 36 },
+      healthBar: { w: 200, h: 30 },
+      choiceItem: { w: 280, h: 50 },
     };
 
     return {
@@ -870,7 +917,7 @@ export default function EditorPage() {
       width: sizes[type].w,
       height: sizes[type].h,
       ...defaultElement,
-      content: type === 'button' ? '点击开始' : type === 'text' ? '文本内容' : type === 'tooltip' ? '提示文字' : '',
+      content: type === 'button' ? '点击开始' : type === 'text' ? '文本内容' : type === 'tooltip' ? '提示文字' : type === 'choiceItem' ? '选项文字' : '',
     };
   };
 
@@ -1958,6 +2005,10 @@ export default function EditorPage() {
       setOpacity: '设置透明度',
       setVolume: '设置音量',
       seekTo: '跳转播放位置',
+      addHealth: '加血',
+      reduceHealth: '减血',
+      setHealth: '设置血量',
+      checkAnswer: '检查答案',
     };
     return labels[type] || type;
   };
@@ -3360,7 +3411,7 @@ export default function EditorPage() {
                 </div>
 
                 {/* 辅助组件 */}
-                <div>
+                <div className="mb-3">
                   <p className="text-xs text-zinc-500 px-2 mb-1">辅助组件</p>
                   {(
                     [
@@ -3372,6 +3423,41 @@ export default function EditorPage() {
                       key={type}
                       draggable
                       onClick={() => {
+                        setTemplateElementType(type);
+                        setSelectedId(null);
+                      }}
+                      onDragStart={(e) => {
+                        setDraggingElementType(type);
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
+                      onDragEnd={() => setDraggingElementType(null)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-700/50 transition-colors text-left cursor-grab active:cursor-grabbing ${
+                        templateElementType === type && !selectedElement ? 'bg-blue-500/20 border border-blue-500/50' :
+                        draggingElementType === type ? 'bg-purple-500/20 border border-purple-500/50' : ''
+                      }`}
+                    >
+                      <div className="w-5 h-5 flex items-center justify-center text-zinc-300">
+                        {elementIcons[type]}
+                      </div>
+                      <span className="text-sm text-zinc-200">{name}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 游戏组件 */}
+                <div>
+                  <p className="text-xs text-zinc-500 px-2 mb-1">游戏组件</p>
+                  {(
+                    [
+                      ['healthBar', '血条'],
+                      ['choiceItem', '选择项'],
+                    ] as const
+                  ).map(([type, name]) => (
+                    <div
+                      key={type}
+                      draggable
+                      onClick={() => {
+                        playClickSound();
                         setTemplateElementType(type);
                         setSelectedId(null);
                       }}
@@ -4492,6 +4578,44 @@ export default function EditorPage() {
                       }
                     })()
                   )}
+                  {/* 血条组件 */}
+                  {el.type === 'healthBar' && (
+                    <div className="w-full h-full flex items-center gap-2 px-2">
+                      {/* 血条背景 */}
+                      <div 
+                        className="flex-1 h-full rounded overflow-hidden relative"
+                        style={{ backgroundColor: el.healthBarBgColor || '#374151' }}
+                      >
+                        {/* 当前血量 */}
+                        <div
+                          className="h-full transition-all duration-300"
+                          style={{
+                            width: `${((el.healthValue || 100) / (el.maxHealth || 100)) * 100}%`,
+                            backgroundColor: ((el.healthValue || 100) / (el.maxHealth || 100)) * 100 <= (el.lowHealthThreshold || 30)
+                              ? (el.lowHealthColor || '#EF4444')
+                              : (el.healthBarColor || '#22C55E'),
+                          }}
+                        />
+                      </div>
+                      {/* 血量文字 */}
+                      {el.showHealthText !== false && (
+                        <span className="text-xs font-medium shrink-0" style={{ color: el.color || '#FFFFFF', minWidth: '40px', textAlign: 'right' }}>
+                          {el.healthValue || 100}/{el.maxHealth || 100}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {/* 选择项组件 */}
+                  {el.type === 'choiceItem' && (
+                    <div className="w-full h-full flex items-center justify-center px-4 gap-2 bg-white/10 hover:bg-white/20 transition-colors rounded-lg border-2 border-white/30">
+                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                        el.isCorrectChoice ? 'border-green-400' : 'border-zinc-400'
+                      }`}>
+                        {el.isCorrectChoice && <Check className="w-3 h-3 text-green-400" />}
+                      </div>
+                      <span className="text-sm font-medium text-zinc-200 truncate">{el.content || '选项文字'}</span>
+                    </div>
+                  )}
                   
                   {/* 选中元素的调整手柄 - 文本元素不显示 */}
                   {selectedId === el.id && !el.locked && el.type !== 'text' && (
@@ -5408,6 +5532,212 @@ export default function EditorPage() {
                                   <AlignRight className="w-4 h-4 mx-auto" />
                                 </button>
                               </div>
+                            </div>
+                          </>
+                        )}
+
+                        {/* 血条属性 */}
+                        {displayElement.type === 'healthBar' && (
+                          <>
+                            <div className="space-y-2">
+                              <Label className="text-xs text-white flex items-center gap-2">
+                                <Heart className="w-3.5 h-3.5" />
+                                血量设置
+                              </Label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <Label className="text-xs text-zinc-400 mb-1 block">当前血量</Label>
+                                  <Input
+                                    type="number"
+                                    value={displayElement.healthValue ?? 100}
+                                    onChange={(e) => updateElement({ healthValue: parseInt(e.target.value) || 0 })}
+                                    className="h-9 bg-zinc-700 border-zinc-600 text-sm"
+                                    min={0}
+                                    max={displayElement.maxHealth ?? 100}
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs text-zinc-400 mb-1 block">最大血量</Label>
+                                  <Input
+                                    type="number"
+                                    value={displayElement.maxHealth ?? 100}
+                                    onChange={(e) => updateElement({ maxHealth: parseInt(e.target.value) || 100 })}
+                                    className="h-9 bg-zinc-700 border-zinc-600 text-sm"
+                                    min={1}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <Separator className="bg-zinc-700" />
+
+                            <div className="space-y-2">
+                              <Label className="text-xs text-white">血条颜色</Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  type="color"
+                                  value={displayElement.healthBarColor || '#22C55E'}
+                                  onChange={(e) => updateElement({ healthBarColor: e.target.value })}
+                                  className="w-10 h-9 p-1 bg-zinc-700 border-zinc-600"
+                                />
+                                <Input
+                                  value={displayElement.healthBarColor || '#22C55E'}
+                                  onChange={(e) => updateElement({ healthBarColor: e.target.value })}
+                                  className="h-9 bg-zinc-700 border-zinc-600 text-sm flex-1"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-xs text-white">背景颜色</Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  type="color"
+                                  value={displayElement.healthBarBgColor || '#374151'}
+                                  onChange={(e) => updateElement({ healthBarBgColor: e.target.value })}
+                                  className="w-10 h-9 p-1 bg-zinc-700 border-zinc-600"
+                                />
+                                <Input
+                                  value={displayElement.healthBarBgColor || '#374151'}
+                                  onChange={(e) => updateElement({ healthBarBgColor: e.target.value })}
+                                  className="h-9 bg-zinc-700 border-zinc-600 text-sm flex-1"
+                                />
+                              </div>
+                            </div>
+
+                            <Separator className="bg-zinc-700" />
+
+                            <div className="space-y-2">
+                              <Label className="text-xs text-white">低血量警告</Label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <Label className="text-xs text-zinc-400 mb-1 block">阈值(%)</Label>
+                                  <Input
+                                    type="number"
+                                    value={displayElement.lowHealthThreshold ?? 30}
+                                    onChange={(e) => updateElement({ lowHealthThreshold: parseInt(e.target.value) || 30 })}
+                                    className="h-9 bg-zinc-700 border-zinc-600 text-sm"
+                                    min={0}
+                                    max={100}
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs text-zinc-400 mb-1 block">警告颜色</Label>
+                                  <Input
+                                    type="color"
+                                    value={displayElement.lowHealthColor || '#EF4444'}
+                                    onChange={(e) => updateElement({ lowHealthColor: e.target.value })}
+                                    className="w-full h-9 p-1 bg-zinc-700 border-zinc-600"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <Label className="text-xs text-white">显示血量文字</Label>
+                              <Switch
+                                checked={displayElement.showHealthText !== false}
+                                onCheckedChange={(v) => updateElement({ showHealthText: v })}
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {/* 选择项属性 */}
+                        {displayElement.type === 'choiceItem' && (
+                          <>
+                            <div className="space-y-2">
+                              <Label className="text-xs text-white flex items-center gap-2">
+                                <Type className="w-3.5 h-3.5" />
+                                选项文字
+                              </Label>
+                              <Input
+                                value={displayElement.content || ''}
+                                onChange={(e) => updateElement({ content: e.target.value })}
+                                className="h-9 bg-zinc-700 border-zinc-600 text-sm"
+                                placeholder="输入选项文字..."
+                              />
+                            </div>
+
+                            <Separator className="bg-zinc-700" />
+
+                            <div className="space-y-2">
+                              <Label className="text-xs text-white flex items-center gap-2">
+                                <Check className="w-3.5 h-3.5" />
+                                答案设置
+                              </Label>
+                              <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-700/50">
+                                <span className="text-sm text-zinc-300">正确答案</span>
+                                <Switch
+                                  checked={displayElement.isCorrectChoice || false}
+                                  onCheckedChange={(v) => updateElement({ isCorrectChoice: v })}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-xs text-white">关联血条</Label>
+                              <Select
+                                value={displayElement.targetHealthBarId || ''}
+                                onValueChange={(v) => updateElement({ targetHealthBarId: v })}
+                              >
+                                <SelectTrigger className="h-9 bg-zinc-700 border-zinc-600 text-sm">
+                                  <SelectValue placeholder="选择血条组件..." />
+                                </SelectTrigger>
+                                <SelectContent className="bg-zinc-800 border-zinc-600 z-[200]">
+                                  {currentScene?.elements
+                                    .filter(el => el.type === 'healthBar')
+                                    .map(el => (
+                                      <SelectItem key={el.id} value={el.id}>
+                                        {el.name}
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <Separator className="bg-zinc-700" />
+
+                            <div className="space-y-2">
+                              <Label className="text-xs text-white">血量变化</Label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <Label className="text-xs text-green-400 mb-1 block">答对加血</Label>
+                                  <Input
+                                    type="number"
+                                    value={displayElement.healthChangeOnCorrect ?? 0}
+                                    onChange={(e) => updateElement({ healthChangeOnCorrect: parseInt(e.target.value) || 0 })}
+                                    className="h-9 bg-zinc-700 border-zinc-600 text-sm"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs text-red-400 mb-1 block">答错减血</Label>
+                                  <Input
+                                    type="number"
+                                    value={displayElement.healthChangeOnWrong ?? 0}
+                                    onChange={(e) => updateElement({ healthChangeOnWrong: parseInt(e.target.value) || 0 })}
+                                    className="h-9 bg-zinc-700 border-zinc-600 text-sm"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <Separator className="bg-zinc-700" />
+
+                            <div className="space-y-2">
+                              <Label className="text-xs text-white">反馈文字</Label>
+                              <Input
+                                value={displayElement.correctFeedback || '回答正确！'}
+                                onChange={(e) => updateElement({ correctFeedback: e.target.value })}
+                                className="h-9 bg-zinc-700 border-zinc-600 text-sm mb-2"
+                                placeholder="答对反馈..."
+                              />
+                              <Input
+                                value={displayElement.wrongFeedback || '回答错误！'}
+                                onChange={(e) => updateElement({ wrongFeedback: e.target.value })}
+                                className="h-9 bg-zinc-700 border-zinc-600 text-sm"
+                                placeholder="答错反馈..."
+                              />
                             </div>
                           </>
                         )}

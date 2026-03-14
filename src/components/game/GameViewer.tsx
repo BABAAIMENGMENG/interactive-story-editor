@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import TransparentVideo from '@/components/ui/transparent-video';
+import { Check, Heart } from 'lucide-react';
 
 // 辅助函数：将十六进制颜色转换为 rgba
 function hexToRgba(hex: string, alpha: number): string {
@@ -28,6 +29,10 @@ function hexToRgba(hex: string, alpha: number): string {
 function getBackgroundColor(element: any): string {
   // 图片和透明视频使用透明背景
   if (element.type === 'image' || (element.type === 'video' && element.enableTransparency !== false)) {
+    return 'transparent';
+  }
+  // 血条和选择项使用透明背景
+  if (element.type === 'healthBar' || element.type === 'choiceItem') {
     return 'transparent';
   }
   
@@ -72,8 +77,27 @@ export function GameViewer({
 }: GameViewerProps) {
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  
+  // 血条状态管理 - 存储每个血条的当前血量
+  const [healthValues, setHealthValues] = useState<Record<string, number>>({});
+  
+  // 反馈消息
+  const [feedbackMessage, setFeedbackMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const currentScene = scenes[currentSceneIndex];
+
+  // 初始化血条状态
+  useEffect(() => {
+    const initialHealth: Record<string, number> = {};
+    scenes.forEach(scene => {
+      scene.elements?.forEach((element: any) => {
+        if (element.type === 'healthBar') {
+          initialHealth[element.id] = element.healthValue ?? element.maxHealth ?? 100;
+        }
+      });
+    });
+    setHealthValues(initialHealth);
+  }, [scenes]);
 
   // 处理场景切换
   const handleSceneChange = (sceneId: string) => {
@@ -86,6 +110,39 @@ export function GameViewer({
       }, 300);
     }
   };
+
+  // 更新血条血量
+  const updateHealth = useCallback((healthBarId: string, change: number) => {
+    setHealthValues(prev => {
+      const currentValue = prev[healthBarId] ?? 100;
+      const element = scenes.flatMap(s => s.elements || []).find((e: any) => e.id === healthBarId);
+      const maxHealth = element?.maxHealth ?? 100;
+      const newValue = Math.max(0, Math.min(maxHealth, currentValue + change));
+      return { ...prev, [healthBarId]: newValue };
+    });
+  }, [scenes]);
+
+  // 处理选择项点击
+  const handleChoiceClick = useCallback((element: any) => {
+    const isCorrect = element.isCorrectChoice;
+    
+    // 显示反馈消息
+    setFeedbackMessage({
+      text: isCorrect ? (element.correctFeedback || '回答正确！') : (element.wrongFeedback || '回答错误！'),
+      type: isCorrect ? 'success' : 'error',
+    });
+    
+    // 3秒后隐藏反馈消息
+    setTimeout(() => setFeedbackMessage(null), 3000);
+    
+    // 更新关联血条
+    if (element.targetHealthBarId) {
+      const healthChange = isCorrect 
+        ? (element.healthChangeOnCorrect || 0) 
+        : -(element.healthChangeOnWrong || 0);
+      updateHealth(element.targetHealthBarId, healthChange);
+    }
+  }, [updateHealth]);
 
   // 计算缩放比例
   useEffect(() => {
@@ -300,6 +357,106 @@ export function GameViewer({
                   {element.content}
                 </div>
               )}
+
+              {/* 血条 */}
+              {element.type === 'healthBar' && (() => {
+                const currentHealth = healthValues[element.id] ?? element.healthValue ?? 100;
+                const maxHealth = element.maxHealth ?? 100;
+                const healthPercent = (currentHealth / maxHealth) * 100;
+                const isLowHealth = healthPercent <= (element.lowHealthThreshold ?? 30);
+                const barColor = isLowHealth 
+                  ? (element.lowHealthColor || '#EF4444') 
+                  : (element.healthBarColor || '#22C55E');
+                const scale = canvasWidth / 1920; // 缩放比例
+                
+                return (
+                  <div 
+                    className="w-full h-full flex items-center gap-2"
+                    style={{ padding: `${4 * scale}px` }}
+                  >
+                    {/* 心形图标 */}
+                    <Heart 
+                      className="shrink-0" 
+                      style={{ 
+                        width: `${16 * scale}px`, 
+                        height: `${16 * scale}px`,
+                        color: barColor,
+                        fill: barColor,
+                      }} 
+                    />
+                    {/* 血条背景 */}
+                    <div 
+                      className="flex-1 h-full rounded overflow-hidden relative"
+                      style={{ 
+                        backgroundColor: element.healthBarBgColor || '#374151',
+                        borderRadius: `${4 * scale}px`,
+                      }}
+                    >
+                      {/* 当前血量 */}
+                      <div
+                        className="h-full transition-all duration-300"
+                        style={{
+                          width: `${healthPercent}%`,
+                          backgroundColor: barColor,
+                        }}
+                      />
+                    </div>
+                    {/* 血量文字 */}
+                    {element.showHealthText !== false && (
+                      <span 
+                        className="shrink-0 font-medium"
+                        style={{ 
+                          color: element.color || '#FFFFFF', 
+                          fontSize: `${12 * scale}px`,
+                          minWidth: `${50 * scale}px`,
+                          textAlign: 'right',
+                        }}
+                      >
+                        {currentHealth}/{maxHealth}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* 选择项 */}
+              {element.type === 'choiceItem' && (() => {
+                const scale = canvasWidth / 1920;
+                return (
+                  <button
+                    className="w-full h-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 active:bg-white/30 transition-all rounded-lg border-2 border-white/30 cursor-pointer"
+                    style={{
+                      borderRadius: `${8 * scale}px`,
+                      border: `${2 * scale}px solid rgba(255,255,255,0.3)`,
+                    }}
+                    onClick={() => handleChoiceClick(element)}
+                  >
+                    <div 
+                      className={`rounded border-2 flex items-center justify-center shrink-0 ${
+                        element.isCorrectChoice ? 'border-green-400' : 'border-zinc-400'
+                      }`}
+                      style={{
+                        width: `${16 * scale}px`,
+                        height: `${16 * scale}px`,
+                        borderWidth: `${2 * scale}px`,
+                      }}
+                    >
+                      {element.isCorrectChoice && (
+                        <Check style={{ width: `${12 * scale}px`, height: `${12 * scale}px`, color: '#22C55E' }} />
+                      )}
+                    </div>
+                    <span 
+                      className="font-medium truncate"
+                      style={{ 
+                        fontSize: `${14 * scale}px`,
+                        color: element.color || '#E5E7EB',
+                      }}
+                    >
+                      {element.content || '选项文字'}
+                    </span>
+                  </button>
+                );
+              })()}
             </div>
           );})}
         </div>
@@ -308,6 +465,20 @@ export function GameViewer({
       {/* 转场动画 */}
       {isTransitioning && (
         <div className="absolute inset-0 bg-black z-50" />
+      )}
+
+      {/* 反馈消息 */}
+      {feedbackMessage && (
+        <div 
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 px-8 py-4 rounded-xl text-xl font-bold animate-bounce"
+          style={{
+            backgroundColor: feedbackMessage.type === 'success' ? 'rgba(34, 197, 94, 0.9)' : 'rgba(239, 68, 68, 0.9)',
+            color: 'white',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+          }}
+        >
+          {feedbackMessage.text}
+        </div>
       )}
     </div>
   );
