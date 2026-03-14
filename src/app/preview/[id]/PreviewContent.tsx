@@ -268,6 +268,8 @@ interface Element {
   targetHealthBarId?: string;
   healthChangeOnCorrect?: number;
   healthChangeOnWrong?: number;
+  correctActions?: any[]; // 答对时触发的动作序列
+  wrongActions?: any[];   // 答错时触发的动作序列
 }
 
 // 场景类型定义
@@ -286,45 +288,50 @@ interface Scene {
 
 // 事件执行器
 const executeActions = async (
-  actions: Array<{ type: string; config: any }>,
+  actions: Array<any>,
   context: {
     setCurrentSceneId: (id: string) => void;
     scenes: Scene[];
     elements: Element[];
     updateElements: (elements: Element[]) => void;
     sceneContainerRef: React.RefObject<HTMLDivElement | null>;
+    setScenes?: React.Dispatch<React.SetStateAction<Scene[]>>;
   }
 ) => {
   for (const action of actions) {
-    switch (action.type) {
+    // 支持两种格式：{ type, config } 和 { type, targetSceneId, ... }
+    const actionType = action.type;
+    const config = action.config || action;
+    
+    switch (actionType) {
       case 'jumpScene':
-        context.setCurrentSceneId(action.config.sceneId);
+        context.setCurrentSceneId(config.targetSceneId || config.sceneId);
         break;
       case 'showElement':
         context.updateElements(
           context.elements.map(el =>
-            el.id === action.config.elementId ? { ...el, visible: true } : el
+            el.id === config.targetElementId || el.id === config.elementId ? { ...el, visible: true } : el
           )
         );
         break;
       case 'hideElement':
         context.updateElements(
           context.elements.map(el =>
-            el.id === action.config.elementId ? { ...el, visible: false } : el
+            el.id === config.targetElementId || el.id === config.elementId ? { ...el, visible: false } : el
           )
         );
         break;
       case 'toggleElement':
         context.updateElements(
           context.elements.map(el =>
-            el.id === action.config.elementId ? { ...el, visible: !el.visible } : el
+            el.id === config.targetElementId || el.id === config.elementId ? { ...el, visible: !el.visible } : el
           )
         );
         break;
       case 'playAudio':
       case 'playVideo':
         const mediaEl = context.sceneContainerRef.current?.querySelector(
-          `#element-${action.config.elementId} audio, #element-${action.config.elementId} video`
+          `#element-${config.targetElementId || config.elementId} audio, #element-${config.targetElementId || config.elementId} video`
         ) as HTMLMediaElement;
         if (mediaEl) {
           try { await mediaEl.play(); } catch (e) { console.error('播放失败:', e); }
@@ -333,7 +340,7 @@ const executeActions = async (
       case 'pauseAudio':
       case 'pauseVideo':
         const pauseMediaEl = context.sceneContainerRef.current?.querySelector(
-          `#element-${action.config.elementId} audio, #element-${action.config.elementId} video`
+          `#element-${config.targetElementId || config.elementId} audio, #element-${config.targetElementId || config.elementId} video`
         ) as HTMLMediaElement;
         if (pauseMediaEl) {
           pauseMediaEl.pause();
@@ -341,7 +348,7 @@ const executeActions = async (
         break;
       case 'stopMedia':
         const stopMediaEl = context.sceneContainerRef.current?.querySelector(
-          `#element-${action.config.elementId} audio, #element-${action.config.elementId} video`
+          `#element-${config.targetElementId || config.elementId} audio, #element-${config.targetElementId || config.elementId} video`
         ) as HTMLMediaElement;
         if (stopMediaEl) {
           stopMediaEl.pause();
@@ -350,24 +357,68 @@ const executeActions = async (
         break;
       case 'setVolume':
         const volumeMediaEl = context.sceneContainerRef.current?.querySelector(
-          `#element-${action.config.elementId} audio, #element-${action.config.elementId} video`
+          `#element-${config.targetElementId || config.elementId} audio, #element-${config.targetElementId || config.elementId} video`
         ) as HTMLMediaElement;
         if (volumeMediaEl) {
-          volumeMediaEl.volume = action.config.volume ?? 1;
+          volumeMediaEl.volume = (config.value ?? config.volume ?? 100) / 100;
         }
         break;
       case 'delay':
-        await new Promise(resolve => setTimeout(resolve, action.config.duration || 1000));
+        await new Promise(resolve => setTimeout(resolve, config.delay || config.duration || 1000));
         break;
       case 'setOpacity':
         context.updateElements(
           context.elements.map(el =>
-            el.id === action.config.elementId ? { ...el, opacity: action.config.opacity } : el
+            el.id === config.targetElementId || el.id === config.elementId ? { ...el, opacity: config.value ?? config.opacity ?? 1 } : el
           )
         );
         break;
+      case 'addHealth':
+        // 加血
+        if (context.setScenes) {
+          context.setScenes(prev => prev.map(scene => ({
+            ...scene,
+            elements: scene.elements.map(el => {
+              if (el.id === config.targetElementId) {
+                const newHealth = Math.min(el.maxHealth || 100, (el.healthValue || 0) + (config.value || 10));
+                return { ...el, healthValue: newHealth };
+              }
+              return el;
+            })
+          })));
+        }
+        break;
+      case 'reduceHealth':
+        // 减血
+        if (context.setScenes) {
+          context.setScenes(prev => prev.map(scene => ({
+            ...scene,
+            elements: scene.elements.map(el => {
+              if (el.id === config.targetElementId) {
+                const newHealth = Math.max(0, (el.healthValue || 100) - (config.value || 10));
+                return { ...el, healthValue: newHealth };
+              }
+              return el;
+            })
+          })));
+        }
+        break;
+      case 'setHealth':
+        // 设置血量
+        if (context.setScenes) {
+          context.setScenes(prev => prev.map(scene => ({
+            ...scene,
+            elements: scene.elements.map(el => {
+              if (el.id === config.targetElementId) {
+                return { ...el, healthValue: config.value || 0 };
+              }
+              return el;
+            })
+          })));
+        }
+        break;
       default:
-        console.log('未知动作类型:', action.type);
+        console.log('未知动作类型:', actionType, action);
     }
   }
 };
@@ -382,6 +433,7 @@ const handleElementEvent = async (
     elements: Element[];
     updateElements: (elements: Element[]) => void;
     sceneContainerRef: React.RefObject<HTMLDivElement | null>;
+    setScenes?: React.Dispatch<React.SetStateAction<Scene[]>>;
   }
 ) => {
   const eventConfig = element.events?.find(e => e.trigger === trigger);
@@ -466,6 +518,7 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
     elements: currentScene?.elements || [],
     updateElements,
     sceneContainerRef,
+    setScenes,
   };
 
   // 渲染元素
@@ -814,10 +867,23 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
               cursor: 'pointer',
               transition: 'background-color 0.2s',
             }}
-            onClick={(e) => {
+            onClick={async (e) => {
               handleClick(e);
-              // 如果有关联血条，更新血量
-              if (element.targetHealthBarId) {
+              
+              // 执行答对或答错的动作序列
+              const actions = element.isCorrectChoice 
+                ? (element.correctActions || [])
+                : (element.wrongActions || []);
+              
+              if (actions.length > 0) {
+                await executeActions(actions, {
+                  ...eventContext,
+                  setScenes,
+                });
+              }
+              
+              // 兼容旧版：如果有关联血条且没有配置新动作，更新血量
+              if (element.targetHealthBarId && actions.length === 0) {
                 const healthChange = element.isCorrectChoice 
                   ? (element.healthChangeOnCorrect || 0)
                   : (element.healthChangeOnWrong || 0);

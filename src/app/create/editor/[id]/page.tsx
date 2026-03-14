@@ -487,9 +487,12 @@ interface CanvasElement {
   isCorrectChoice?: boolean;  // 是否是正确答案
   correctFeedback?: string;   // 答对反馈文字
   wrongFeedback?: string;     // 答错反馈文字
-  targetHealthBarId?: string; // 关联的血条ID
-  healthChangeOnCorrect?: number; // 答对加血量
-  healthChangeOnWrong?: number;   // 答错减血量
+  targetHealthBarId?: string; // 关联的血条ID（兼容旧版）
+  healthChangeOnCorrect?: number; // 答对加血量（兼容旧版）
+  healthChangeOnWrong?: number;   // 答错减血量（兼容旧版）
+  // 选择项事件动作
+  correctActions?: EventAction[]; // 答对时触发的动作序列
+  wrongActions?: EventAction[];   // 答错时触发的动作序列
   // children 通过计算得出，不需要存储
 }
 
@@ -732,6 +735,7 @@ export default function EditorPage() {
   const [showSceneDialog, setShowSceneDialog] = useState(false);
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [showMediaDialog, setShowMediaDialog] = useState(false);
+  const [showChoiceActionDialog, setShowChoiceActionDialog] = useState<{ type: 'correct' | 'wrong'; elementId: string } | null>(null);
   const [newSceneName, setNewSceneName] = useState('');
   const [mediaType, setMediaType] = useState<'image' | 'video' | 'panorama' | 'panoramaVideo' | 'audio'>('image');
   const [mediaUrl, setMediaUrl] = useState('');
@@ -5681,51 +5685,114 @@ export default function EditorPage() {
                               </div>
                             </div>
 
+                            <Separator className="bg-zinc-700" />
+
+                            {/* 答对时执行的动作 */}
                             <div className="space-y-2">
-                              <Label className="text-xs text-white">关联血条</Label>
-                              <Select
-                                value={displayElement.targetHealthBarId || ''}
-                                onValueChange={(v) => updateElement({ targetHealthBarId: v })}
-                              >
-                                <SelectTrigger className="h-9 bg-zinc-700 border-zinc-600 text-sm">
-                                  <SelectValue placeholder="选择血条组件..." />
-                                </SelectTrigger>
-                                <SelectContent className="bg-zinc-800 border-zinc-600 z-[200]">
-                                  {currentScene?.elements
-                                    .filter(el => el.type === 'healthBar')
-                                    .map(el => (
-                                      <SelectItem key={el.id} value={el.id}>
-                                        {el.name}
-                                      </SelectItem>
-                                    ))}
-                                </SelectContent>
-                              </Select>
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs text-green-400 flex items-center gap-2">
+                                  <Check className="w-3.5 h-3.5" />
+                                  答对时执行
+                                </Label>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs border-green-500/50 text-green-400 hover:bg-green-500/20"
+                                  onClick={() => setShowChoiceActionDialog({ type: 'correct', elementId: displayElement.id })}
+                                >
+                                  <Plus className="w-3 h-3 mr-1" />
+                                  配置动作
+                                </Button>
+                              </div>
+                              {(displayElement.correctActions || []).length > 0 ? (
+                                <div className="space-y-1">
+                                  {(displayElement.correctActions || []).map((action, idx) => (
+                                    <div key={idx} className="flex items-center justify-between p-2 rounded bg-zinc-700/50 text-xs">
+                                      <span className="text-zinc-300">
+                                        {action.type === 'addHealth' && `加血 ${action.value || 0}`}
+                                        {action.type === 'reduceHealth' && `减血 ${action.value || 0}`}
+                                        {action.type === 'setHealth' && `设置血量 ${action.value || 0}`}
+                                        {action.type === 'jumpScene' && '跳转场景'}
+                                        {action.type === 'showElement' && '显示元素'}
+                                        {action.type === 'hideElement' && '隐藏元素'}
+                                        {action.type === 'playAudio' && '播放音频'}
+                                        {action.type === 'playVideo' && '播放视频'}
+                                        {action.type === 'delay' && `延迟 ${action.delay || 0}ms`}
+                                        {action.type === 'setOpacity' && `设置透明度 ${Math.round((action.value || 1) * 100)}%`}
+                                        {!['addHealth', 'reduceHealth', 'setHealth', 'jumpScene', 'showElement', 'hideElement', 'playAudio', 'playVideo', 'delay', 'setOpacity'].includes(action.type) && action.type}
+                                      </span>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-5 w-5 p-0 text-red-400 hover:text-red-300"
+                                        onClick={() => {
+                                          const newActions = (displayElement.correctActions || []).filter((_, i) => i !== idx);
+                                          updateElement({ correctActions: newActions });
+                                        }}
+                                      >
+                                        ×
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-zinc-500">暂无动作，点击"配置动作"添加</p>
+                              )}
                             </div>
 
                             <Separator className="bg-zinc-700" />
 
+                            {/* 答错时执行的动作 */}
                             <div className="space-y-2">
-                              <Label className="text-xs text-white">血量变化</Label>
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <Label className="text-xs text-green-400 mb-1 block">答对加血</Label>
-                                  <Input
-                                    type="number"
-                                    value={displayElement.healthChangeOnCorrect ?? 0}
-                                    onChange={(e) => updateElement({ healthChangeOnCorrect: parseInt(e.target.value) || 0 })}
-                                    className="h-9 bg-zinc-700 border-zinc-600 text-sm"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-xs text-red-400 mb-1 block">答错减血</Label>
-                                  <Input
-                                    type="number"
-                                    value={displayElement.healthChangeOnWrong ?? 0}
-                                    onChange={(e) => updateElement({ healthChangeOnWrong: parseInt(e.target.value) || 0 })}
-                                    className="h-9 bg-zinc-700 border-zinc-600 text-sm"
-                                  />
-                                </div>
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs text-red-400 flex items-center gap-2">
+                                  <X className="w-3.5 h-3.5" />
+                                  答错时执行
+                                </Label>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs border-red-500/50 text-red-400 hover:bg-red-500/20"
+                                  onClick={() => setShowChoiceActionDialog({ type: 'wrong', elementId: displayElement.id })}
+                                >
+                                  <Plus className="w-3 h-3 mr-1" />
+                                  配置动作
+                                </Button>
                               </div>
+                              {(displayElement.wrongActions || []).length > 0 ? (
+                                <div className="space-y-1">
+                                  {(displayElement.wrongActions || []).map((action, idx) => (
+                                    <div key={idx} className="flex items-center justify-between p-2 rounded bg-zinc-700/50 text-xs">
+                                      <span className="text-zinc-300">
+                                        {action.type === 'addHealth' && `加血 ${action.value || 0}`}
+                                        {action.type === 'reduceHealth' && `减血 ${action.value || 0}`}
+                                        {action.type === 'setHealth' && `设置血量 ${action.value || 0}`}
+                                        {action.type === 'jumpScene' && '跳转场景'}
+                                        {action.type === 'showElement' && '显示元素'}
+                                        {action.type === 'hideElement' && '隐藏元素'}
+                                        {action.type === 'playAudio' && '播放音频'}
+                                        {action.type === 'playVideo' && '播放视频'}
+                                        {action.type === 'delay' && `延迟 ${action.delay || 0}ms`}
+                                        {action.type === 'setOpacity' && `设置透明度 ${Math.round((action.value || 1) * 100)}%`}
+                                        {!['addHealth', 'reduceHealth', 'setHealth', 'jumpScene', 'showElement', 'hideElement', 'playAudio', 'playVideo', 'delay', 'setOpacity'].includes(action.type) && action.type}
+                                      </span>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-5 w-5 p-0 text-red-400 hover:text-red-300"
+                                        onClick={() => {
+                                          const newActions = (displayElement.wrongActions || []).filter((_, i) => i !== idx);
+                                          updateElement({ wrongActions: newActions });
+                                        }}
+                                      >
+                                        ×
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-zinc-500">暂无动作，点击"配置动作"添加</p>
+                              )}
                             </div>
 
                             <Separator className="bg-zinc-700" />
@@ -7734,6 +7801,128 @@ export default function EditorPage() {
           
           <DialogFooter>
             <Button onClick={() => setShowEventDialog(false)} className="bg-purple-600">
+              完成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 选择项动作配置弹窗 */}
+      <Dialog open={!!showChoiceActionDialog} onOpenChange={(open) => !open && setShowChoiceActionDialog(null)}>
+        <DialogContent className="bg-zinc-800 border-zinc-600 max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-white">
+              {showChoiceActionDialog?.type === 'correct' ? '配置答对时的动作' : '配置答错时的动作'}
+            </DialogTitle>
+            <DialogDescription className="text-zinc-300">
+              选择该选项被点击后执行的动作序列
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-2">
+            {/* 当前动作列表 */}
+            {(() => {
+              const element = currentScene?.elements.find(el => el.id === showChoiceActionDialog?.elementId);
+              const actions = showChoiceActionDialog?.type === 'correct' 
+                ? (element?.correctActions || []) 
+                : (element?.wrongActions || []);
+              
+              return actions.length > 0 ? (
+                <div className="space-y-2">
+                  <Label className="text-xs text-white">已配置的动作</Label>
+                  {actions.map((action, idx) => (
+                    <div key={idx} className="p-3 rounded-lg bg-zinc-700/50 border border-zinc-600">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-white font-medium">
+                          {idx + 1}. {action.type === 'addHealth' ? '加血' : 
+                            action.type === 'reduceHealth' ? '减血' :
+                            action.type === 'setHealth' ? '设置血量' :
+                            action.type === 'jumpScene' ? '跳转场景' :
+                            action.type === 'showElement' ? '显示元素' :
+                            action.type === 'hideElement' ? '隐藏元素' :
+                            action.type === 'toggleElement' ? '切换显示' :
+                            action.type === 'playAudio' ? '播放音频' :
+                            action.type === 'pauseAudio' ? '暂停音频' :
+                            action.type === 'playVideo' ? '播放视频' :
+                            action.type === 'pauseVideo' ? '暂停视频' :
+                            action.type === 'stopMedia' ? '停止媒体' :
+                            action.type === 'setVolume' ? '设置音量' :
+                            action.type === 'setOpacity' ? '设置透明度' :
+                            action.type === 'moveTo' ? '移动到' :
+                            action.type === 'scaleTo' ? '缩放到' :
+                            action.type === 'rotateTo' ? '旋转到' :
+                            action.type === 'delay' ? '延迟等待' :
+                            action.type === 'setProperty' ? '设置属性' :
+                            action.type}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-red-400 hover:text-red-300"
+                          onClick={() => {
+                            const key = showChoiceActionDialog?.type === 'correct' ? 'correctActions' : 'wrongActions';
+                            const currentActions = element?.[key] || [];
+                            const newActions = currentActions.filter((_, i) => i !== idx);
+                            updateElement({ [key]: newActions });
+                          }}
+                        >
+                          删除
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-500">暂无动作，请添加</p>
+              );
+            })()}
+
+            <Separator className="bg-zinc-700" />
+
+            {/* 添加动作 */}
+            <div className="space-y-2">
+              <Label className="text-xs text-white">添加动作</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { type: 'addHealth', label: '加血', color: 'bg-green-600' },
+                  { type: 'reduceHealth', label: '减血', color: 'bg-red-600' },
+                  { type: 'setHealth', label: '设置血量', color: 'bg-blue-600' },
+                  { type: 'jumpScene', label: '跳转场景', color: 'bg-zinc-600' },
+                  { type: 'showElement', label: '显示元素', color: 'bg-zinc-600' },
+                  { type: 'hideElement', label: '隐藏元素', color: 'bg-zinc-600' },
+                  { type: 'toggleElement', label: '切换显示', color: 'bg-zinc-600' },
+                  { type: 'playAudio', label: '播放音频', color: 'bg-zinc-600' },
+                  { type: 'pauseAudio', label: '暂停音频', color: 'bg-zinc-600' },
+                  { type: 'playVideo', label: '播放视频', color: 'bg-zinc-600' },
+                  { type: 'pauseVideo', label: '暂停视频', color: 'bg-zinc-600' },
+                  { type: 'stopMedia', label: '停止媒体', color: 'bg-zinc-600' },
+                  { type: 'setOpacity', label: '设置透明度', color: 'bg-zinc-600' },
+                  { type: 'delay', label: '延迟等待', color: 'bg-zinc-600' },
+                ].map(({ type, label, color }) => (
+                  <Button
+                    key={type}
+                    size="sm"
+                    className={`${color} text-white text-xs`}
+                    onClick={() => {
+                      const key = showChoiceActionDialog?.type === 'correct' ? 'correctActions' : 'wrongActions';
+                      const element = currentScene?.elements.find(el => el.id === showChoiceActionDialog?.elementId);
+                      const currentActions = element?.[key] || [];
+                      const newAction: EventAction = {
+                        id: genId(),
+                        type: type as EventActionType,
+                      };
+                      updateElement({ [key]: [...currentActions, newAction] });
+                    }}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button onClick={() => setShowChoiceActionDialog(null)} className="bg-purple-600">
               完成
             </Button>
           </DialogFooter>
