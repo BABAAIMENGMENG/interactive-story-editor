@@ -3462,136 +3462,130 @@ export default function EditorPage() {
     });
   };
 
-  // 处理文件上传
+  // 上传进度状态
+  const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
+
+  // 处理文件上传（带进度显示）
   const handleFileUpload = async (files: FileList | null, type: 'image' | 'video' | 'panorama' | 'panoramaVideo' | 'audio') => {
     if (!files || files.length === 0) return;
 
-    // 文件大小限制为 100MB
-    const maxSize = 100 * 1024 * 1024; // 100MB
+    const maxSize = 500 * 1024 * 1024; // 500MB
 
     for (const file of Array.from(files)) {
-      // 检查文件大小
       if (file.size > maxSize) {
         const sizeMB = (file.size / 1024 / 1024).toFixed(2);
-        alert(`文件 "${file.name}" 过大（${sizeMB}MB）\n\n本地上传最大支持 100MB。\n\n解决方案：\n1. 压缩视频文件\n2. 使用「URL链接」导入外部视频\n3. 将视频上传到云存储后使用链接导入`);
+        alert(`文件 "${file.name}" 过大（${sizeMB}MB）\n\n本地上传最大支持 500MB。`);
         continue;
       }
 
-      // 先显示本地预览
-      const localUrl = URL.createObjectURL(file);
+      const fileId = `${Date.now()}-${file.name}`;
       
-      // 上传到对象存储
+      // 显示上传进度
+      setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
+      
       try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', type);
-        
         console.log('开始上传文件:', file.name, '大小:', (file.size / 1024 / 1024).toFixed(2), 'MB');
         
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
+        // 使用 XMLHttpRequest 实现带进度的上传
+        const url = await new Promise<string>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('type', type);
+          
+          // 监听上传进度
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const percent = Math.round((e.loaded / e.total) * 100);
+              setUploadProgress(prev => ({ ...prev, [fileId]: percent }));
+            }
+          };
+          
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const result = JSON.parse(xhr.responseText);
+                if (result.success && result.url) {
+                  resolve(result.url);
+                } else {
+                  reject(new Error(result.error || '上传失败'));
+                }
+              } catch {
+                reject(new Error('解析响应失败'));
+              }
+            } else {
+              reject(new Error(`上传失败: ${xhr.status}`));
+            }
+          };
+          
+          xhr.onerror = () => reject(new Error('网络错误'));
+          xhr.ontimeout = () => reject(new Error('上传超时'));
+          
+          xhr.open('POST', '/api/upload');
+          xhr.timeout = 10 * 60 * 1000; // 10分钟超时
+          xhr.send(formData);
         });
         
-        console.log('上传响应状态:', response.status, response.statusText);
+        // 清除进度
+        setUploadProgress(prev => {
+          const newProgress = { ...prev };
+          delete newProgress[fileId];
+          return newProgress;
+        });
         
-        // 先尝试读取响应文本
-        const responseText = await response.text();
-        console.log('上传响应内容:', responseText.substring(0, 500));
+        console.log('文件上传成功, URL:', url);
         
-        let result;
-        try {
-          result = JSON.parse(responseText);
-        } catch (parseError) {
-          // 检查是否是服务器限制错误
-          if (responseText.includes('Request Entity Too Large') || responseText.includes('413')) {
-            throw new Error('文件超出服务器限制，请压缩视频或使用URL链接导入');
-          }
-          console.error('解析响应失败:', responseText);
-          throw new Error(`服务器返回格式错误: ${responseText.substring(0, 100)}`);
-        }
-        
-        if (!response.ok) {
-          // 处理 413 错误
-          if (response.status === 413) {
-            throw new Error('文件超出服务器限制，请压缩视频或使用URL链接导入');
-          }
-          throw new Error(result.error || result.details || `上传失败 (${response.status})`);
-        }
-        
-        if (result.success && result.url) {
-          // 使用对象存储的 URL
-          const url = result.url;
-          
-          console.log('[文件上传] 上传成功, URL:', url);
-          
-          const resource: MediaResource = {
-            id: genId(),
-            name: file.name,
-            type,
-            url,
-            size: file.size,
-          };
+        const resource: MediaResource = {
+          id: genId(),
+          name: file.name,
+          type,
+          url,
+          size: file.size,
+        };
 
-          setMediaResources(prev => [...prev, resource]);
-          console.log('[文件上传] 已添加到资源列表:', resource);
-          
-          // 如果当前选中的元素是图片或视频控件，自动更新其src属性
-          let appliedToElement = false;
-          if (selectedElement) {
-            console.log('[文件上传] 当前选中元素:', selectedElement.type, '上传类型:', type);
-            if (type === 'image' && selectedElement.type === 'image') {
-              console.log('[文件上传] 更新图片元素 src');
-              updateElement({ src: url, name: file.name });
-              appliedToElement = true;
-            } else if (type === 'video' && selectedElement.type === 'video') {
-              console.log('[文件上传] 更新视频元素 src');
-              updateElement({ src: url, name: file.name });
-              appliedToElement = true;
-            } else if (type === 'panorama' && currentScene) {
-              console.log('[文件上传] 更新全景图');
-              setScenes(scenes.map(s => 
-                s.id === currentSceneId ? { ...s, panoramaImage: url } : s
-              ));
-              appliedToElement = true;
-            } else if (type === 'panoramaVideo' && currentScene) {
-              console.log('[文件上传] 更新全景视频');
-              setScenes(scenes.map(s => 
-                s.id === currentSceneId ? { ...s, panoramaVideo: url } : s
-              ));
-              appliedToElement = true;
-            }
+        setMediaResources(prev => [...prev, resource]);
+        
+        // 如果当前选中的元素是图片或视频控件，自动更新其src属性
+        let appliedToElement = false;
+        if (selectedElement) {
+          if (type === 'image' && selectedElement.type === 'image') {
+            updateElement({ src: url, name: file.name });
+            appliedToElement = true;
+          } else if (type === 'video' && selectedElement.type === 'video') {
+            updateElement({ src: url, name: file.name });
+            appliedToElement = true;
+          } else if (type === 'audio' && selectedElement.type === 'audio') {
+            updateElement({ src: url, name: file.name });
+            appliedToElement = true;
           }
-          
-          // 如果没有选中匹配的元素，自动将资源添加到画布上
-          if (!appliedToElement && (type === 'image' || type === 'video' || type === 'audio')) {
-            console.log('[文件上传] 自动添加资源到画布');
-            addMediaToCanvas(resource);
-          } else if (!appliedToElement && !selectedElement) {
-            // 没有选中元素，处理全景资源
-            if (type === 'panorama' && currentScene) {
-              setScenes(scenes.map(s => 
-                s.id === currentSceneId ? { ...s, panoramaImage: url } : s
-              ));
-            } else if (type === 'panoramaVideo' && currentScene) {
-              setScenes(scenes.map(s => 
-                s.id === currentSceneId ? { ...s, panoramaVideo: url } : s
-              ));
-            }
-          }
-          
-          // 上传成功，释放本地 URL
-          URL.revokeObjectURL(localUrl);
-        } else {
-          console.error('[文件上传] 上传响应异常:', result);
-          throw new Error(result.error || '上传失败，未返回URL');
         }
+        
+        // 处理全景资源
+        if (!appliedToElement) {
+          if (type === 'panorama' && currentScene) {
+            setScenes(scenes.map(s => 
+              s.id === currentSceneId ? { ...s, panoramaImage: url } : s
+            ));
+          } else if (type === 'panoramaVideo' && currentScene) {
+            setScenes(scenes.map(s => 
+              s.id === currentSceneId ? { ...s, panoramaVideo: url } : s
+            ));
+          }
+        }
+        
+        // 如果没有选中匹配的元素，自动将资源添加到画布上
+        if (!appliedToElement && (type === 'image' || type === 'video' || type === 'audio')) {
+          addMediaToCanvas(resource);
+        }
+        
       } catch (error) {
+        setUploadProgress(prev => {
+          const newProgress = { ...prev };
+          delete newProgress[fileId];
+          return newProgress;
+        });
         console.error('上传文件失败:', error);
         alert(`上传失败: ${error instanceof Error ? error.message : '未知错误'}`);
-        // 上传失败，不添加资源到列表，避免使用 blob: URL
-        // 因为 blob: URL 只在当前页面有效，预览页面会失效
-        URL.revokeObjectURL(localUrl);
       }
     }
     
@@ -9566,9 +9560,30 @@ export default function EditorPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {/* 上传进度显示 */}
+            {Object.keys(uploadProgress).length > 0 && (
+              <div className="space-y-2 p-3 bg-zinc-700/50 rounded-lg">
+                <p className="text-sm text-zinc-300">正在上传...</p>
+                {Object.entries(uploadProgress).map(([fileId, progress]) => (
+                  <div key={fileId} className="space-y-1">
+                    <div className="flex justify-between text-xs text-zinc-400">
+                      <span className="truncate max-w-[200px]">{fileId.split('-').slice(1).join('-')}</span>
+                      <span>{progress}%</span>
+                    </div>
+                    <div className="h-2 bg-zinc-600 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-purple-500 transition-all duration-300"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
             {/* 文件上传 */}
             <div className="space-y-2">
-              <Label className="text-sm">本地上传（最大 4MB）</Label>
+              <Label className="text-sm">本地上传（最大 500MB）</Label>
               <div 
                 className="border-2 border-dashed border-zinc-600 rounded-lg p-6 text-center hover:border-purple-500 transition-colors cursor-pointer"
                 onClick={() => {
@@ -9585,11 +9600,6 @@ export default function EditorPage() {
                   支持 {mediaType === 'audio' ? 'MP3, WAV, OGG' : mediaType.includes('video') ? 'MP4, WebM, MOV' : 'JPG, PNG, WebP'} 格式
                 </p>
               </div>
-              {(mediaType.includes('video') || mediaType === 'audio') && (
-                <p className="text-xs text-amber-400">
-                  💡 大于 4MB 的文件请压缩后上传，或使用下方「URL链接」导入外部资源
-                </p>
-              )}
             </div>
 
             {/* URL导入 */}
