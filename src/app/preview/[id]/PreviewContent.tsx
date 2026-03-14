@@ -442,7 +442,7 @@ const executeActions = async (
             ...scene,
             elements: scene.elements.map(el => {
               if (el.id === config.targetElementId) {
-                const newHealth = Math.min(el.maxHealth || 100, (el.healthValue || 0) + (config.value || 10));
+                const newHealth = Math.min(el.maxHealth ?? 100, (el.healthValue ?? 100) + (config.value ?? 10));
                 return { ...el, healthValue: newHealth };
               }
               return el;
@@ -457,7 +457,7 @@ const executeActions = async (
             ...scene,
             elements: scene.elements.map(el => {
               if (el.id === config.targetElementId) {
-                const newHealth = Math.max(0, (el.healthValue || 100) - (config.value || 10));
+                const newHealth = Math.max(0, (el.healthValue ?? 100) - (config.value ?? 10));
                 return { ...el, healthValue: newHealth };
               }
               return el;
@@ -952,7 +952,7 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
         );
 
       case 'healthBar':
-        const healthPercent = ((element.healthValue || 100) / (element.maxHealth || 100)) * 100;
+        const healthPercent = ((element.healthValue ?? 100) / (element.maxHealth ?? 100)) * 100;
         const isLowHealth = healthPercent <= (element.lowHealthThreshold || 30);
         const barColor = isLowHealth ? (element.lowHealthColor || '#EF4444') : (element.healthBarColor || '#22C55E');
         
@@ -1006,7 +1006,7 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
                   flexShrink: 0,
                 }}
               >
-                {element.healthValue || 100}/{element.maxHealth || 100}
+                {element.healthValue ?? 100}/{element.maxHealth ?? 100}
               </span>
             )}
           </div>

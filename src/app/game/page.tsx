@@ -1887,8 +1887,8 @@ function GamePageContent() {
                     <div
                       style={{
                         height: '100%',
-                        width: `${((el.healthValue || 100) / (el.maxHealth || 100)) * 100}%`,
-                        backgroundColor: ((el.healthValue || 100) / (el.maxHealth || 100)) * 100 <= (el.lowHealthThreshold || 30)
+                        width: `${((el.healthValue ?? 100) / (el.maxHealth ?? 100)) * 100}%`,
+                        backgroundColor: ((el.healthValue ?? 100) / (el.maxHealth ?? 100)) * 100 <= (el.lowHealthThreshold || 30)
                           ? (el.lowHealthColor || '#EF4444')
                           : (el.healthBarColor || '#22C55E'),
                         transition: 'width 0.3s ease',
@@ -1898,7 +1898,7 @@ function GamePageContent() {
                   {/* 血量文字 */}
                   {el.showHealthText !== false && (
                     <span style={{ fontSize: `${12 * scaleToFit}px`, fontWeight: 500, flexShrink: 0, color: el.color || '#FFFFFF', minWidth: `${40 * scaleToFit}px`, textAlign: 'right' }}>
-                      {el.healthValue || 100}/{el.maxHealth || 100}
+                      {el.healthValue ?? 100}/{el.maxHealth ?? 100}
                     </span>
                   )}
                 </div>
