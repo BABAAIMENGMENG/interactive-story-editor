@@ -1672,7 +1672,7 @@ function GamePageContent() {
                 alignItems: 'center',
                 justifyContent: el.type === 'text' ? (el.textAlign === 'left' ? 'flex-start' : el.textAlign === 'right' ? 'flex-end' : 'center') : 'center',
                 fontWeight: el.fontWeight || '500',
-                padding: el.type === 'text' ? `${8 * scaleToFit}px` : (el.type === 'video' || el.type === 'image' ? '0' : `${16 * scaleToFit}px`),
+                padding: el.type === 'text' ? `${8 * scaleToFit}px` : (el.type === 'video' || el.type === 'image' || el.type === 'healthBar' || el.type === 'choiceItem' ? '0' : `0 ${16 * scaleToFit}px`),
                 gap: el.iconName ? `${8 * scaleToFit}px` : '0',
                 overflow: 'hidden',
                 zIndex: elementZIndex,
@@ -1849,26 +1849,26 @@ function GamePageContent() {
               })()}
               {/* 血条组件 */}
               {el.type === 'healthBar' && (
-                <div className="w-full h-full flex items-center gap-2 px-2">
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '0 8px' }}>
                   {/* 血条背景 */}
                   <div 
-                    className="flex-1 h-full rounded overflow-hidden relative"
-                    style={{ backgroundColor: el.healthBarBgColor || '#374151' }}
+                    style={{ flex: 1, height: '100%', backgroundColor: el.healthBarBgColor || '#374151', borderRadius: 4, overflow: 'hidden', position: 'relative' }}
                   >
                     {/* 当前血量 */}
                     <div
-                      className="h-full transition-all duration-300"
                       style={{
+                        height: '100%',
                         width: `${((el.healthValue || 100) / (el.maxHealth || 100)) * 100}%`,
                         backgroundColor: ((el.healthValue || 100) / (el.maxHealth || 100)) * 100 <= (el.lowHealthThreshold || 30)
                           ? (el.lowHealthColor || '#EF4444')
                           : (el.healthBarColor || '#22C55E'),
+                        transition: 'width 0.3s ease',
                       }}
                     />
                   </div>
                   {/* 血量文字 */}
                   {el.showHealthText !== false && (
-                    <span className="text-xs font-medium shrink-0" style={{ color: el.color || '#FFFFFF', minWidth: '40px', textAlign: 'right' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 500, flexShrink: 0, color: el.color || '#FFFFFF', minWidth: '40px', textAlign: 'right' }}>
                       {el.healthValue || 100}/{el.maxHealth || 100}
                     </span>
                   )}
@@ -1876,13 +1876,11 @@ function GamePageContent() {
               )}
               {/* 选择项组件 */}
               {el.type === 'choiceItem' && (
-                <div className="w-full h-full flex items-center justify-center px-4 gap-2 bg-white/10 hover:bg-white/20 transition-colors rounded-lg border-2 border-white/30">
-                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
-                    el.isCorrectChoice ? 'border-green-400' : 'border-zinc-400'
-                  }`}>
-                    {el.isCorrectChoice && <Check className="w-3 h-3 text-green-400" />}
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px', gap: '8px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 8, border: '2px solid rgba(255,255,255,0.3)' }}>
+                  <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${el.isCorrectChoice ? '#4ADE80' : '#A1A1AA'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {el.isCorrectChoice && <Check style={{ width: 12, height: 12, color: '#4ADE80' }} />}
                   </div>
-                  <span className="text-sm font-medium text-zinc-200 truncate">{el.content || '选项文字'}</span>
+                  <span style={{ fontSize: '14px', fontWeight: 500, color: '#E4E4E7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.content || '选项文字'}</span>
                 </div>
               )}
             </div>
