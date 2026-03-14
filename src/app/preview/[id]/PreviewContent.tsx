@@ -26,6 +26,28 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+// 路径点
+interface PathPoint {
+  id: string;
+  x: number;
+  y: number;
+  controlIn?: { x: number; y: number };
+  controlOut?: { x: number; y: number };
+}
+
+// 路径动画
+interface PathAnimation {
+  id: string;
+  name: string;
+  pathPoints: PathPoint[];
+  duration: number;
+  easing: 'linear' | 'ease' | 'easeIn' | 'easeOut' | 'easeInOut';
+  loopMode: 'none' | 'loop' | 'alternate';
+  loopCount?: number;
+  autoPlay: boolean;
+  delay: number;
+}
+
 // 视频元素组件（支持可见性控制和拖拽）
 function VideoElement({ 
   element, 
@@ -270,6 +292,8 @@ interface Element {
   healthChangeOnWrong?: number;
   correctActions?: any[]; // 答对时触发的动作序列
   wrongActions?: any[];   // 答错时触发的动作序列
+  // 路径动画
+  pathAnimations?: PathAnimation[];
 }
 
 // 场景类型定义
@@ -415,6 +439,131 @@ const executeActions = async (
               return el;
             })
           })));
+        }
+        break;
+      case 'startPathAnimation':
+        // 执行路径动画
+        const pathElement = context.elements.find(el => el.id === config.targetElementId || el.id === config.elementId);
+        const animation = pathElement?.pathAnimations?.find(a => a.id === config.pathAnimationId);
+        if (pathElement && animation && animation.pathPoints.length >= 2) {
+          // 使用 requestAnimationFrame 实现路径动画
+          const startTime = Date.now() + animation.delay;
+          const duration = animation.duration;
+          const points = animation.pathPoints;
+          
+          // 缓动函数
+          const easingFunctions = {
+            linear: (t: number) => t,
+            ease: (t: number) => t * t * (3 - 2 * t),
+            easeIn: (t: number) => t * t,
+            easeOut: (t: number) => t * (2 - t),
+            easeInOut: (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+          };
+          const easingFn = easingFunctions[animation.easing] || easingFunctions.linear;
+          
+          // 计算路径上某点的位置（线性插值）
+          const getPointOnPath = (progress: number): { x: number; y: number } => {
+            if (points.length === 0) return { x: pathElement.x, y: pathElement.y };
+            if (points.length === 1) return { x: points[0].x, y: points[0].y };
+            
+            // 计算总路径长度
+            let totalLength = 0;
+            const segments: { length: number; start: PathPoint; end: PathPoint }[] = [];
+            for (let i = 0; i < points.length - 1; i++) {
+              const dx = points[i + 1].x - points[i].x;
+              const dy = points[i + 1].y - points[i].y;
+              const length = Math.sqrt(dx * dx + dy * dy);
+              segments.push({ length, start: points[i], end: points[i + 1] });
+              totalLength += length;
+            }
+            
+            if (totalLength === 0) return { x: points[0].x, y: points[0].y };
+            
+            // 找到当前进度对应的线段
+            const targetLength = progress * totalLength;
+            let currentLength = 0;
+            
+            for (const segment of segments) {
+              if (currentLength + segment.length >= targetLength) {
+                const segmentProgress = (targetLength - currentLength) / segment.length;
+                return {
+                  x: segment.start.x + (segment.end.x - segment.start.x) * segmentProgress,
+                  y: segment.start.y + (segment.end.y - segment.start.y) * segmentProgress,
+                };
+              }
+              currentLength += segment.length;
+            }
+            
+            return { x: points[points.length - 1].x, y: points[points.length - 1].y };
+          };
+          
+          let animationFrame: number;
+          let direction = 1; // 1 正向，-1 反向（用于往返模式）
+          let iterations = 0;
+          const maxIterations = animation.loopCount ?? (animation.loopMode === 'none' ? 1 : -1);
+          
+          const animate = () => {
+            const elapsed = Date.now() - startTime;
+            
+            if (elapsed < 0) {
+              animationFrame = requestAnimationFrame(animate);
+              return;
+            }
+            
+            let progress = elapsed / duration;
+            
+            // 处理循环模式
+            if (animation.loopMode === 'none') {
+              if (progress >= 1) {
+                progress = 1;
+                // 动画结束，设置到终点
+                const finalPoint = points[points.length - 1];
+                if (context.setScenes) {
+                  context.setScenes(prev => prev.map(scene => ({
+                    ...scene,
+                    elements: scene.elements.map(el => 
+                      el.id === pathElement.id ? { ...el, x: finalPoint.x, y: finalPoint.y } : el
+                    )
+                  })));
+                }
+                return;
+              }
+            } else if (animation.loopMode === 'loop') {
+              progress = progress % 1;
+              if (maxIterations > 0 && Math.floor(elapsed / duration) >= maxIterations) {
+                return;
+              }
+            } else if (animation.loopMode === 'alternate') {
+              const cycle = Math.floor(progress);
+              progress = progress % 1;
+              if (cycle % 2 === 1) {
+                progress = 1 - progress; // 反向
+              }
+              if (maxIterations > 0 && cycle >= maxIterations) {
+                return;
+              }
+            }
+            
+            // 应用缓动
+            const easedProgress = easingFn(progress);
+            
+            // 计算当前位置
+            const pos = getPointOnPath(easedProgress);
+            
+            // 更新元素位置
+            if (context.setScenes) {
+              context.setScenes(prev => prev.map(scene => ({
+                ...scene,
+                elements: scene.elements.map(el => 
+                  el.id === pathElement.id ? { ...el, x: pos.x, y: pos.y } : el
+                )
+              })));
+            }
+            
+            animationFrame = requestAnimationFrame(animate);
+          };
+          
+          animationFrame = requestAnimationFrame(animate);
         }
         break;
       default:

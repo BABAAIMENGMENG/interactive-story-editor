@@ -99,6 +99,8 @@ import {
   Share2,
   Copy as CopyIcon,
   Check as CheckIcon,
+  Route,
+  Edit3,
 } from 'lucide-react';
 import EditorPanoramaViewer from '@/components/panorama/EditorPanoramaViewer';
 import TransparentVideo from '@/components/ui/transparent-video';
@@ -327,7 +329,8 @@ type EventActionType =
   | 'addHealth'      // 加血
   | 'reduceHealth'   // 减血
   | 'setHealth'      // 设置血量
-  | 'checkAnswer';   // 检查答案
+  | 'checkAnswer'    // 检查答案
+  | 'startPathAnimation'; // 执行路径动画
 
 // 事件动作
 interface EventAction {
@@ -359,6 +362,8 @@ interface EventAction {
   isCorrectAnswer?: boolean;  // 是否是正确答案
   successSceneId?: string;    // 答对跳转场景
   failSceneId?: string;       // 答错跳转场景
+  // 路径动画参数
+  pathAnimationId?: string;   // 路径动画ID
 }
 
 // 元素事件
@@ -373,6 +378,29 @@ interface VideoTimeTrigger {
   time: number;         // 触发时间（秒）
   actions: EventAction[]; // 触发的动作列表
   description?: string; // 触发器描述
+}
+
+// 路径点
+interface PathPoint {
+  id: string;           // 路径点唯一ID
+  x: number;            // X坐标
+  y: number;            // Y坐标
+  // 贝塞尔曲线控制点（用于平滑曲线）
+  controlIn?: { x: number; y: number };   // 入方向控制点（相对于路径点）
+  controlOut?: { x: number; y: number };  // 出方向控制点（相对于路径点）
+}
+
+// 路径动画
+interface PathAnimation {
+  id: string;           // 动画唯一ID
+  name: string;         // 动画名称
+  pathPoints: PathPoint[]; // 路径点列表
+  duration: number;     // 动画持续时间(ms)
+  easing: 'linear' | 'ease' | 'easeIn' | 'easeOut' | 'easeInOut';
+  loopMode: 'none' | 'loop' | 'alternate'; // 循环模式：无循环、循环、往返
+  loopCount?: number;   // 循环次数（-1为无限循环）
+  autoPlay: boolean;    // 是否自动播放
+  delay: number;        // 动画延迟(ms)
 }
 
 // 画布元素
@@ -493,6 +521,8 @@ interface CanvasElement {
   // 选择项事件动作
   correctActions?: EventAction[]; // 答对时触发的动作序列
   wrongActions?: EventAction[];   // 答错时触发的动作序列
+  // 路径动画
+  pathAnimations?: PathAnimation[]; // 元素的路径动画列表
   // children 通过计算得出，不需要存储
 }
 
@@ -736,6 +766,7 @@ export default function EditorPage() {
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [showMediaDialog, setShowMediaDialog] = useState(false);
   const [showChoiceActionDialog, setShowChoiceActionDialog] = useState<{ type: 'correct' | 'wrong'; elementId: string } | null>(null);
+  const [showPathAnimationEditor, setShowPathAnimationEditor] = useState<{ animationId: string; elementId: string } | null>(null);
   const [newSceneName, setNewSceneName] = useState('');
   const [mediaType, setMediaType] = useState<'image' | 'video' | 'panorama' | 'panoramaVideo' | 'audio'>('image');
   const [mediaUrl, setMediaUrl] = useState('');
@@ -2017,6 +2048,7 @@ export default function EditorPage() {
       reduceHealth: '减血',
       setHealth: '设置血量',
       checkAnswer: '检查答案',
+      startPathAnimation: '路径动画',
     };
     return labels[type] || type;
   };
@@ -7360,6 +7392,115 @@ export default function EditorPage() {
                             )}
                           </div>
                         )}
+
+                        {/* 路径动画 */}
+                        <div className="mt-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-white flex items-center gap-2">
+                              <Route className="w-4 h-4" />
+                              路径动画
+                            </Label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs text-zinc-300 hover:text-white"
+                              onClick={() => {
+                                const newAnimation: PathAnimation = {
+                                  id: `path-${Date.now()}`,
+                                  name: `动画${(displayElement.pathAnimations?.length || 0) + 1}`,
+                                  pathPoints: [
+                                    { id: `pt-${Date.now()}-0`, x: displayElement.x, y: displayElement.y },
+                                    { id: `pt-${Date.now()}-1`, x: displayElement.x + 100, y: displayElement.y },
+                                  ],
+                                  duration: 2000,
+                                  easing: 'easeInOut',
+                                  loopMode: 'none',
+                                  autoPlay: false,
+                                  delay: 0,
+                                };
+                                updateElement({ 
+                                  pathAnimations: [...(displayElement.pathAnimations || []), newAnimation] 
+                                });
+                              }}
+                            >
+                              <Plus className="w-3 h-3 mr-1" />
+                              添加
+                            </Button>
+                          </div>
+
+                          {/* 路径动画列表 */}
+                          {displayElement.pathAnimations && displayElement.pathAnimations.length > 0 && (
+                            <div className="space-y-2">
+                              {displayElement.pathAnimations.map((animation, index) => (
+                                <div key={animation.id} className="bg-zinc-800/50 rounded-lg p-3 border border-zinc-700">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <Input
+                                      value={animation.name}
+                                      onChange={(e) => {
+                                        const newAnimations = [...(displayElement.pathAnimations || [])];
+                                        newAnimations[index] = { ...animation, name: e.target.value };
+                                        updateElement({ pathAnimations: newAnimations });
+                                      }}
+                                      className="h-6 w-24 bg-zinc-700 border-zinc-600 text-xs text-white"
+                                    />
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 text-zinc-400 hover:text-white"
+                                        onClick={() => setShowPathAnimationEditor({ animationId: animation.id, elementId: displayElement.id })}
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 text-zinc-400 hover:text-red-400"
+                                        onClick={() => {
+                                          const newAnimations = (displayElement.pathAnimations || []).filter((_, i) => i !== index);
+                                          updateElement({ pathAnimations: newAnimations });
+                                        }}
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  {/* 路径点预览 */}
+                                  <div className="text-xs text-zinc-400 mb-2">
+                                    路径点: {animation.pathPoints.length} 个
+                                  </div>
+
+                                  {/* 动画参数 */}
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div>
+                                      <span className="text-zinc-400">时长: </span>
+                                      <span className="text-zinc-300">{animation.duration}ms</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-zinc-400">缓动: </span>
+                                      <span className="text-zinc-300">{animation.easing}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-zinc-400">循环: </span>
+                                      <span className="text-zinc-300">
+                                        {animation.loopMode === 'none' ? '无' : animation.loopMode === 'loop' ? '循环' : '往返'}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-zinc-400">自动播放: </span>
+                                      <span className="text-zinc-300">{animation.autoPlay ? '是' : '否'}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {(!displayElement.pathAnimations || displayElement.pathAnimations.length === 0) && (
+                            <p className="text-xs text-zinc-500">创建路径动画让元素沿路径移动</p>
+                          )}
+                        </div>
                       </>
                     )}
                   </div>
@@ -7940,6 +8081,223 @@ export default function EditorPage() {
           <DialogFooter>
             <Button onClick={() => setShowChoiceActionDialog(null)} className="bg-purple-600">
               完成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 路径动画编辑器弹窗 */}
+      <Dialog open={!!showPathAnimationEditor} onOpenChange={(open) => !open && setShowPathAnimationEditor(null)}>
+        <DialogContent className="bg-zinc-800 border-zinc-600 max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Route className="w-5 h-5" />
+              路径动画编辑器
+            </DialogTitle>
+          </DialogHeader>
+          
+          {showPathAnimationEditor && (() => {
+            const animation = displayElement?.pathAnimations?.find(a => a.id === showPathAnimationEditor.animationId);
+            if (!animation) return null;
+            
+            const animIndex = displayElement?.pathAnimations?.findIndex(a => a.id === showPathAnimationEditor.animationId) ?? -1;
+            
+            return (
+              <div className="flex-1 overflow-auto space-y-4">
+                {/* 基本信息 */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-white">动画名称</Label>
+                    <Input
+                      value={animation.name}
+                      onChange={(e) => {
+                        const newAnimations = [...(displayElement?.pathAnimations || [])];
+                        newAnimations[animIndex] = { ...animation, name: e.target.value };
+                        updateElement({ pathAnimations: newAnimations });
+                      }}
+                      className="h-8 bg-zinc-700 border-zinc-600 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-white">持续时间 (ms)</Label>
+                    <Input
+                      type="number"
+                      value={animation.duration}
+                      onChange={(e) => {
+                        const newAnimations = [...(displayElement?.pathAnimations || [])];
+                        newAnimations[animIndex] = { ...animation, duration: parseInt(e.target.value) || 1000 };
+                        updateElement({ pathAnimations: newAnimations });
+                      }}
+                      className="h-8 bg-zinc-700 border-zinc-600 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-white">缓动函数</Label>
+                    <Select
+                      value={animation.easing}
+                      onValueChange={(v) => {
+                        const newAnimations = [...(displayElement?.pathAnimations || [])];
+                        newAnimations[animIndex] = { ...animation, easing: v as any };
+                        updateElement({ pathAnimations: newAnimations });
+                      }}
+                    >
+                      <SelectTrigger className="h-8 bg-zinc-700 border-zinc-600 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-zinc-800 border-zinc-600">
+                        <SelectItem value="linear">线性</SelectItem>
+                        <SelectItem value="ease">缓动</SelectItem>
+                        <SelectItem value="easeIn">缓入</SelectItem>
+                        <SelectItem value="easeOut">缓出</SelectItem>
+                        <SelectItem value="easeInOut">缓入缓出</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-white">循环模式</Label>
+                    <Select
+                      value={animation.loopMode}
+                      onValueChange={(v) => {
+                        const newAnimations = [...(displayElement?.pathAnimations || [])];
+                        newAnimations[animIndex] = { ...animation, loopMode: v as any };
+                        updateElement({ pathAnimations: newAnimations });
+                      }}
+                    >
+                      <SelectTrigger className="h-8 bg-zinc-700 border-zinc-600 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-zinc-800 border-zinc-600">
+                        <SelectItem value="none">不循环</SelectItem>
+                        <SelectItem value="loop">循环</SelectItem>
+                        <SelectItem value="alternate">往返</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-white">延迟 (ms)</Label>
+                    <Input
+                      type="number"
+                      value={animation.delay}
+                      onChange={(e) => {
+                        const newAnimations = [...(displayElement?.pathAnimations || [])];
+                        newAnimations[animIndex] = { ...animation, delay: parseInt(e.target.value) || 0 };
+                        updateElement({ pathAnimations: newAnimations });
+                      }}
+                      className="h-8 bg-zinc-700 border-zinc-600 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-white">自动播放</Label>
+                  <Switch
+                    checked={animation.autoPlay}
+                    onCheckedChange={(v) => {
+                      const newAnimations = [...(displayElement?.pathAnimations || [])];
+                      newAnimations[animIndex] = { ...animation, autoPlay: v };
+                      updateElement({ pathAnimations: newAnimations });
+                    }}
+                  />
+                </div>
+
+                <Separator className="bg-zinc-700" />
+
+                {/* 路径点列表 */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-white">路径点</Label>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs border-zinc-600 text-zinc-300 hover:bg-zinc-700"
+                      onClick={() => {
+                        const lastPoint = animation.pathPoints[animation.pathPoints.length - 1];
+                        const newPoint: PathPoint = {
+                          id: `pt-${Date.now()}`,
+                          x: lastPoint ? lastPoint.x + 50 : displayElement?.x || 0,
+                          y: lastPoint ? lastPoint.y : displayElement?.y || 0,
+                        };
+                        const newAnimations = [...(displayElement?.pathAnimations || [])];
+                        newAnimations[animIndex] = { 
+                          ...animation, 
+                          pathPoints: [...animation.pathPoints, newPoint] 
+                        };
+                        updateElement({ pathAnimations: newAnimations });
+                      }}
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      添加路径点
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2 max-h-60 overflow-auto">
+                    {animation.pathPoints.map((point, pointIndex) => (
+                      <div key={point.id} className="flex items-center gap-2 p-2 bg-zinc-700/50 rounded">
+                        <span className="text-xs text-zinc-400 w-6">{pointIndex + 1}</span>
+                        <div className="flex-1 grid grid-cols-2 gap-2">
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-zinc-400">X:</span>
+                            <Input
+                              type="number"
+                              value={Math.round(point.x)}
+                              onChange={(e) => {
+                                const newPoints = [...animation.pathPoints];
+                                newPoints[pointIndex] = { ...point, x: parseInt(e.target.value) || 0 };
+                                const newAnimations = [...(displayElement?.pathAnimations || [])];
+                                newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
+                                updateElement({ pathAnimations: newAnimations });
+                              }}
+                              className="h-7 bg-zinc-600 border-zinc-500 text-xs text-white"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-zinc-400">Y:</span>
+                            <Input
+                              type="number"
+                              value={Math.round(point.y)}
+                              onChange={(e) => {
+                                const newPoints = [...animation.pathPoints];
+                                newPoints[pointIndex] = { ...point, y: parseInt(e.target.value) || 0 };
+                                const newAnimations = [...(displayElement?.pathAnimations || [])];
+                                newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
+                                updateElement({ pathAnimations: newAnimations });
+                              }}
+                              className="h-7 bg-zinc-600 border-zinc-500 text-xs text-white"
+                            />
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-zinc-400 hover:text-red-400"
+                          disabled={animation.pathPoints.length <= 2}
+                          onClick={() => {
+                            const newPoints = animation.pathPoints.filter((_, i) => i !== pointIndex);
+                            const newAnimations = [...(displayElement?.pathAnimations || [])];
+                            newAnimations[animIndex] = { ...animation, pathPoints: newPoints };
+                            updateElement({ pathAnimations: newAnimations });
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowPathAnimationEditor(null)}
+              className="border-zinc-600 text-zinc-300 hover:bg-zinc-700"
+            >
+              关闭
             </Button>
           </DialogFooter>
         </DialogContent>
