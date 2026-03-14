@@ -2108,11 +2108,6 @@ export default function EditorPage() {
       currentDragStart = { x: e.clientX - offset.x, y: e.clientY - offset.y };
     }
     
-    // 同步更新状态
-    setDragType(currentDragType);
-    setDragStart(currentDragStart);
-    setIsDragging(true);
-    
     // 将事件绑定到 document，确保鼠标离开元素也能捕获
     const handleDocMouseMove = (moveEvent: MouseEvent) => {
       if (currentDragType === 'canvas') {
@@ -2133,10 +2128,30 @@ export default function EditorPage() {
           // 获取所有子元素ID
           const childIds = getAllChildren(currentElementId, currentScene!.elements).map(e => e.id);
           
-          // 更新元素位置，同时移动所有子元素
+          // 更新元素位置，同时移动所有子元素和路径第一个点
           updateScenes(currentSceneId, currentScene!.elements.map(el => {
             if (el.id === currentElementId) {
-              return { ...el, x: newX, y: newY };
+              const updatedElement = { ...el, x: newX, y: newY };
+              
+              // 如果元素有路径，同步更新路径的第一个点（跟随元素中心）
+              if (updatedElement.path?.points && updatedElement.path.points.length > 0) {
+                const newCenterX = updatedElement.x + updatedElement.width / 2;
+                const newCenterY = updatedElement.y + updatedElement.height / 2;
+                
+                const newPoints = [...updatedElement.path.points];
+                newPoints[0] = {
+                  ...newPoints[0],
+                  x: newCenterX,
+                  y: newCenterY,
+                };
+                
+                updatedElement.path = {
+                  ...updatedElement.path,
+                  points: newPoints,
+                };
+              }
+              
+              return updatedElement;
             }
             // 如果是子元素，同步移动
             if (childIds.includes(el.id)) {
@@ -2241,15 +2256,37 @@ export default function EditorPage() {
           break;
       }
       
-      updateScenes(currentSceneId, currentScene!.elements.map(el => 
-        el.id === resizeState.elementId ? {
+      updateScenes(currentSceneId, currentScene!.elements.map(el => {
+        if (el.id !== resizeState.elementId) return el;
+        
+        const updatedElement = {
           ...el,
           width: Math.round(newWidth),
           height: Math.round(newHeight),
           x: Math.round(newX),
           y: Math.round(newY),
-        } : el
-      ));
+        };
+        
+        // 如果元素有路径，同步更新路径的第一个点（跟随元素中心）
+        if (updatedElement.path?.points && updatedElement.path.points.length > 0) {
+          const newCenterX = updatedElement.x + updatedElement.width / 2;
+          const newCenterY = updatedElement.y + updatedElement.height / 2;
+          
+          const newPoints = [...updatedElement.path.points];
+          newPoints[0] = {
+            ...newPoints[0],
+            x: newCenterX,
+            y: newCenterY,
+          };
+          
+          updatedElement.path = {
+            ...updatedElement.path,
+            points: newPoints,
+          };
+        }
+        
+        return updatedElement;
+      }));
     };
     
     const handleDocMouseUp = () => {
