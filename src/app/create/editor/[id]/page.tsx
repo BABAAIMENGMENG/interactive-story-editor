@@ -1010,8 +1010,34 @@ export default function EditorPage() {
     const deltaX = updates.x !== undefined && oldElement ? updates.x - oldElement.x : 0;
     const deltaY = updates.y !== undefined && oldElement ? updates.y - oldElement.y : 0;
     
-    // 如果元素位置改变，同步移动所有子元素
-    let newElements = currentScene.elements.map((e) => (e.id === selectedId ? { ...e, ...updates } : e));
+    // 如果元素位置改变，同步移动所有子元素和路径点
+    let newElements = currentScene.elements.map((e) => {
+      if (e.id === selectedId) {
+        const updatedElement = { ...e, ...updates };
+        
+        // 如果位置改变且元素有路径，同步更新路径的第一个点
+        if ((deltaX !== 0 || deltaY !== 0) && updatedElement.path?.points && updatedElement.path.points.length > 0) {
+          const newCenterX = updatedElement.x + updatedElement.width / 2;
+          const newCenterY = updatedElement.y + updatedElement.height / 2;
+          
+          // 第一个点跟随元素中心
+          const newPoints = [...updatedElement.path.points];
+          newPoints[0] = {
+            ...newPoints[0],
+            x: newCenterX,
+            y: newCenterY,
+          };
+          
+          updatedElement.path = {
+            ...updatedElement.path,
+            points: newPoints,
+          };
+        }
+        
+        return updatedElement;
+      }
+      return e;
+    });
     
     if (deltaX !== 0 || deltaY !== 0) {
       const childIds = getAllChildren(selectedId, currentScene.elements).map(e => e.id);
