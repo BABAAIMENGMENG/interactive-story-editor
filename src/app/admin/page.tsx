@@ -83,27 +83,45 @@ export default function AdminOverviewPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // 获取基础统计
-    setStats({
-      totalWorks: 128,
-      pendingWorks: 5,
-      totalViews: 45623,
-      totalLikes: 3421,
-      totalUsers: 892,
-      todayViews: 1234,
-    });
-
-    // 获取欢乐豆统计
+    // 从 API 获取统计数据
+    fetchStats();
     fetchBeansStats();
-
-    setRecentWorks([
-      { id: '1', name: '迷失的时空', author: '创作者A', status: 'pending', viewCount: 0, likeCount: 0, createdAt: '2024-01-15T10:00:00Z' },
-      { id: '2', name: '星河恋曲', author: '创作者B', status: 'approved', viewCount: 2156, likeCount: 256, createdAt: '2024-01-14T08:00:00Z' },
-      { id: '3', name: '深海迷踪', author: '创作者A', status: 'pending', viewCount: 0, likeCount: 0, createdAt: '2024-01-13T12:00:00Z' },
-      { id: '4', name: '魔法学院', author: '创作者C', status: 'approved', viewCount: 3421, likeCount: 412, createdAt: '2024-01-12T15:00:00Z' },
-    ]);
-    setIsLoading(false);
   }, []);
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch('/api/admin/stats');
+      const data = await res.json();
+      if (data.success) {
+        setStats(data.stats);
+        setRecentWorks(data.recentWorks || []);
+      } else {
+        // 如果失败，显示空数据
+        setStats({
+          totalWorks: 0,
+          pendingWorks: 0,
+          totalViews: 0,
+          totalLikes: 0,
+          totalUsers: 0,
+          todayViews: 0,
+        });
+        setRecentWorks([]);
+      }
+    } catch (error) {
+      console.error('获取统计数据失败:', error);
+      setStats({
+        totalWorks: 0,
+        pendingWorks: 0,
+        totalViews: 0,
+        totalLikes: 0,
+        totalUsers: 0,
+        todayViews: 0,
+      });
+      setRecentWorks([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchBeansStats = async () => {
     try {
