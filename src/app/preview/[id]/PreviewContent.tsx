@@ -281,8 +281,6 @@ interface Element {
   lowHealthThreshold?: number;
   lowHealthColor?: string;
   showHealthText?: boolean;
-  showColorPicker?: boolean;
-  colorOptions?: string[];
   // 选择项属性
   isCorrectChoice?: boolean;
   correctFeedback?: string;
@@ -600,8 +598,6 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('互动体验');
-  // 血条颜色状态（玩家选择的颜色）
-  const [healthBarColors, setHealthBarColors] = useState<Record<string, string>>({});
   
   const sceneContainerRef = useRef<HTMLDivElement>(null);
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
@@ -902,12 +898,9 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
         );
 
       case 'healthBar':
-        // 获取当前血条颜色（玩家选择的或默认的）
-        const currentBarColor = healthBarColors[element.id] || element.healthBarColor || '#22C55E';
         const healthPercent = ((element.healthValue || 100) / (element.maxHealth || 100)) * 100;
         const isLowHealth = healthPercent <= (element.lowHealthThreshold || 30);
-        const barColor = isLowHealth ? (element.lowHealthColor || '#EF4444') : currentBarColor;
-        const colorOptions = element.colorOptions || ['#22C55E', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+        const barColor = isLowHealth ? (element.lowHealthColor || '#EF4444') : (element.healthBarColor || '#22C55E');
         
         return (
           <div
@@ -961,47 +954,6 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
               >
                 {element.healthValue || 100}/{element.maxHealth || 100}
               </span>
-            )}
-            
-            {/* 颜色选择器 */}
-            {element.showColorPicker && (
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '4px',
-                  height: '16px',
-                  justifyContent: 'center',
-                  position: 'absolute',
-                  bottom: '-20px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                }}
-              >
-                {colorOptions.map((color, index) => (
-                  <button
-                    key={index}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setHealthBarColors(prev => ({ ...prev, [element.id]: color }));
-                    }}
-                    style={{
-                      width: '16px',
-                      height: '16px',
-                      borderRadius: '4px',
-                      backgroundColor: color,
-                      border: currentBarColor === color ? '2px solid white' : '2px solid transparent',
-                      cursor: 'pointer',
-                      transition: 'transform 0.2s, border-color 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'scale(1.1)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'scale(1)';
-                    }}
-                  />
-                ))}
-              </div>
             )}
           </div>
         );

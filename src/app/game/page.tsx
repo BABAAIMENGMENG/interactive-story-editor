@@ -154,8 +154,6 @@ interface CanvasElement {
   lowHealthThreshold?: number;
   lowHealthColor?: string;
   showHealthText?: boolean;
-  showColorPicker?: boolean;
-  colorOptions?: string[];
   // 选择项属性
   isCorrectChoice?: boolean;
   correctFeedback?: string;
