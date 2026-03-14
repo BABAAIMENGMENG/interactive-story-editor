@@ -3460,6 +3460,8 @@ export default function EditorPage() {
           // 使用对象存储的 URL
           const url = result.url;
           
+          console.log('[文件上传] 上传成功, URL:', url);
+          
           const resource: MediaResource = {
             id: genId(),
             name: file.name,
@@ -3469,14 +3471,42 @@ export default function EditorPage() {
           };
 
           setMediaResources(prev => [...prev, resource]);
+          console.log('[文件上传] 已添加到资源列表:', resource);
           
           // 如果当前选中的元素是图片或视频控件，自动更新其src属性
+          let appliedToElement = false;
           if (selectedElement) {
+            console.log('[文件上传] 当前选中元素:', selectedElement.type, '上传类型:', type);
             if (type === 'image' && selectedElement.type === 'image') {
+              console.log('[文件上传] 更新图片元素 src');
               updateElement({ src: url, name: file.name });
+              appliedToElement = true;
             } else if (type === 'video' && selectedElement.type === 'video') {
+              console.log('[文件上传] 更新视频元素 src');
               updateElement({ src: url, name: file.name });
+              appliedToElement = true;
             } else if (type === 'panorama' && currentScene) {
+              console.log('[文件上传] 更新全景图');
+              setScenes(scenes.map(s => 
+                s.id === currentSceneId ? { ...s, panoramaImage: url } : s
+              ));
+              appliedToElement = true;
+            } else if (type === 'panoramaVideo' && currentScene) {
+              console.log('[文件上传] 更新全景视频');
+              setScenes(scenes.map(s => 
+                s.id === currentSceneId ? { ...s, panoramaVideo: url } : s
+              ));
+              appliedToElement = true;
+            }
+          }
+          
+          // 如果没有选中匹配的元素，自动将资源添加到画布上
+          if (!appliedToElement && (type === 'image' || type === 'video' || type === 'audio')) {
+            console.log('[文件上传] 自动添加资源到画布');
+            addMediaToCanvas(resource);
+          } else if (!appliedToElement && !selectedElement) {
+            // 没有选中元素，处理全景资源
+            if (type === 'panorama' && currentScene) {
               setScenes(scenes.map(s => 
                 s.id === currentSceneId ? { ...s, panoramaImage: url } : s
               ));
@@ -3485,20 +3515,13 @@ export default function EditorPage() {
                 s.id === currentSceneId ? { ...s, panoramaVideo: url } : s
               ));
             }
-          } else if (type === 'panorama' && currentScene) {
-            setScenes(scenes.map(s => 
-              s.id === currentSceneId ? { ...s, panoramaImage: url } : s
-            ));
-          } else if (type === 'panoramaVideo' && currentScene) {
-            setScenes(scenes.map(s => 
-              s.id === currentSceneId ? { ...s, panoramaVideo: url } : s
-            ));
           }
           
           // 上传成功，释放本地 URL
           URL.revokeObjectURL(localUrl);
         } else {
-          throw new Error(result.error || '上传失败');
+          console.error('[文件上传] 上传响应异常:', result);
+          throw new Error(result.error || '上传失败，未返回URL');
         }
       } catch (error) {
         console.error('上传文件失败:', error);
