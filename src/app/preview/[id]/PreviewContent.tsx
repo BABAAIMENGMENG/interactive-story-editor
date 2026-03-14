@@ -915,18 +915,20 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
             id={`element-${element.id}`}
             style={{
               ...style,
+              backgroundColor: 'transparent', // 血条背景由内部元素控制
               display: 'flex',
-              flexDirection: 'column',
+              alignItems: 'center',
               gap: '4px',
+              padding: '0 4px',
             }}
             onClick={handleClick}
             onMouseEnter={handleMouseEnter}
           >
-            {/* 血条主体 */}
-            <div
+            {/* 血条背景层 */}
+            <div 
               style={{
-                width: '100%',
-                height: element.showColorPicker ? 'calc(100% - 20px)' : '100%',
+                flex: 1,
+                height: '100%',
                 backgroundColor: element.healthBarBgColor || '#374151',
                 borderRadius: style.borderRadius || 4,
                 overflow: 'hidden',
@@ -942,24 +944,24 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
                   transition: 'width 0.3s ease, background-color 0.3s ease',
                 }}
               />
-              {/* 血量文字 */}
-              {element.showHealthText !== false && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    color: element.color || '#FFFFFF',
-                    fontSize: `${element.fontSize || 12}px`,
-                    fontWeight: element.fontWeight || 'bold',
-                    textShadow: '0 1px 2px rgba(0,0,0,0.5)',
-                  }}
-                >
-                  {element.healthValue || 100}/{element.maxHealth || 100}
-                </span>
-              )}
             </div>
+            
+            {/* 血量文字 */}
+            {element.showHealthText !== false && (
+              <span
+                style={{
+                  color: element.color || '#FFFFFF',
+                  fontSize: `${element.fontSize || 12}px`,
+                  fontWeight: element.fontWeight || 'bold',
+                  minWidth: '40px',
+                  textAlign: 'right',
+                  textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+                  flexShrink: 0,
+                }}
+              >
+                {element.healthValue || 100}/{element.maxHealth || 100}
+              </span>
+            )}
             
             {/* 颜色选择器 */}
             {element.showColorPicker && (
@@ -969,6 +971,10 @@ export default function PreviewContent({ params }: { params: Promise<{ id: strin
                   gap: '4px',
                   height: '16px',
                   justifyContent: 'center',
+                  position: 'absolute',
+                  bottom: '-20px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
                 }}
               >
                 {colorOptions.map((color, index) => (
