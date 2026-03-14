@@ -4084,7 +4084,7 @@ export default function EditorPage() {
               minHeight: componentsCollapsed ? 'auto' : '150px'
             }}
           >
-            <ScrollArea className="h-full">
+            <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-zinc-800 hover:scrollbar-thumb-zinc-500">
             {/* 组件库 */}
             {activeTab === 'elements' && (
               <div className="p-2">
@@ -4467,7 +4467,7 @@ export default function EditorPage() {
                 )}
               </div>
             )}
-          </ScrollArea>
+          </div>
           </div>
           
           {/* 可拖拽调整高度的分隔条 */}
