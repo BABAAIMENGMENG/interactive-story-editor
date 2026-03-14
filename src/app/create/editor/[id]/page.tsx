@@ -5820,6 +5820,7 @@ export default function EditorPage() {
                                     <Heart className="w-3.5 h-3.5" />
                                     血量设置
                                   </Label>
+                                  <p className="text-xs text-zinc-500">提示：当血量不满时，背景颜色会显示在血条损失部分</p>
                                   <div className="grid grid-cols-2 gap-2">
                                     <div>
                                       <Label className="text-xs text-zinc-400 mb-1 block">当前血量</Label>
