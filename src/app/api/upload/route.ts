@@ -40,20 +40,9 @@ export async function POST(request: NextRequest) {
     const ext = file.name.split('.').pop() || 'jpg';
     const fileName = `uploads/${timestamp}_${Math.random().toString(36).substring(7)}.${ext}`;
 
-    // 确保存储桶存在
-    const { data: buckets } = await supabase.storage.listBuckets();
-    const bucketExists = buckets?.some(b => b.name === 'public');
-    
-    if (!bucketExists) {
-      // 创建公共存储桶
-      await supabase.storage.createBucket('public', {
-        public: true,
-      });
-    }
-
-    // 上传到 Supabase Storage
+    // 上传到 Supabase Storage (使用 media 存储桶)
     const { data, error } = await supabase.storage
-      .from('public')
+      .from('media')
       .upload(fileName, fileBuffer, {
         contentType: file.type,
         upsert: true,
@@ -69,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     // 获取公开 URL
     const { data: urlData } = supabase.storage
-      .from('public')
+      .from('media')
       .getPublicUrl(data.path);
 
     return NextResponse.json({
