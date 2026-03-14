@@ -565,12 +565,48 @@ const executeActions = async (
         break;
       case 'seekTo':
         // 跳转播放位置（value 为帧数，需转换为秒）
-        const seekMediaEl = context.sceneContainerRef.current?.querySelector(
-          `#element-${config.targetElementId || config.elementId} video`
+        console.log('seekTo 动作执行:', {
+          targetElementId: config.targetElementId,
+          elementId: config.elementId,
+          value: config.value,
+          fullConfig: config,
+          sceneContainerRef: context.sceneContainerRef.current ? 'exists' : 'null'
+        });
+        
+        // 尝试多种选择器
+        let seekMediaEl = context.sceneContainerRef.current?.querySelector(
+          `#element-${config.targetElementId} video`
         ) as HTMLMediaElement;
+        
+        if (!seekMediaEl) {
+          seekMediaEl = context.sceneContainerRef.current?.querySelector(
+            `#element-${config.targetElementId}`
+          ) as HTMLMediaElement;
+        }
+        
+        if (!seekMediaEl) {
+          // 直接在 document 中查找
+          seekMediaEl = document.querySelector(
+            `#element-${config.targetElementId} video`
+          ) as HTMLMediaElement;
+        }
+        
+        if (!seekMediaEl) {
+          seekMediaEl = document.getElementById(`element-${config.targetElementId}`) as HTMLMediaElement;
+        }
+        
+        console.log('seekTo 查找视频元素:', seekMediaEl ? 'found' : 'not found', 'tagName:', seekMediaEl?.tagName);
+        
         if (seekMediaEl && config.value !== undefined) {
           const FPS = 30;
-          seekMediaEl.currentTime = config.value / FPS;
+          const seekTime = config.value / FPS;
+          console.log('seekTo 设置时间:', seekTime, '秒 (帧数:', config.value, ')');
+          seekMediaEl.currentTime = seekTime;
+        } else if (!seekMediaEl) {
+          console.error('seekTo 未找到视频元素，targetElementId:', config.targetElementId);
+          // 打印所有视频元素
+          const allVideos = context.sceneContainerRef.current?.querySelectorAll('video');
+          console.log('场景中所有视频元素:', allVideos?.length, allVideos);
         }
         break;
       case 'stopMedia':
