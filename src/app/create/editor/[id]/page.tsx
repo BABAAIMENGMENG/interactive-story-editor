@@ -689,7 +689,7 @@ const defaultElement = {
   loop: false,
   muted: true, // 默认静音（浏览器限制：非静音视频不能自动播放）
   controls: true, // 默认显示控制条，方便用户手动播放
-  playOnVisible: false, // 默认不自动播放（浏览器策略：有声音的视频不能自动播放）
+  playOnVisible: true, // 默认自动播放（已静音，符合浏览器策略）
   pauseOnHidden: true,
   draggable: false,
   clickAudio: '', // 点击音效URL

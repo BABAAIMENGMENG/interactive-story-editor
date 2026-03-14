@@ -400,12 +400,36 @@ export function GameViewer({
                 <video
                   src={element.src}
                   className="w-full h-full"
-                  style={{ objectFit: element.objectFit || 'contain' }}
+                  style={{ 
+                    objectFit: element.objectFit || 'contain',
+                    backgroundColor: 'transparent',
+                  }}
                   loop={element.loop ?? false}
                   muted={element.muted ?? true}
                   autoPlay
                   playsInline
                   controls={element.controls ?? true}
+                  onLoadedData={(e) => {
+                    const video = e.currentTarget;
+                    console.log('[GameViewer] 视频加载成功:', {
+                      src: element.src?.substring(0, 50),
+                      elementWidth: element.width,
+                      elementHeight: element.height,
+                      videoWidth: video.videoWidth,
+                      videoHeight: video.videoHeight,
+                      paused: video.paused,
+                      readyState: video.readyState,
+                    });
+                    // 尝试手动播放
+                    if (video.paused) {
+                      video.play().catch(err => {
+                        console.log('[GameViewer] 自动播放失败:', err.message);
+                      });
+                    }
+                  }}
+                  onError={(e) => {
+                    console.error('[GameViewer] 视频加载失败:', element.src?.substring(0, 50));
+                  }}
                 />
               )}
 
