@@ -820,6 +820,7 @@ export default function EditorPage() {
   const [beansPrice, setBeansPrice] = useState(0);
   const [projectCategory, setProjectCategory] = useState('other');
   const [projectDescription, setProjectDescription] = useState('');
+  const [coverImage, setCoverImage] = useState<string>('');
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   
   // 分类列表（从API动态获取）
@@ -1649,6 +1650,7 @@ export default function EditorPage() {
           beansPrice: beansPrice,
           category: projectCategory,
           description: projectDescription,
+          coverImage: coverImage,
           projectData: {
             scenes,
             mediaResources,
@@ -1674,7 +1676,7 @@ export default function EditorPage() {
     } finally {
       setIsSharing(false);
     }
-  }, [projectId, scenes, mediaResources, saveProject, beansPrice, projectCategory, projectDescription]);
+  }, [projectId, scenes, mediaResources, saveProject, beansPrice, projectCategory, projectDescription, coverImage]);
 
   // 复制分享链接
   const copyShareLink = useCallback(() => {
@@ -1739,6 +1741,7 @@ export default function EditorPage() {
           setBeansPrice(data.project.beans_price || 0);
           setProjectCategory(data.project.category || 'other');
           setProjectDescription(data.project.description || '');
+          setCoverImage(data.project.cover_image || '');
           
           if (projectData?.scenes && projectData.scenes.length > 0) {
             // 过滤掉无效的 URL
@@ -9908,6 +9911,76 @@ export default function EditorPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* 封面图上传 */}
+            <div className="space-y-2">
+              <Label className="text-zinc-300">作品封面</Label>
+              <p className="text-xs text-zinc-500">上传一张展示图，用于首页作品展示</p>
+              {coverImage ? (
+                <div className="relative">
+                  <div className="aspect-video bg-zinc-700 rounded-lg overflow-hidden">
+                    <img
+                      src={coverImage}
+                      alt="封面图"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <button
+                    onClick={() => setCoverImage('')}
+                    className="absolute top-2 right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white text-xs hover:bg-red-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <label className="block">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      
+                      // 验证文件大小（最大5MB）
+                      if (file.size > 5 * 1024 * 1024) {
+                        alert('图片大小不能超过5MB');
+                        return;
+                      }
+                      
+                      // 上传图片
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      
+                      try {
+                        const response = await fetch('/api/upload', {
+                          method: 'POST',
+                          body: formData,
+                        });
+                        const data = await response.json();
+                        if (data.success && data.url) {
+                          setCoverImage(data.url);
+                        } else {
+                          alert('上传失败，请重试');
+                        }
+                      } catch (error) {
+                        console.error('上传封面图失败:', error);
+                        alert('上传失败，请重试');
+                      }
+                    }}
+                  />
+                  <div className="aspect-video bg-zinc-700 border-2 border-dashed border-zinc-600 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-purple-500 transition-colors">
+                    <div className="w-12 h-12 bg-zinc-600 rounded-full flex items-center justify-center mb-2">
+                      <svg className="w-6 h-6 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <span className="text-zinc-400 text-sm">点击上传封面图</span>
+                    <span className="text-zinc-500 text-xs mt-1">建议尺寸 16:9，支持 JPG、PNG</span>
+                  </div>
+                </label>
+              )}
+            </div>
+
             {/* 作品描述 */}
             <div className="space-y-2">
               <Label className="text-zinc-300">作品描述</Label>
