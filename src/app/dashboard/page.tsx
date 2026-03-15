@@ -409,6 +409,13 @@ export default function DashboardPage() {
                   {/* 下拉菜单 */}
                   <div className="absolute right-0 top-full mt-0.5 w-36 bg-zinc-800 border border-zinc-700 rounded-md shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all text-xs">
                     <Link
+                      href="/my-works"
+                      className="flex items-center gap-1.5 px-2 py-1.5 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                    >
+                      <FolderOpen className="w-3 h-3" />
+                      我的作品
+                    </Link>
+                    <Link
                       href="/settings"
                       className="flex items-center gap-1.5 px-2 py-1.5 text-zinc-300 hover:bg-zinc-700 hover:text-white"
                     >

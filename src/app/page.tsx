@@ -327,6 +327,13 @@ function HomePageContent() {
                   软件教程
                 </Button>
               </Link>
+              {isAuthenticated && (
+                <Link href="/my-works">
+                  <Button variant="ghost" size="sm" className="text-white hover:bg-white/10 h-7 text-xs">
+                    我的作品
+                  </Button>
+                </Link>
+              )}
               <Link href={isAuthenticated ? '/dashboard' : '/auth'}>
                 <Button size="sm" className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 h-7 text-xs">
                   {isAuthenticated ? '我的项目' : '登录'}
