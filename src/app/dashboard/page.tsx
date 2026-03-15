@@ -25,6 +25,8 @@ import {
   Check,
   AlertCircle,
   Coins,
+  Link2,
+  Copy,
 } from 'lucide-react';
 import Link from 'next/link';
 import { indexedDBStorage, type ProjectData } from '@/lib/storage';
@@ -41,8 +43,11 @@ interface Project {
   name: string;
   description?: string;
   coverImage?: string;
+  share_code?: string;
   isPublic: boolean;
   viewCount: number;
+  likeCount?: number;
+  total_beans_earned?: number;
   createdAt: string;
   updatedAt: string;
   scenes?: any[];
@@ -78,6 +83,7 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -262,6 +268,14 @@ export default function DashboardPage() {
     }
   };
 
+  // 复制分享链接
+  const handleCopyShareLink = async (shareCode: string, projectId: string) => {
+    const link = `${window.location.origin}/play/${shareCode}`;
+    await navigator.clipboard.writeText(link);
+    setCopiedId(projectId);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   const handleDeleteProject = async (projectId: string) => {
     if (!confirm('确定要删除这个项目吗？此操作不可撤销。')) return;
 
@@ -408,13 +422,6 @@ export default function DashboardPage() {
 
                   {/* 下拉菜单 */}
                   <div className="absolute right-0 top-full mt-0.5 w-36 bg-zinc-800 border border-zinc-700 rounded-md shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all text-xs">
-                    <Link
-                      href="/my-works"
-                      className="flex items-center gap-1.5 px-2 py-1.5 text-zinc-300 hover:bg-zinc-700 hover:text-white"
-                    >
-                      <FolderOpen className="w-3 h-3" />
-                      我的作品
-                    </Link>
                     <Link
                       href="/settings"
                       className="flex items-center gap-1.5 px-2 py-1.5 text-zinc-300 hover:bg-zinc-700 hover:text-white"
@@ -686,6 +693,26 @@ export default function DashboardPage() {
                   <p className="text-zinc-500 text-[10px] line-clamp-2 mb-1.5">
                     {project.description || '暂无描述'}
                   </p>
+                  
+                  {/* 分享链接 */}
+                  {project.share_code && project.review_status === 'approved' && (
+                    <div className="flex items-center gap-1 mb-1.5 p-1.5 bg-zinc-900/50 rounded">
+                      <Link2 className="w-2.5 h-2.5 text-zinc-500 flex-shrink-0" />
+                      <span className="text-[10px] text-zinc-500 truncate flex-1">
+                        /play/{project.share_code}
+                      </span>
+                      <button
+                        onClick={() => handleCopyShareLink(project.share_code!, project.id)}
+                        className="text-purple-400 hover:text-purple-300 flex-shrink-0"
+                      >
+                        {copiedId === project.id ? (
+                          <Check className="w-2.5 h-2.5" />
+                        ) : (
+                          <Copy className="w-2.5 h-2.5" />
+                        )}
+                      </button>
+                    </div>
+                  )}
                   
                   {/* 审核不通过提示 */}
                   {(project.review_status === 'rejected' || project.review_status === 'revision_needed') && project.review_notes && (
