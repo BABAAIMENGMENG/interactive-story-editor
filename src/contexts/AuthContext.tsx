@@ -32,7 +32,6 @@ let refreshToken: string | null = null;
 // 刷新 token 的函数
 async function refreshAccessToken(): Promise<string | null> {
   if (!refreshToken) {
-    console.log('No refresh token available');
     return null;
   }
 
@@ -43,7 +42,7 @@ async function refreshAccessToken(): Promise<string | null> {
     });
 
     if (error || !data.session) {
-      console.error('Token refresh failed:', error);
+      // Token 无效或过期，静默清除
       sessionToken = null;
       refreshToken = null;
       localStorage.removeItem('auth_token');
@@ -57,8 +56,8 @@ async function refreshAccessToken(): Promise<string | null> {
     localStorage.setItem('refresh_token', data.session.refresh_token);
     
     return sessionToken;
-  } catch (err) {
-    console.error('Token refresh error:', err);
+  } catch {
+    // 静默处理错误
     return null;
   }
 }
@@ -92,13 +91,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.user);
       } else if (response.status === 401 && retryCount < 1 && refreshToken) {
         // Token 过期，尝试刷新
-        console.log('Token expired, attempting refresh...');
         const newToken = await refreshAccessToken();
         if (newToken) {
           // 使用新 token 重试
           return fetchUser(retryCount + 1);
         } else {
-          // 刷新失败，清除登录状态
+          // 刷新失败，清除登录状态（静默）
           setUser(null);
         }
       } else {
@@ -119,7 +117,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string, name?: string) => {
-    console.log('signUp called', { email, name });
     try {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
@@ -128,7 +125,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const data = await response.json();
-      console.log('signUp response:', data);
 
       if (!response.ok) {
         return { error: data.error || '注册失败' };
@@ -146,14 +142,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(data.user);
       return {};
-    } catch (err) {
-      console.error('signUp error:', err);
+    } catch {
       return { error: '网络错误，请重试' };
     }
   };
 
   const signIn = async (email: string, password: string) => {
-    console.log('signIn called', { email });
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -162,7 +156,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const data = await response.json();
-      console.log('signIn response:', data);
 
       if (!response.ok) {
         return { error: data.error || '登录失败' };
@@ -181,8 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(data.user);
       return {};
-    } catch (err) {
-      console.error('signIn error:', err);
+    } catch {
       return { error: '网络错误，请重试' };
     }
   };
