@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { verifyStoredCode, isDevMode } from '@/lib/sms-store';
+import { randomUUID } from 'crypto';
 
 /**
  * 验证码登录
@@ -24,12 +26,84 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请输入6位数字验证码' }, { status: 400 });
     }
 
-    // 格式化为国际格式（+86）
-    const formattedPhone = `+86${phone}`;
+    // 开发模式或模拟模式：使用本地验证
+    if (isDevMode()) {
+      // 本地验证码验证
+      if (!verifyStoredCode(phone, code)) {
+        return NextResponse.json({ error: '验证码错误或已过期' }, { status: 400 });
+      }
 
+      // 查找或创建用户
+      const supabase = getSupabaseClient();
+      
+      // 查找是否已有该手机号的用户
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('user_id, name, subscription_tier, subscription_status, projects_count')
+        .eq('phone', phone)
+        .single();
+
+      if (existingProfile) {
+        // 用户已存在，返回登录成功
+        return NextResponse.json({
+          success: true,
+          user: {
+            id: existingProfile.user_id,
+            phone: phone,
+            name: existingProfile.name,
+            subscriptionTier: existingProfile.subscription_tier || 'free',
+            subscriptionStatus: existingProfile.subscription_status || 'active',
+            projectsCount: existingProfile.projects_count || 0,
+          },
+          session: {
+            access_token: `mock_token_${Date.now()}`,
+            refresh_token: `mock_refresh_${Date.now()}`,
+          },
+        });
+      }
+
+      // 创建新用户 - 使用真实 UUID
+      const newUserId = randomUUID();
+      const randomName = `用户${phone.slice(-4)}`;
+
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          user_id: newUserId,
+          name: randomName,
+          phone: phone,
+          subscription_tier: 'free',
+          subscription_status: 'active',
+          beans_balance: 100,
+          projects_count: 0,
+        });
+
+      if (insertError) {
+        console.error('创建用户失败:', insertError);
+        return NextResponse.json({ error: '登录失败，请重试' }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: newUserId,
+          phone: phone,
+          name: randomName,
+          subscriptionTier: 'free',
+          subscriptionStatus: 'active',
+          projectsCount: 0,
+        },
+        session: {
+          access_token: `mock_token_${Date.now()}`,
+          refresh_token: `mock_refresh_${Date.now()}`,
+        },
+      });
+    }
+
+    // 生产模式：使用 Supabase 验证
+    const formattedPhone = `+86${phone}`;
     const supabase = getSupabaseClient();
 
-    // 验证 OTP
     const { data, error } = await supabase.auth.verifyOtp({
       phone: formattedPhone,
       token: code,
@@ -53,25 +127,24 @@ export async function POST(request: NextRequest) {
     // 检查是否是新用户，如果是则创建 profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('userId, name, subscription_tier, subscription_status, projects_count')
-      .eq('userId', data.user?.id)
+      .select('user_id, name, subscription_tier, subscription_status, projects_count')
+      .eq('user_id', data.user?.id)
       .single();
 
     if (profileError && profileError.code === 'PGRST116') {
       // 用户不存在，创建 profile
       const randomName = `用户${phone.slice(-4)}`;
       await supabase.from('profiles').insert({
-        userId: data.user?.id,
+        user_id: data.user?.id,
         name: randomName,
         phone: phone,
         subscription_tier: 'free',
         subscription_status: 'active',
-        beans_balance: 100, // 新用户赠送100豆
+        beans_balance: 100,
         projects_count: 0,
       });
     }
 
-    // 返回用户信息和 session
     return NextResponse.json({
       success: true,
       user: {
