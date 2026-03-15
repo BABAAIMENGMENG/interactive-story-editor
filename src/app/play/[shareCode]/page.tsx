@@ -265,12 +265,12 @@ function PlayPageContent() {
 
   // 微信分享（邀请好友赚豆）
   const handleWechatShare = useCallback(async () => {
-    // 微信分享使用邀请链接，好友扫码注册后双方得奖励
-    if (!inviteLink) return;
+    // 生成要分享的链接（有邀请码用邀请链接，没有则用当前页面链接）
+    const linkToShare = inviteLink || shareUrl;
     
     try {
-      // 生成邀请链接的二维码
-      const qrDataUrl = await QRCode.toDataURL(inviteLink, {
+      // 生成二维码
+      const qrDataUrl = await QRCode.toDataURL(linkToShare, {
         width: 256,
         margin: 2,
         color: {
@@ -285,7 +285,7 @@ function PlayPageContent() {
       // 降级：仍然显示弹窗，但使用占位符
       setShowShare(true);
     }
-  }, [inviteLink]);
+  }, [inviteLink, shareUrl]);
 
   // 关闭分享弹窗
   const handleCloseShare = () => {
@@ -580,7 +580,7 @@ function PlayPageContent() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-white font-medium flex items-center gap-2">
                   <Gift className="w-5 h-5 text-amber-400" />
-                  邀请好友赚快乐豆
+                  {inviteLink ? '邀请好友赚快乐豆' : '分享给好友'}
                 </h3>
                 <button
                   onClick={handleCloseShare}
@@ -590,26 +590,37 @@ function PlayPageContent() {
                 </button>
               </div>
               
-              {/* 奖励说明 */}
-              <div className="bg-gradient-to-r from-amber-900/30 to-orange-900/30 border border-amber-500/30 rounded-lg p-3 mb-4">
-                <div className="flex items-center justify-center gap-6">
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1 mb-1">
-                      <Users className="w-4 h-4 text-purple-400" />
-                      <span className="text-gray-400 text-xs">您</span>
+              {/* 奖励说明 - 仅登录用户显示 */}
+              {inviteLink && (
+                <div className="bg-gradient-to-r from-amber-900/30 to-orange-900/30 border border-amber-500/30 rounded-lg p-3 mb-4">
+                  <div className="flex items-center justify-center gap-6">
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-1 mb-1">
+                        <Users className="w-4 h-4 text-purple-400" />
+                        <span className="text-gray-400 text-xs">您</span>
+                      </div>
+                      <span className="text-xl font-bold text-amber-400">+50豆</span>
                     </div>
-                    <span className="text-xl font-bold text-amber-400">+50豆</span>
-                  </div>
-                  <div className="text-gray-500">+</div>
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1 mb-1">
-                      <Users className="w-4 h-4 text-pink-400" />
-                      <span className="text-gray-400 text-xs">好友</span>
+                    <div className="text-gray-500">+</div>
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-1 mb-1">
+                        <Users className="w-4 h-4 text-pink-400" />
+                        <span className="text-gray-400 text-xs">好友</span>
+                      </div>
+                      <span className="text-xl font-bold text-amber-400">+50豆</span>
                     </div>
-                    <span className="text-xl font-bold text-amber-400">+50豆</span>
                   </div>
                 </div>
-              </div>
+              )}
+              
+              {/* 未登录提示 */}
+              {!inviteLink && (
+                <div className="bg-purple-900/30 border border-purple-500/30 rounded-lg p-3 mb-4">
+                  <p className="text-purple-300 text-sm text-center">
+                    登录后分享可邀请好友赚快乐豆
+                  </p>
+                </div>
+              )}
               
               {/* 二维码 */}
               <div className="bg-white p-4 rounded-lg mb-4">
@@ -617,7 +628,7 @@ function PlayPageContent() {
                   {qrCodeDataUrl ? (
                     <img 
                       src={qrCodeDataUrl} 
-                      alt="邀请二维码" 
+                      alt="分享二维码" 
                       className="w-full h-full object-contain"
                     />
                   ) : (
@@ -630,8 +641,22 @@ function PlayPageContent() {
               </div>
               
               <p className="text-gray-400 text-xs text-center mb-4">
-                打开微信扫一扫，好友注册后双方各得50快乐豆
+                {inviteLink 
+                  ? '打开微信扫一扫，好友注册后双方各得50快乐豆'
+                  : '打开微信扫一扫，分享给好友'
+                }
               </p>
+              
+              {/* 未登录时显示登录按钮 */}
+              {!inviteLink && !isAuthenticated && (
+                <Button
+                  onClick={() => router.push('/auth')}
+                  className="w-full mb-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                >
+                  <LogIn className="w-4 h-4 mr-2" />
+                  登录赚豆
+                </Button>
+              )}
               
               <Button
                 variant="outline"
