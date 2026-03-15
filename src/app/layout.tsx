@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inspector } from 'react-dev-inspector';
 import './globals.css';
 import { Providers } from './providers';
+import { AICustomerService } from '@/components/AICustomerService';
 
 // 📝 部署后请将 YOUR_DOMAIN 替换为你的实际域名
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://your-domain.com';
@@ -88,6 +89,7 @@ export default function RootLayout({
         <Providers>
           {isDev && <Inspector />}
           {children}
+          <AICustomerService />
         </Providers>
       </body>
     </html>
