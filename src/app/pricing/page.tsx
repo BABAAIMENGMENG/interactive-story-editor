@@ -198,15 +198,14 @@ export default function PricingPage() {
     }
   };
 
-  // 提交充值订单（支持自动确认）
-  const handleSubmitOrder = async (autoConfirm: boolean = false) => {
+  // 提交充值订单（凭证审核模式）
+  const handleSubmitOrder = async () => {
     if (!selectedPackage) {
       alert('请选择套餐');
       return;
     }
 
-    // 自动确认模式不需要凭证
-    if (!autoConfirm && !paymentProof) {
+    if (!paymentProof) {
       alert('请先上传付款凭证');
       return;
     }
@@ -224,19 +223,13 @@ export default function PricingPage() {
           packageId: selectedPackage,
           paymentMethod: selectedPayment,
           paymentProof,
-          autoConfirm,
         }),
       });
 
       const data = await response.json();
       
       if (data.success) {
-        if (autoConfirm && data.autoConfirmed) {
-          setPaymentResult('success');
-          fetchBeansBalance();
-        } else {
-          setPaymentResult('submitted');
-        }
+        setPaymentResult('submitted');
         fetchMyOrders();
       } else {
         setPaymentResult('failed');
@@ -483,23 +476,7 @@ export default function PricingPage() {
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-zinc-800 border border-zinc-700 rounded-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
             {/* 提交成功 */}
-            {paymentResult === 'success' ? (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle className="w-8 h-8 text-green-400" />
-                </div>
-                <h3 className="text-xl font-bold text-green-400 mb-2">支付成功！</h3>
-                <p className="text-zinc-400 text-sm mb-2">
-                  快乐豆已自动到账
-                </p>
-                <p className="text-purple-400 font-bold text-lg mb-6">
-                  +{selectedPackageInfo?.beans.toLocaleString()} 豆
-                </p>
-                <Button onClick={handleCloseModal} className="bg-green-600 hover:bg-green-700">
-                  完成
-                </Button>
-              </div>
-            ) : paymentResult === 'submitted' ? (
+            {paymentResult === 'submitted' ? (
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Clock className="w-8 h-8 text-blue-400" />
@@ -548,7 +525,7 @@ export default function PricingPage() {
                 {/* 步骤提示 */}
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4">
                   <p className="text-blue-300 text-xs">
-                    📋 支付流程：选择支付方式 → 扫码付款 → 点击"我已支付" → 立即到账
+                    📋 支付流程：选择支付方式 → 扫码付款 → 上传凭证 → 等待审核
                   </p>
                 </div>
 
@@ -651,57 +628,34 @@ export default function PricingPage() {
                 </div>
 
                 {/* 操作按钮 */}
-                <div className="space-y-3">
-                  {/* 一键支付按钮 */}
+                <div className="flex gap-3">
                   <Button
-                    onClick={() => handleSubmitOrder(true)}
-                    className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 h-11"
+                    onClick={handleCloseModal}
+                    variant="outline"
+                    className="flex-1"
                     disabled={isProcessing}
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    onClick={handleSubmitOrder}
+                    className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                    disabled={isProcessing || !paymentProof}
                   >
                     {isProcessing ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        处理中...
+                        提交中...
                       </>
                     ) : (
-                      <>
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        我已支付，立即到账
-                      </>
+                      '提交订单'
                     )}
                   </Button>
-                  
-                  {/* 分隔线 */}
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-px bg-zinc-700" />
-                    <span className="text-xs text-zinc-500">或</span>
-                    <div className="flex-1 h-px bg-zinc-700" />
-                  </div>
-                  
-                  {/* 上传凭证方式 */}
-                  <div className="flex gap-3">
-                    <Button
-                      onClick={handleCloseModal}
-                      variant="outline"
-                      className="flex-1"
-                      disabled={isProcessing}
-                    >
-                      取消
-                    </Button>
-                    <Button
-                      onClick={() => handleSubmitOrder(false)}
-                      variant="outline"
-                      className="flex-1 border-purple-500 text-purple-400 hover:bg-purple-500/20"
-                      disabled={isProcessing || !paymentProof}
-                    >
-                      上传凭证审核
-                    </Button>
-                  </div>
-                  
-                  <p className="text-[10px] text-zinc-500 text-center">
-                    点击"我已支付"确认后自动到账 · 上传凭证需等待审核
-                  </p>
                 </div>
+                
+                <p className="text-[10px] text-zinc-500 text-center mt-3">
+                  提交后等待管理员审核，审核通过后快乐豆自动到账
+                </p>
               </>
             )}
           </div>
