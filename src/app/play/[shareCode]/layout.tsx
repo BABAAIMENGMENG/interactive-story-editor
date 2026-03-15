@@ -7,11 +7,12 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://your-domain.com';
 export async function generateMetadata({
   params,
 }: {
-  params: { shareCode: string };
+  params: Promise<{ shareCode: string }>;
 }): Promise<Metadata> {
   try {
+    const { shareCode } = await params;
     // 从 API 获取作品信息
-    const res = await fetch(`${SITE_URL}/api/projects/share/${params.shareCode}`, {
+    const res = await fetch(`${SITE_URL}/api/projects/share/${shareCode}`, {
       cache: 'no-store',
     });
     
