@@ -103,7 +103,7 @@ function ProjectCard({
       className="group overflow-hidden border border-gray-200 bg-white rounded-lg transition-all hover:shadow-lg hover:border-purple-300"
     >
       {/* 封面 */}
-      <div className={`relative h-32 ${showPlaceholder ? 'bg-gradient-to-br from-purple-500 to-pink-500' : 'bg-gray-100'}`}>
+      <div className={`relative aspect-video ${showPlaceholder ? 'bg-gradient-to-br from-purple-500 to-pink-500' : 'bg-gray-100'}`}>
         {project.coverImage && !imageError ? (
           <img
             src={project.coverImage}
@@ -522,7 +522,7 @@ function HomePageContent() {
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <div key={i} className="bg-gray-800/50 rounded-lg overflow-hidden animate-pulse">
-                  <div className="h-32 bg-gray-700" />
+                  <div className="aspect-video bg-gray-700" />
                   <div className="p-3 space-y-2">
                     <div className="h-4 bg-gray-700 rounded w-3/4" />
                     <div className="h-3 bg-gray-700 rounded w-1/2" />
