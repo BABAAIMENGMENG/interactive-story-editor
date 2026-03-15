@@ -18,13 +18,8 @@ import {
   ChevronRight,
   Monitor,
   Sparkles,
-  Clock,
-  Move,
-  Volume2,
-  Settings,
-  Users,
-  CreditCard,
   Crown,
+  Route,
 } from 'lucide-react';
 
 const tutorials = [
@@ -37,7 +32,7 @@ const tutorials = [
     sections: [
       {
         title: '创建项目',
-        content: '点击"新建项目"按钮，输入项目名称即可创建。支持多种画布比例：横屏（16:9）、竖屏（9:16）、正方形（1:1）以及自定义尺寸。',
+        content: '登录后点击"新建项目"按钮，输入项目名称即可创建。支持多种画布比例：横屏（16:9）、竖屏（9:16）、正方形（1:1）以及自定义尺寸。',
         tips: '选择画布比例时，请考虑目标播放平台（如手机竖屏、电脑横屏）。',
       },
       {
@@ -99,6 +94,21 @@ const tutorials = [
         tips: '在3D模式下拖拽热点到场景中的目标位置，系统会自动计算yaw/pitch值。',
       },
       {
+        title: '血条组件',
+        content: '血条用于显示角色状态（如生命值、能量值等）。支持自定义前景色、背景色、边框样式，可通过事件系统动态改变数值。',
+        tips: '血条常与选择项配合使用，实现剧情分支影响角色状态。',
+      },
+      {
+        title: '选择项组件',
+        content: '选择项用于创建剧情分支选项。支持多种布局（横向/纵向）、自定义样式，每个选项可配置不同的跳转目标和状态变化。',
+        tips: '选择项可设置正确/错误反馈，适合答题类互动场景。',
+      },
+      {
+        title: '路径动画',
+        content: '元素可添加路径动画，沿自定义曲线移动。支持贝塞尔曲线编辑、循环播放、往返动画等功能。',
+        tips: '路径动画适合创建角色移动、物品飞行等动态效果。',
+      },
+      {
         title: '元素层级管理',
         content: '图层列表底部 = 画布最上层（z-index = 10 + index）。通过上下移动按钮调整元素层级。支持父子关系，子元素跟随父元素移动和删除。',
         tips: '建立父子关系：在属性面板中选择父元素，或拖拽元素到父元素上。',
@@ -153,7 +163,7 @@ const tutorials = [
       },
       {
         title: '动作类型',
-        content: '支持18种动作类型：\n• 场景控制：跳转场景、重置场景\n• 元素显示：显示/隐藏元素、切换显示\n• 媒体控制：播放/暂停/停止、设置音量\n• 属性控制：设置透明度、移动位置、缩放\n• 动画效果：淡入/淡出、滑动、缩放、旋转\n• 流程控制：延迟执行、条件判断',
+        content: '支持多种动作类型：\n• 场景控制：跳转场景、重置场景\n• 元素显示：显示/隐藏元素、切换显示\n• 媒体控制：播放/暂停/停止、设置音量\n• 属性控制：设置透明度、移动位置、缩放\n• 动画效果：淡入/淡出、滑动、缩放、旋转\n• 流程控制：延迟执行、条件判断',
         tips: '一个触发事件可以执行多个动作，按顺序依次执行。',
       },
       {
@@ -163,7 +173,7 @@ const tutorials = [
       },
       {
         title: '动画预览',
-        content: '在属性面板中点击"预览动画"按钮，可实时预览12种动画效果和9种插值类型，包括滚动、弹跳、弹性、回弹等。',
+        content: '在属性面板中点击"预览动画"按钮，可实时预览动画效果和插值类型，包括滚动、弹跳、弹性、回弹等。',
         tips: '选择合适的插值类型可以让动画更加自然流畅。',
       },
     ],
@@ -182,7 +192,7 @@ const tutorials = [
       },
       {
         title: '背景透明度',
-        content: '文本、按钮、面板元素支持背景透明度调节（0%-100%）。通过 hexToRgba 函数实现，可创建半透明效果。',
+        content: '文本、按钮、面板元素支持背景透明度调节（0%-100%）。可创建半透明效果，增加层次感。',
         tips: '半透明背景可以增加层次感，同时不遮挡全景场景。',
       },
       {
@@ -205,48 +215,43 @@ const tutorials = [
     description: '项目数据的存储、同步和发布',
     sections: [
       {
-        title: '本地存储',
-        content: '未登录用户使用浏览器本地存储（IndexedDB），容量可达几百MB-几GB。项目自动保存，类似剪映体验，无需手动操作。',
-        tips: '清除浏览器数据可能导致本地项目丢失，建议定期登录同步。',
-      },
-      {
-        title: '云端同步',
-        content: '登录后每次保存自动同步到云端（Supabase Storage），支持跨设备访问。Dashboard显示同步状态和最后同步时间。点击"手动同步"按钮可强制同步所有本地项目。',
+        title: '自动保存',
+        content: '项目会自动保存到云端，每次编辑都会同步。支持跨设备访问，登录后即可继续编辑。',
         tips: '云端同步确保数据安全，防止因设备故障导致项目丢失。',
       },
       {
         title: '发布作品',
-        content: '保存项目后自动生成唯一的分享码，他人可通过分享码访问你的作品。可将作品设为公开，公开后会显示在首页作品列表中，支持分类筛选和排序。',
-        tips: '公开作品需要通过审核，审核通过后可获得快乐豆奖励。',
+        content: '点击"发布"按钮，填写作品描述、选择分类、设置观看价格后提交审核。审核通过后作品自动公开，可获得快乐豆奖励。',
+        tips: '作品分类由管理员后台配置，选择最符合的分类有助于审核。',
       },
       {
         title: '分享功能',
-        content: '支持微信分享（生成二维码）、QQ分享和复制链接。分享链接指向邀请页面，好友扫码注册后双方各得50快乐豆奖励。',
-        tips: '使用"微信赚豆"按钮分享，可获得邀请奖励。',
+        content: '作品发布后会生成唯一的分享码和预览链接。支持复制链接分享给好友。',
+        tips: '分享链接指向作品播放页面，好友可直接观看。',
       },
     ],
   },
   {
     id: 'coins',
-    title: '积分与收入',
+    title: '快乐豆系统',
     icon: Coins,
     color: 'yellow',
-    description: '快乐豆系统、作品定价和收入提现',
+    description: '快乐豆充值、消费和收入',
     sections: [
       {
-        title: '快乐豆系统',
-        content: '快乐豆是平台虚拟货币，用于购买付费作品和充值订阅。新用户注册赠送100豆，可购买低价作品体验。',
+        title: '快乐豆简介',
+        content: '快乐豆是平台虚拟货币，用于购买付费作品。新用户注册赠送100豆，可购买低价作品体验。',
         tips: '快乐豆不可转让，仅限在本平台使用。',
       },
       {
         title: '作品定价',
-        content: '创作者可以为作品设置观看价格（0=免费）。观众购买付费作品消耗快乐豆，创作者获得收入。平台抽成10%（10豆以下不抽成），创作者获得90%。',
+        content: '创作者可以为作品设置观看价格（0=免费）。观众购买付费作品消耗快乐豆，创作者获得收入。创作者获得90%收入。',
         tips: '合理定价可吸引更多观众，建议新手作品免费或低价。',
       },
       {
         title: '充值方法',
-        content: '支持扫码充值（微信/支付宝）：选择套餐 → 显示收款二维码 → 扫码付款 → 上传凭证 → 管理员审核 → 自动到账。\n充值套餐：100豆/10元、500豆/45元、1000豆/80元、5000豆/350元。',
-        tips: '大额套餐更优惠，5000豆套餐相当于7折。',
+        content: '支持扫码充值（微信/支付宝）：选择套餐 → 显示收款二维码 → 扫码付款 → 上传凭证 → 管理员审核 → 自动到账。',
+        tips: '大额套餐更优惠，充值金额越大折扣越多。',
       },
       {
         title: '收入提现',
@@ -272,11 +277,6 @@ const tutorials = [
         content: '在作品播放页面点击"分享"按钮，选择"微信赚豆"，生成包含邀请链接的二维码。好友扫码后可看到邀请奖励说明，注册即可领取。',
         tips: '分享到朋友圈或群聊，邀请效率更高。',
       },
-      {
-        title: '奖励查询',
-        content: '在个人中心可查看邀请记录和获得的奖励。显示已邀请人数和累计获得的快乐豆数量。',
-        tips: '邀请记录实时更新，好友注册后立即显示。',
-      },
     ],
   },
   {
@@ -295,11 +295,6 @@ const tutorials = [
         title: '订阅方式',
         content: '支持扫码包月付费，选择套餐后显示收款二维码，扫码付款上传凭证，管理员审核后自动开通会员。',
         tips: '订阅期间可随时使用所有功能。',
-      },
-      {
-        title: '到期提醒',
-        content: '会员到期前系统会发送提醒，到期后自动停止会员权益。可在个人中心查看会员状态和到期时间。',
-        tips: '建议提前续费，避免服务中断。',
       },
     ],
   },
@@ -320,11 +315,6 @@ const faqs = [
     question: '热点位置不对？',
     answer: '切换到3D模式，拖拽热点到正确位置。热点使用yaw（水平角度）和pitch（垂直角度）定位，可在属性面板精确调整数值。',
     category: '元素',
-  },
-  {
-    question: '项目数据丢失？',
-    answer: '建议登录账号启用云端同步，防止数据丢失。本地存储清除浏览器数据可能导致项目丢失，云端同步可跨设备访问。',
-    category: '保存',
   },
   {
     question: '如何添加背景音乐？',
@@ -356,10 +346,15 @@ const faqs = [
     answer: '作品先经AI初审，再人工复核。通常1-3个工作日内完成。审核通过后作品自动公开，并获得快乐豆奖励。',
     category: '发布',
   },
+  {
+    question: '分类选项为什么有些看不到？',
+    answer: '作品分类由管理员后台管理，只显示启用状态的分类。如果某个分类被禁用或删除，将不会出现在选择列表中。',
+    category: '发布',
+  },
 ];
 
 export default function TutorialPage() {
-  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [expandedSection, setExpandedSection] = useState<string | null>('getting-started');
 
   const toggleSection = (id: string) => {
     setExpandedSection(expandedSection === id ? null : id);
@@ -376,7 +371,7 @@ export default function TutorialPage() {
                 <BookOpen className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h1 className="text-sm font-bold text-white">CS 互动短剧</h1>
+                <h1 className="text-sm font-bold text-white">全景互动</h1>
                 <p className="text-[10px] text-gray-400">软件教程</p>
               </div>
             </div>
@@ -407,7 +402,7 @@ export default function TutorialPage() {
             </span>
           </h2>
           <p className="text-zinc-400 text-sm max-w-2xl mx-auto">
-            从入门到精通，学习如何使用 CS 互动短剧编辑器创建沉浸式全景交互体验
+            从入门到精通，学习如何使用全景互动编辑器创建沉浸式全景交互体验
           </p>
         </div>
 
@@ -417,7 +412,11 @@ export default function TutorialPage() {
             <a
               key={tutorial.id}
               href={`#${tutorial.id}`}
-              className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-3 hover:border-purple-500/50 transition-colors text-center group"
+              className={`bg-zinc-800/50 border rounded-lg p-3 transition-colors text-center group ${
+                expandedSection === tutorial.id 
+                  ? 'border-purple-500' 
+                  : 'border-zinc-700 hover:border-purple-500/50'
+              }`}
             >
               <tutorial.icon className={`w-5 h-5 mx-auto mb-1.5 text-${tutorial.color}-400 group-hover:scale-110 transition-transform`} />
               <h3 className="text-[10px] font-medium text-white">{tutorial.title}</h3>
@@ -535,6 +534,8 @@ export default function TutorialPage() {
               { key: 'Ctrl + V', action: '粘贴元素' },
               { key: 'Ctrl + D', action: '复制并粘贴元素' },
               { key: 'Escape', action: '取消选择' },
+              { key: '方向键', action: '微调元素位置' },
+              { key: 'Shift + 方向键', action: '快速移动元素' },
             ].map((shortcut, index) => (
               <div
                 key={index}
@@ -566,7 +567,7 @@ export default function TutorialPage() {
       <footer className="border-t border-zinc-800 mt-12">
         <div className="max-w-6xl mx-auto px-4 py-6 text-center">
           <p className="text-xs text-zinc-500">
-            © 2024 CS 互动短剧 · 让每个人都能创作沉浸式互动体验
+            © 2024 全景互动 · 让每个人都能创作沉浸式互动体验
           </p>
         </div>
       </footer>
