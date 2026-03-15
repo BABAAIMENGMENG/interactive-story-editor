@@ -27,6 +27,7 @@ import {
   Coins,
   Link2,
   Copy,
+  Share2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { indexedDBStorage, type ProjectData } from '@/lib/storage';
@@ -684,6 +685,15 @@ export default function DashboardPage() {
                         预览
                       </Button>
                     </Link>
+                    {/* 已发布作品显示分享按钮 */}
+                    {project.review_status === 'approved' && project.share_code && (
+                      <Link href={`/play/${project.share_code}`}>
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 h-6 text-[10px] px-2">
+                          <Share2 className="w-3 h-3 mr-0.5" />
+                          分享
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 </div>
 
