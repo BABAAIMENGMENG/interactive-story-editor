@@ -19,6 +19,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   signUp: (email: string, password: string, name?: string) => Promise<{ error?: string }>;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
+  sendSmsCode: (phone: string) => Promise<{ error?: string }>;
+  signInWithPhone: (phone: string, code: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -198,6 +200,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // 发送短信验证码
+  const sendSmsCode = async (phone: string) => {
+    try {
+      const response = await fetch('/api/auth/sms/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { error: data.error || '发送失败' };
+      }
+
+      return {};
+    } catch {
+      return { error: '网络错误，请重试' };
+    }
+  };
+
+  // 手机号验证码登录
+  const signInWithPhone = async (phone: string, code: string) => {
+    try {
+      const response = await fetch('/api/auth/sms/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, code }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { error: data.error || '登录失败' };
+      }
+
+      // 存储 session token
+      if (data.session?.access_token) {
+        sessionToken = data.session.access_token;
+        localStorage.setItem('auth_token', data.session.access_token);
+      }
+      if (data.session?.refresh_token) {
+        refreshToken = data.session.refresh_token;
+        localStorage.setItem('refresh_token', data.session.refresh_token);
+      }
+
+      setUser(data.user);
+      return {};
+    } catch {
+      return { error: '网络错误，请重试' };
+    }
+  };
+
   const refreshUser = async () => {
     await fetchUser();
   };
@@ -210,6 +265,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         signUp,
         signIn,
+        sendSmsCode,
+        signInWithPhone,
         signOut,
         refreshUser,
       }}
