@@ -1,15 +1,5 @@
 /**
  * 阿里云函数计算 HTTP 函数入口
- * 使用本地 HTTP 服务器处理请求
- * 
- * 部署说明：
- * 1. 构建项目：pnpm build
- * 2. 进入 standalone 目录：cd .next/standalone/workspace/projects
- * 3. 安装生产依赖：npm install next@16.1.1 react@19.2.3 react-dom@19.2.3 --no-package-lock --omit=dev --ignore-scripts
- * 4. 复制静态文件：cp -r ../../../.next/static ./.next/ && cp -r ../../../public ./
- * 5. 复制此文件到 standalone 目录：cp ../../../fc-index.js ./index.js
- * 6. 打包：zip -r /tmp/code.zip .
- * 7. 部署：s deploy -t s.yaml --use-local
  */
 
 const { createServer } = require('http');
@@ -24,7 +14,7 @@ async function getServer() {
       const app = next({
         dev: false,
         hostname: '127.0.0.1',
-        port: 0, // 自动分配端口
+        port: 0,
       });
       
       const handle = app.getRequestHandler();
@@ -57,16 +47,13 @@ const http = require('http');
 exports.handler = async (fcReq, fcResp, context) => {
   try {
     const { port } = await getServer();
-    
-    // 将请求代理到本地 Next.js 服务器
     const parsedUrl = parse(fcReq.url, true);
-    const path = parsedUrl.path;
     
     return new Promise((resolve, reject) => {
       const options = {
         hostname: '127.0.0.1',
         port: port,
-        path: path,
+        path: parsedUrl.path,
         method: fcReq.method,
         headers: fcReq.headers,
       };
@@ -78,15 +65,33 @@ exports.handler = async (fcReq, fcResp, context) => {
         res.on('end', () => {
           const body = Buffer.concat(chunks);
           
+          // 先设置状态码
           fcResp.setStatusCode(res.statusCode);
+          
+          // 收集所有要设置的 headers
+          const headers = {};
           Object.entries(res.headers).forEach(([key, value]) => {
-            // 移除导致浏览器下载文件的header
-            if (key.toLowerCase() !== 'content-disposition') {
-              fcResp.setHeader(key, value);
+            const lowerKey = key.toLowerCase();
+            if (!['content-length', 'transfer-encoding', 'connection'].includes(lowerKey)) {
+              headers[key] = value;
             }
           });
-          // 强制设置为inline，防止浏览器下载
-          fcResp.setHeader('Content-Disposition', 'inline');
+          
+          // 确保正确的 Content-Type
+          const contentType = res.headers['content-type'] || 'text/html; charset=utf-8';
+          headers['Content-Type'] = contentType;
+          
+          // 关键：强制设置 Content-Disposition 为 inline
+          headers['Content-Disposition'] = 'inline';
+          
+          // 设置所有 headers
+          for (const [key, value] of Object.entries(headers)) {
+            try {
+              fcResp.setHeader(key, value);
+            } catch (e) {}
+          }
+          
+          // 发送响应
           fcResp.send(body);
           resolve();
         });
@@ -95,13 +100,14 @@ exports.handler = async (fcReq, fcResp, context) => {
       req.on('error', (err) => {
         console.error('Proxy error:', err);
         fcResp.setStatusCode(500);
+        fcResp.setHeader('Content-Type', 'text/plain');
+        fcResp.setHeader('Content-Disposition', 'inline');
         fcResp.send('Proxy Error: ' + err.message);
         reject(err);
       });
       
-      // 转发请求体（如果有）
       if (fcReq.body) {
-        req.write(fcReq.body);
+        req.write(typeof fcReq.body === 'string' ? fcReq.body : JSON.stringify(fcReq.body));
       }
       req.end();
     });

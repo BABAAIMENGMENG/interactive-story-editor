@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['*.dev.coze.site'],
   
   images: {
+    // 禁止图片下载行为
+    contentDispositionType: 'inline',
     remotePatterns: [
       {
         protocol: 'https',
