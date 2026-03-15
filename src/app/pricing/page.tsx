@@ -100,6 +100,9 @@ export default function PricingPage() {
     paymentAlipayQrcode: '',
   });
   
+  // 支付模式
+  const [paymentMode, setPaymentMode] = useState<'trust' | 'review'>('review');
+  
   // 付款凭证
   const [paymentProof, setPaymentProof] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
@@ -113,8 +116,21 @@ export default function PricingPage() {
       fetchBeansBalance();
       fetchPaymentSettings();
       fetchMyOrders();
+      fetchSystemSettings();
     }
   }, [isAuthenticated, user]);
+
+  const fetchSystemSettings = async () => {
+    try {
+      const response = await fetch('/api/settings');
+      if (response.ok) {
+        const data = await response.json();
+        setPaymentMode(data.paymentMode || 'review');
+      }
+    } catch (error) {
+      console.error('获取系统设置失败:', error);
+    }
+  };
 
   const fetchBeansBalance = async () => {
     try {
@@ -198,14 +214,15 @@ export default function PricingPage() {
     }
   };
 
-  // 提交充值订单（凭证审核模式）
-  const handleSubmitOrder = async () => {
+  // 提交充值订单
+  const handleSubmitOrder = async (autoConfirm: boolean = false) => {
     if (!selectedPackage) {
       alert('请选择套餐');
       return;
     }
 
-    if (!paymentProof) {
+    // 信任模式：不需要凭证；审核模式：需要凭证
+    if (paymentMode === 'review' && !paymentProof) {
       alert('请先上传付款凭证');
       return;
     }
@@ -223,13 +240,19 @@ export default function PricingPage() {
           packageId: selectedPackage,
           paymentMethod: selectedPayment,
           paymentProof,
+          autoConfirm: paymentMode === 'trust' || autoConfirm,
         }),
       });
 
       const data = await response.json();
       
       if (data.success) {
-        setPaymentResult('submitted');
+        if ((paymentMode === 'trust' || autoConfirm) && data.autoConfirmed) {
+          setPaymentResult('success');
+          fetchBeansBalance();
+        } else {
+          setPaymentResult('submitted');
+        }
         fetchMyOrders();
       } else {
         setPaymentResult('failed');
@@ -476,7 +499,23 @@ export default function PricingPage() {
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-zinc-800 border border-zinc-700 rounded-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
             {/* 提交成功 */}
-            {paymentResult === 'submitted' ? (
+            {paymentResult === 'success' ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-8 h-8 text-green-400" />
+                </div>
+                <h3 className="text-xl font-bold text-green-400 mb-2">支付成功！</h3>
+                <p className="text-zinc-400 text-sm mb-2">
+                  快乐豆已自动到账
+                </p>
+                <p className="text-purple-400 font-bold text-lg mb-6">
+                  +{selectedPackageInfo?.beans.toLocaleString()} 豆
+                </p>
+                <Button onClick={handleCloseModal} className="bg-green-600 hover:bg-green-700">
+                  完成
+                </Button>
+              </div>
+            ) : paymentResult === 'submitted' ? (
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Clock className="w-8 h-8 text-blue-400" />
@@ -525,7 +564,10 @@ export default function PricingPage() {
                 {/* 步骤提示 */}
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4">
                   <p className="text-blue-300 text-xs">
-                    📋 支付流程：选择支付方式 → 扫码付款 → 上传凭证 → 等待审核
+                    {paymentMode === 'trust' 
+                      ? '📋 支付流程：选择支付方式 → 扫码付款 → 点击"我已支付" → 立即到账'
+                      : '📋 支付流程：选择支付方式 → 扫码付款 → 上传凭证 → 等待审核'
+                    }
                   </p>
                 </div>
 
@@ -582,80 +624,110 @@ export default function PricingPage() {
                   </div>
                 )}
 
-                {/* 上传付款凭证 */}
-                <div className="mb-4">
-                  <label className="text-sm text-zinc-400 block mb-2">
-                    上传付款凭证截图
-                  </label>
-                  {paymentProof ? (
-                    <div className="relative">
-                      <div className="bg-white rounded-lg p-2 w-32 h-32 mx-auto">
-                        <img 
-                          src={paymentProof} 
-                          alt="付款凭证"
-                          className="max-w-full max-h-full object-contain mx-auto"
-                        />
-                      </div>
-                      <button
-                        onClick={() => setPaymentProof('')}
-                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white text-xs"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="block">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleUploadProof}
-                        disabled={isUploading}
-                      />
-                      <div className="border-2 border-dashed border-zinc-600 rounded-lg p-6 text-center cursor-pointer hover:border-purple-500 transition-colors">
-                        {isUploading ? (
-                          <Loader2 className="w-8 h-8 text-purple-400 mx-auto animate-spin" />
-                        ) : (
-                          <>
-                            <Upload className="w-8 h-8 text-zinc-500 mx-auto mb-2" />
-                            <p className="text-xs text-zinc-400">点击上传付款截图</p>
-                            <p className="text-[10px] text-zinc-500 mt-1">支持 JPG、PNG 格式</p>
-                          </>
-                        )}
-                      </div>
+                {/* 上传付款凭证 - 仅审核模式需要 */}
+                {paymentMode === 'review' && (
+                  <div className="mb-4">
+                    <label className="text-sm text-zinc-400 block mb-2">
+                      上传付款凭证截图
                     </label>
-                  )}
-                </div>
+                    {paymentProof ? (
+                      <div className="relative">
+                        <div className="bg-white rounded-lg p-2 w-32 h-32 mx-auto">
+                          <img 
+                            src={paymentProof} 
+                            alt="付款凭证"
+                            className="max-w-full max-h-full object-contain mx-auto"
+                          />
+                        </div>
+                        <button
+                          onClick={() => setPaymentProof('')}
+                          className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white text-xs"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="block">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleUploadProof}
+                          disabled={isUploading}
+                        />
+                        <div className="border-2 border-dashed border-zinc-600 rounded-lg p-6 text-center cursor-pointer hover:border-purple-500 transition-colors">
+                          {isUploading ? (
+                            <Loader2 className="w-8 h-8 text-purple-400 mx-auto animate-spin" />
+                          ) : (
+                            <>
+                              <Upload className="w-8 h-8 text-zinc-500 mx-auto mb-2" />
+                              <p className="text-xs text-zinc-400">点击上传付款截图</p>
+                              <p className="text-[10px] text-zinc-500 mt-1">支持 JPG、PNG 格式</p>
+                            </>
+                          )}
+                        </div>
+                      </label>
+                    )}
+                  </div>
+                )}
 
                 {/* 操作按钮 */}
-                <div className="flex gap-3">
-                  <Button
-                    onClick={handleCloseModal}
-                    variant="outline"
-                    className="flex-1"
-                    disabled={isProcessing}
-                  >
-                    取消
-                  </Button>
-                  <Button
-                    onClick={handleSubmitOrder}
-                    className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-                    disabled={isProcessing || !paymentProof}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        提交中...
-                      </>
-                    ) : (
-                      '提交订单'
-                    )}
-                  </Button>
-                </div>
-                
-                <p className="text-[10px] text-zinc-500 text-center mt-3">
-                  提交后等待管理员审核，审核通过后快乐豆自动到账
-                </p>
+                {paymentMode === 'trust' ? (
+                  /* 信任模式：一键支付 */
+                  <div className="space-y-3">
+                    <Button
+                      onClick={() => handleSubmitOrder(true)}
+                      className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 h-11"
+                      disabled={isProcessing}
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          处理中...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          我已支付，立即到账
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-[10px] text-zinc-500 text-center">
+                      扫码付款后点击确认，快乐豆自动到账
+                    </p>
+                  </div>
+                ) : (
+                  /* 审核模式：上传凭证 */
+                  <div className="space-y-3">
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={handleCloseModal}
+                        variant="outline"
+                        className="flex-1"
+                        disabled={isProcessing}
+                      >
+                        取消
+                      </Button>
+                      <Button
+                        onClick={() => handleSubmitOrder()}
+                        className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                        disabled={isProcessing || !paymentProof}
+                      >
+                        {isProcessing ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            提交中...
+                          </>
+                        ) : (
+                          '提交订单'
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-zinc-500 text-center">
+                      提交后等待管理员审核，审核通过后快乐豆自动到账
+                    </p>
+                  </div>
+                )}
               </>
             )}
           </div>

@@ -44,6 +44,12 @@ interface SystemSettings {
   contactWechatQrcode: string; // 微信二维码图片URL
   contactEmail: string;
   contactOnlineTime: string;
+  // 支付模式设置
+  paymentMode: 'trust' | 'review'; // trust: 信任模式(自动到账), review: 审核模式(需上传凭证)
+  // 邀请奖励设置
+  inviteRewardEnabled: boolean;
+  inviterReward: number; // 邀请人奖励
+  inviteeReward: number; // 被邀请人奖励
 }
 
 export default function AdminSettingsPage() {
@@ -76,6 +82,12 @@ export default function AdminSettingsPage() {
     contactWechatQrcode: '',
     contactEmail: 'support@cs-interactive.com',
     contactOnlineTime: '工作日 9:00 - 18:00',
+    // 支付模式设置
+    paymentMode: 'review',
+    // 邀请奖励设置
+    inviteRewardEnabled: true,
+    inviterReward: 50,
+    inviteeReward: 50,
   });
   const [settingsSaved, setSettingsSaved] = useState(false);
 
@@ -168,6 +180,12 @@ export default function AdminSettingsPage() {
         { key: 'enableUpload', value: systemSettings.enableUpload },
         { key: 'maxUploadSize', value: systemSettings.maxUploadSize },
         { key: 'maintenanceMode', value: systemSettings.maintenanceMode },
+        // 支付设置
+        { key: 'paymentMode', value: systemSettings.paymentMode },
+        // 邀请奖励设置
+        { key: 'inviteRewardEnabled', value: systemSettings.inviteRewardEnabled },
+        { key: 'inviterReward', value: systemSettings.inviterReward },
+        { key: 'inviteeReward', value: systemSettings.inviteeReward },
       ];
       
       await Promise.all(
@@ -566,6 +584,188 @@ export default function AdminSettingsPage() {
                 AI评分高于此阈值才可通过审核（0-100%）
               </p>
             </div>
+          </div>
+
+          {/* 保存按钮 */}
+          <div className="flex justify-end border-t border-gray-700 pt-4">
+            <Button
+              onClick={handleSaveSettings}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {settingsSaved ? (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  已保存
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  保存设置
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* 支付设置 */}
+      <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-700 flex items-center gap-3">
+          <span className="text-xl">💳</span>
+          <h2 className="text-white font-medium">支付设置</h2>
+        </div>
+        
+        <div className="p-5 space-y-4">
+          <p className="text-gray-400 text-sm">配置用户充值支付模式</p>
+          
+          {/* 支付模式选择 */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <button
+              onClick={() => setSystemSettings({ ...systemSettings, paymentMode: 'trust' })}
+              className={`p-4 rounded-lg border-2 text-left transition-all ${
+                systemSettings.paymentMode === 'trust'
+                  ? 'border-green-500 bg-green-500/10'
+                  : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">🚀</span>
+                <span className="text-white font-medium">信任模式</span>
+              </div>
+              <p className="text-gray-400 text-xs">
+                用户扫码后点击"我已支付"自动到账
+              </p>
+              <p className="text-yellow-400 text-xs mt-2">
+                ⚠️ 风险：可能有人未付款也点击确认
+              </p>
+            </button>
+            
+            <button
+              onClick={() => setSystemSettings({ ...systemSettings, paymentMode: 'review' })}
+              className={`p-4 rounded-lg border-2 text-left transition-all ${
+                systemSettings.paymentMode === 'review'
+                  ? 'border-green-500 bg-green-500/10'
+                  : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">🔒</span>
+                <span className="text-white font-medium">审核模式</span>
+              </div>
+              <p className="text-gray-400 text-xs">
+                用户需上传付款凭证，管理员审核后到账
+              </p>
+              <p className="text-green-400 text-xs mt-2">
+                ✅ 安全：需验证付款凭证
+              </p>
+            </button>
+          </div>
+          
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+            <p className="text-blue-300 text-xs">
+              💡 建议：个人开发者使用审核模式，确保收入真实到账
+            </p>
+          </div>
+
+          {/* 保存按钮 */}
+          <div className="flex justify-end border-t border-gray-700 pt-4">
+            <Button
+              onClick={handleSaveSettings}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {settingsSaved ? (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  已保存
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  保存设置
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* 邀请奖励设置 */}
+      <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-700 flex items-center gap-3">
+          <span className="text-xl">🎁</span>
+          <h2 className="text-white font-medium">邀请奖励设置</h2>
+        </div>
+        
+        <div className="p-5 space-y-4">
+          {/* 开关 */}
+          <div className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <span className="text-lg">✨</span>
+              <div>
+                <p className="text-white text-sm">启用邀请奖励</p>
+                <p className="text-gray-500 text-xs">用户邀请好友注册可获得奖励</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSystemSettings({ ...systemSettings, inviteRewardEnabled: !systemSettings.inviteRewardEnabled })}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                systemSettings.inviteRewardEnabled ? 'bg-green-500' : 'bg-gray-600'
+              }`}
+            >
+              <span
+                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                  systemSettings.inviteRewardEnabled ? 'left-7' : 'left-1'
+                }`}
+              />
+            </button>
+          </div>
+          
+          {/* 奖励金额设置 */}
+          {systemSettings.inviteRewardEnabled && (
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-gray-400 text-sm block mb-2">
+                  <span className="text-purple-400 mr-1">👤</span> 邀请人奖励
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={systemSettings.inviterReward}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, inviterReward: parseInt(e.target.value) || 0 })}
+                    className="flex-1 px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                    min={0}
+                    max={1000}
+                  />
+                  <span className="text-gray-400 text-sm">豆</span>
+                </div>
+                <p className="text-gray-500 text-xs mt-1">邀请好友成功注册后获得</p>
+              </div>
+              <div>
+                <label className="text-gray-400 text-sm block mb-2">
+                  <span className="text-pink-400 mr-1">👋</span> 被邀请人奖励
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={systemSettings.inviteeReward}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, inviteeReward: parseInt(e.target.value) || 0 })}
+                    className="flex-1 px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                    min={0}
+                    max={1000}
+                  />
+                  <span className="text-gray-400 text-sm">豆</span>
+                </div>
+                <p className="text-gray-500 text-xs mt-1">使用邀请码注册后获得</p>
+              </div>
+            </div>
+          )}
+          
+          {/* 示例说明 */}
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+            <p className="text-amber-300 text-xs">
+              💡 当前设置：邀请人获得 <span className="font-bold">{systemSettings.inviterReward}豆</span>，
+              被邀请人获得 <span className="font-bold">{systemSettings.inviteeReward}豆</span>
+            </p>
           </div>
 
           {/* 保存按钮 */}

@@ -53,8 +53,11 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * 创建充值订单（凭证审核模式）
+ * 创建充值订单
  * POST /api/recharge/orders
+ * 支持两种模式：
+ * - 审核模式：需要上传凭证，管理员审核后到账
+ * - 信任模式：autoConfirm=true，用户点击确认后自动到账
  */
 export async function POST(request: NextRequest) {
   try {
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { packageId, paymentMethod, paymentProof, remark } = body;
+    const { packageId, paymentMethod, paymentProof, remark, autoConfirm } = body;
 
     // 验证套餐
     const pkg = RECHARGE_PACKAGES[packageId];
@@ -87,22 +90,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '无效的支付方式' }, { status: 400 });
     }
 
-    // 验证凭证（必须上传）
-    if (!paymentProof) {
+    // 信任模式：不需要凭证；审核模式：需要凭证
+    if (!autoConfirm && !paymentProof) {
       return NextResponse.json({ error: '请上传付款凭证' }, { status: 400 });
     }
 
-    // 创建订单（所有订单需审核）
-    const orderData = {
+    // 创建订单
+    const orderData: any = {
       user_id: user.id,
       package_id: packageId,
       beans_amount: pkg.beans,
       price: pkg.price,
-      status: 'pending',
+      status: autoConfirm ? 'approved' : 'pending',
       payment_method: paymentMethod,
-      payment_proof: paymentProof,
+      payment_proof: paymentProof || '',
       remark: remark || null,
     };
+
+    if (autoConfirm) {
+      orderData.reviewed_at = new Date().toISOString();
+    }
 
     const { data: order, error } = await supabase
       .from('recharge_orders')
@@ -115,10 +122,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '创建订单失败' }, { status: 500 });
     }
 
+    // 如果是自动确认模式，直接充值
+    if (autoConfirm) {
+      // 获取当前余额
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('beans_balance')
+        .eq('user_id', user.id)
+        .single();
+
+      const currentBalance = profile?.beans_balance || 0;
+      const newBalance = currentBalance + pkg.beans;
+
+      // 更新余额
+      await supabase
+        .from('profiles')
+        .update({ beans_balance: newBalance })
+        .eq('user_id', user.id);
+
+      // 记录交易
+      await supabase
+        .from('beans_transactions')
+        .insert({
+          user_id: user.id,
+          type: 'recharge',
+          amount: pkg.beans,
+          balance_after: newBalance,
+          description: `充值 ${pkg.beans} 快乐豆`,
+          related_id: order.id,
+        });
+    }
+
     return NextResponse.json({
       success: true,
       order,
-      message: '订单已提交，请等待审核',
+      autoConfirmed: autoConfirm,
+      beansAdded: autoConfirm ? pkg.beans : 0,
+      message: autoConfirm ? '充值成功' : '订单已提交，请等待审核',
     });
 
   } catch (error) {
