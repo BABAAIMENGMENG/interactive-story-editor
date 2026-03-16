@@ -1885,6 +1885,8 @@ export default function EditorPage() {
       if (e.key === 'Escape') {
         if (pathDrawMode) {
           setPathDrawMode(null);
+          // 清除路径预览状态
+          setPathPreviewState(null);
           return;
         }
         if (pathEditMode) {
@@ -6053,13 +6055,14 @@ export default function EditorPage() {
                   }
                   
                   return (
-                    <g>
+                    <g className="pointer-events-none">
                       <path 
                         d={d} 
                         fill="none" 
                         stroke="rgba(139, 92, 246, 0.5)" 
                         strokeWidth="2"
                         strokeDasharray="5,5"
+                        className="pointer-events-none"
                       />
                       {points.map((point, idx) => (
                         <circle
@@ -6070,6 +6073,7 @@ export default function EditorPage() {
                           fill={idx === 0 ? "rgba(34, 197, 94, 0.7)" : idx === points.length - 1 ? "rgba(239, 68, 68, 0.7)" : "rgba(139, 92, 246, 0.7)"}
                           stroke="white"
                           strokeWidth="1"
+                          className="pointer-events-none"
                         />
                       ))}
                     </g>
@@ -8887,6 +8891,7 @@ export default function EditorPage() {
                                       setPathEditMode(null);
                                     } else {
                                       setPathDrawMode(null);
+                                      setPathPreviewState(null);
                                       setPathEditMode({ elementId: displayElement.id });
                                     }
                                   }}
@@ -8902,6 +8907,12 @@ export default function EditorPage() {
                                     updateElement({ path: undefined });
                                     setPathEditMode(null);
                                     setPathDrawMode(null);
+                                    setPathPreviewState(null);
+                                    // 取消正在进行的路径动画
+                                    if (pathPreviewRef.current) {
+                                      cancelAnimationFrame(pathPreviewRef.current.animationFrame);
+                                      pathPreviewRef.current = null;
+                                    }
                                   }}
                                 >
                                   <X className="w-3 h-3" />
@@ -8915,6 +8926,7 @@ export default function EditorPage() {
                                 onClick={() => {
                                   if (pathDrawMode?.elementId === displayElement.id) {
                                     setPathDrawMode(null);
+                                    setPathPreviewState(null);
                                   } else {
                                     setPathEditMode(null);
                                     setPathDrawMode({ elementId: displayElement.id });
