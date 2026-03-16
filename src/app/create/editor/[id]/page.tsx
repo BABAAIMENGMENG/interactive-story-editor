@@ -2066,7 +2066,7 @@ export default function EditorPage() {
   const handleMouseDown = (e: React.MouseEvent, elementId?: string) => {
     e.preventDefault();
     
-    // 路径绘制模式 - 点击画布添加路径点
+    // 路径绘制模式 - 点击画布添加路径点（但允许拖拽其他元素）
     if (pathDrawMode && !elementId) {
       const rect = canvasRef.current?.getBoundingClientRect();
       if (rect) {
@@ -5939,7 +5939,7 @@ export default function EditorPage() {
                   
                   {/* 绘制模式提示 */}
                   {pathDrawMode && (
-                    <g>
+                    <g className="pointer-events-none">
                       <rect
                         x="10"
                         y="10"
