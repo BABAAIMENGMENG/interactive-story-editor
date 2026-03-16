@@ -5759,6 +5759,7 @@ export default function EditorPage() {
                       strokeWidth="3"
                       strokeLinecap="round"
                       strokeLinejoin="round"
+                      className="pointer-events-none"
                     />
                   )}
                   
@@ -5770,6 +5771,7 @@ export default function EditorPage() {
                       stroke="rgba(139, 92, 246, 0.3)" 
                       strokeWidth="1"
                       strokeDasharray="5,5"
+                      className="pointer-events-none"
                     />
                   )}
                   
@@ -5797,6 +5799,7 @@ export default function EditorPage() {
                             y2={point.y + controlIn.y}
                             stroke="rgba(236, 72, 153, 0.6)"
                             strokeWidth="1.5"
+                            className="pointer-events-none"
                           />
                         )}
                         {controlOut && (
@@ -5807,6 +5810,7 @@ export default function EditorPage() {
                             y2={point.y + controlOut.y}
                             stroke="rgba(34, 197, 94, 0.6)"
                             strokeWidth="1.5"
+                            className="pointer-events-none"
                           />
                         )}
                         
@@ -5892,8 +5896,8 @@ export default function EditorPage() {
                           fill={pointIndex === 0 ? "rgba(34, 197, 94, 0.9)" : pointIndex === points.length - 1 ? "rgba(239, 68, 68, 0.9)" : "rgba(139, 92, 246, 0.9)"}
                           stroke="white"
                           strokeWidth="2"
-                          className="pointer-events-auto cursor-move"
-                          onMouseDown={(e) => {
+                          className={pathEditMode ? "pointer-events-auto cursor-move" : "pointer-events-none cursor-default"}
+                          onMouseDown={pathEditMode ? (e) => {
                             e.stopPropagation();
                             e.preventDefault();
                             
@@ -5917,7 +5921,7 @@ export default function EditorPage() {
                             
                             document.addEventListener('mousemove', handleMouseMove);
                             document.addEventListener('mouseup', handleMouseUp);
-                          }}
+                          } : undefined}
                         />
                         
                         {/* 点序号 */}
