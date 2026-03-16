@@ -90,12 +90,16 @@ export function MediaUploadDialog({
     setIsDesktop(isElectron());
   }, []);
 
-  // 弹窗打开时重置已处理结果的追踪
+  // 弹窗状态变化时处理
   useEffect(() => {
     if (open) {
+      // 打开时重置已处理结果的追踪
       processedResultsRef.current.clear();
+    } else {
+      // 关闭时清理所有已完成的任务和结果
+      clearCompleted();
     }
-  }, [open]);
+  }, [open, clearCompleted]);
 
   // 获取媒体类型对应的文件 accept
   const getAccept = useCallback(() => {

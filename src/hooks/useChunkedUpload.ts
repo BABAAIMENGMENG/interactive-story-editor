@@ -780,7 +780,7 @@ export function useChunkedUpload() {
     });
   }, [addTask, startUpload, tasks, results]);
 
-  // 清理已完成的任务
+  // 清理已完成的任务和结果
   const clearCompleted = useCallback(() => {
     setTasks(prev => {
       const next = new Map(prev);
@@ -792,6 +792,8 @@ export function useChunkedUpload() {
       }
       return next;
     });
+    // 同时清理 results
+    setResults([]);
   }, []);
 
   // 获取所有任务
