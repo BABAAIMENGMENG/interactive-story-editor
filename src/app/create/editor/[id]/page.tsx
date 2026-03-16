@@ -506,6 +506,7 @@ interface CanvasElement {
   pauseOnHidden?: boolean;
   draggable?: boolean;
   enableTransparency?: boolean; // 是否启用透明通道（支持WebM透明视频）
+  poster?: string; // 视频封面图URL
   // 内容
   content: string;
   src?: string;
@@ -5259,19 +5260,38 @@ export default function EditorPage() {
                             width: '100%',
                             height: '100%',
                             objectFit: el.objectFit || 'cover',
-                            backgroundColor: 'transparent',
+                            backgroundColor: '#000',
                           }}
                           loop={el.loop !== false}
                           muted={el.muted !== false}
                           playsInline
                           autoPlay={false}
-                          poster=""
+                          preload="auto"
+                          poster={el.poster || undefined}
                           onError={(e) => {
                             console.warn('[编辑器] 视频资源无法加载:', el.src?.substring(0, 50) + '...');
                           }}
                           onLoadedData={(e) => {
                             const video = e.currentTarget;
                             console.log('[编辑器] 视频加载成功:', el.name, '时长:', video.duration);
+                            
+                            // 如果没有设置封面图，自动提取第一帧
+                            if (!el.poster && video.readyState >= 2) {
+                              try {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = video.videoWidth || 320;
+                                canvas.height = video.videoHeight || 180;
+                                const ctx = canvas.getContext('2d');
+                                if (ctx) {
+                                  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                                  const posterUrl = canvas.toDataURL('image/jpeg', 0.8);
+                                  // 更新元素的 poster 属性
+                                  updateElementById(el.id, { poster: posterUrl });
+                                }
+                              } catch (err) {
+                                console.warn('[编辑器] 提取视频封面失败:', err);
+                              }
+                            }
                             
                             // 尝试获取帧率（使用 requestVideoFrameCallback 计算实际帧率）
                             let fps = 30; // 默认假设 30fps

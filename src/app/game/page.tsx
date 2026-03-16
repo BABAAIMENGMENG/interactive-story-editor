@@ -152,6 +152,7 @@ interface CanvasElement {
   loop?: boolean;
   muted?: boolean;
   controls?: boolean;
+  poster?: string; // 视频封面图
   // 热点特有属性 - 3D空间位置
   hotspotPosition?: { x: number; y: number; z: number };
   // 变换属性
@@ -298,6 +299,7 @@ interface HealthTrigger {
 // 视频元素组件 - 处理自动播放和时间触发器
 function VideoElement({ 
   src, 
+  poster,
   playOnVisible,
   loop, 
   muted, 
@@ -308,6 +310,7 @@ function VideoElement({
   onTimeTrigger
 }: { 
   src: string; 
+  poster?: string;
   playOnVisible?: boolean;
   loop?: boolean; 
   muted?: boolean; 
@@ -478,6 +481,7 @@ function VideoElement({
     <video 
       ref={videoRef}
       src={src}
+      poster={poster}
       loop={shouldLoop}
       muted={true}
       autoPlay={shouldAutoplay}
@@ -2282,6 +2286,7 @@ function GamePageContent() {
                 <VideoElement 
                   key={`${currentEditorSceneId}-${el.id}`}
                   src={el.src}
+                  poster={el.poster}
                   playOnVisible={el.playOnVisible !== false}
                   loop={el.loop}
                   muted={el.muted}
