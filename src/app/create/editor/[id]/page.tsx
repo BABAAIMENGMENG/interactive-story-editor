@@ -1474,12 +1474,16 @@ export default function EditorPage() {
 
   // 停止路径动画预览
   const stopPathPreview = useCallback(() => {
+    // 获取当前正在预览的元素ID
+    const elementId = pathPreviewRef.current?.elementId || selectedId;
+    
     if (pathPreviewRef.current) {
-      const elementId = pathPreviewRef.current.elementId;
       cancelAnimationFrame(pathPreviewRef.current.animationFrame);
       pathPreviewRef.current = null;
-      
-      // 恢复 DOM 元素的原始位置
+    }
+    
+    // 无论 pathPreviewRef.current 是否存在，都清除 DOM 元素的 transform
+    if (elementId) {
       const elementDom = document.querySelector(`[data-element-id="${elementId}"]`) as HTMLElement;
       if (elementDom) {
         elementDom.style.transition = 'transform 0.3s ease';
@@ -1497,7 +1501,7 @@ export default function EditorPage() {
       });
     }
     setPathPreviewState(null);
-  }, [currentScene?.elements]);
+  }, [currentScene?.elements, selectedId]);
 
   // 移动元素层级（上移=更靠近顶层=z-index更大=数组索引变大=列表位置变低）
   const moveElementUp = (elementId: string) => {
@@ -8904,15 +8908,12 @@ export default function EditorPage() {
                                   size="sm"
                                   className="h-7 w-7 p-0 text-zinc-400 hover:text-red-400"
                                   onClick={() => {
+                                    // 停止路径动画预览并清除 transform
+                                    stopPathPreview();
+                                    // 删除路径
                                     updateElement({ path: undefined });
                                     setPathEditMode(null);
                                     setPathDrawMode(null);
-                                    setPathPreviewState(null);
-                                    // 取消正在进行的路径动画
-                                    if (pathPreviewRef.current) {
-                                      cancelAnimationFrame(pathPreviewRef.current.animationFrame);
-                                      pathPreviewRef.current = null;
-                                    }
                                   }}
                                 >
                                   <X className="w-3 h-3" />
