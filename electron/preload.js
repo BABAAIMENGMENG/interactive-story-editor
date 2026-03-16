@@ -5,6 +5,31 @@
  */
 
 const { contextBridge, ipcRenderer } = require('electron');
+const path = require('path');
+const fs = require('fs');
+
+// 读取桌面版配置
+function loadConfig() {
+  try {
+    // 尝试读取配置文件
+    const configPath = path.join(__dirname, 'desktop-config.json');
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      console.log('[Preload] 加载配置:', config);
+      return config;
+    }
+  } catch (error) {
+    console.error('[Preload] 加载配置失败:', error);
+  }
+  
+  // 默认配置（从环境变量读取）
+  return {
+    apiUrl: process.env.ELECTRON_API_URL || '',
+    webUrl: process.env.ELECTRON_WEB_URL || '',
+  };
+}
+
+const API_CONFIG = loadConfig();
 
 // 暴露本地文件 API
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -58,3 +83,12 @@ contextBridge.exposeInMainWorld('platform', {
   isLinux: process.platform === 'linux',
   version: process.versions.electron,
 });
+
+// 暴露 API 配置（用于桌面版连接在线服务）
+contextBridge.exposeInMainWorld('electronConfig', {
+  apiUrl: API_CONFIG.apiUrl,
+  webUrl: API_CONFIG.webUrl,
+  isDesktop: true,
+});
+
+console.log('[Electron Config]', API_CONFIG);

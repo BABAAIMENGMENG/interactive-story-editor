@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { getApiUrl, isElectron } from '@/lib/api-config';
 
 interface User {
   id: string;
@@ -87,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers['Authorization'] = `Bearer ${sessionToken}`;
       }
       
-      const response = await fetch('/api/auth/me', { headers });
+      const response = await fetch(getApiUrl('/api/auth/me'), { headers });
       if (response.ok) {
         const data = await response.json();
         setUser(data.user);
@@ -120,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, name?: string) => {
     try {
-      const response = await fetch('/api/auth/register', {
+      const response = await fetch(getApiUrl('/api/auth/register'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, name }),
@@ -151,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(getApiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -187,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (sessionToken) {
         headers['Authorization'] = `Bearer ${sessionToken}`;
       }
-      await fetch('/api/auth/logout', { 
+      await fetch(getApiUrl('/api/auth/logout'), { 
         method: 'POST',
         headers 
       });
@@ -203,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 发送短信验证码
   const sendSmsCode = async (phone: string) => {
     try {
-      const response = await fetch('/api/auth/sms/send', {
+      const response = await fetch(getApiUrl('/api/auth/sms/send'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone }),
@@ -224,7 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 手机号验证码登录
   const signInWithPhone = async (phone: string, code: string) => {
     try {
-      const response = await fetch('/api/auth/sms/verify', {
+      const response = await fetch(getApiUrl('/api/auth/sms/verify'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, code }),

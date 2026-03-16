@@ -5,6 +5,7 @@
  * 1. 创建浏览器窗口
  * 2. 提供本地文件访问 API
  * 3. 管理应用生命周期
+ * 4. 连接在线 API 服务
  */
 
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
@@ -14,6 +15,32 @@ const crypto = require('crypto');
 
 // 判断是否是开发模式
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+
+// 读取桌面版配置
+function loadDesktopConfig() {
+  try {
+    // 生产模式：从应用目录读取配置
+    const configPath = isDev 
+      ? path.join(__dirname, 'desktop-config.json')
+      : path.join(process.resourcesPath, 'desktop-config.json');
+    
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      console.log('[Electron] 加载配置:', config);
+      return config;
+    }
+  } catch (error) {
+    console.error('[Electron] 加载配置失败:', error);
+  }
+  
+  // 默认配置（需要用户修改）
+  return {
+    apiUrl: process.env.ELECTRON_API_URL || '',
+    webUrl: process.env.ELECTRON_WEB_URL || '',
+  };
+}
+
+const desktopConfig = loadDesktopConfig();
 
 // 主窗口引用
 let mainWindow = null;

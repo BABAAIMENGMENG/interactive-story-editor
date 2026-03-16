@@ -1,0 +1,5 @@
+{
+  "comment": "桌面版配置 - 修改 apiUrl 为你的在线版地址",
+  "apiUrl": "https://your-app.vercel.app",
+  "webUrl": "https://your-app.vercel.app"
+}
