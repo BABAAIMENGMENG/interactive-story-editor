@@ -64,20 +64,30 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 验证所有分片是否都已上传
-    const missingChunks: number[] = [];
-    const checkPromises = [];
+    // 验证所有分片是否都已上传（使用 listFiles 查找，因为 SDK 会添加 UUID 后缀）
+    const listResult = await storage.listFiles({ 
+      prefix: `chunks/${fileHash}/`, 
+      maxKeys: totalChunks + 10 
+    });
     
-    for (let i = 0; i < totalChunks; i++) {
-      const chunkKey = `chunks/${fileHash}/${i.toString().padStart(6, '0')}`;
-      checkPromises.push(
-        storage.fileExists({ fileKey: chunkKey }).then(exists => {
-          if (!exists) missingChunks.push(i);
-        })
-      );
+    // 提取分片索引，并保存实际的 key
+    const chunkKeyMap = new Map<number, string>(); // index -> actual key
+    for (const key of listResult.keys) {
+      // 解析索引：chunks/{fileHash}/{index}_uuid -> {index}
+      const match = key.match(/chunks\/[^\/]+\/(\d+)/);
+      if (match) {
+        const index = parseInt(match[1], 10);
+        chunkKeyMap.set(index, key);
+      }
     }
     
-    await Promise.all(checkPromises);
+    // 检查缺失的分片
+    const missingChunks: number[] = [];
+    for (let i = 0; i < totalChunks; i++) {
+      if (!chunkKeyMap.has(i)) {
+        missingChunks.push(i);
+      }
+    }
 
     if (missingChunks.length > 0) {
       return NextResponse.json({
@@ -88,15 +98,18 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // 创建分片数据生成器
+    // 创建分片数据生成器（使用实际的 key）
     async function* chunkGenerator() {
       for (let i = 0; i < totalChunks; i++) {
-        const chunkKey = `chunks/${fileHash}/${i.toString().padStart(6, '0')}`;
+        const actualKey = chunkKeyMap.get(i);
+        if (!actualKey) {
+          throw new Error(`分片 ${i} 的 key 不存在`);
+        }
         try {
-          const chunkData = await storage.readFile({ fileKey: chunkKey });
+          const chunkData = await storage.readFile({ fileKey: actualKey });
           yield chunkData;
         } catch (err) {
-          console.error('[MergeUpload] 读取分片失败:', chunkKey, err);
+          console.error('[MergeUpload] 读取分片失败:', actualKey, err);
           throw err;
         }
       }
@@ -122,7 +135,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 清理分片（异步执行，不阻塞响应）
-    cleanupChunks(fileHash, totalChunks).catch(err => {
+    cleanupChunks(fileHash).catch(err => {
       console.warn('[MergeUpload] 清理分片失败:', err);
     });
 
@@ -146,21 +159,27 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * 清理已合并的分片
+ * 清理已合并的分片（使用 listFiles 获取实际的 key）
  */
-async function cleanupChunks(fileHash: string, totalChunks: number): Promise<void> {
+async function cleanupChunks(fileHash: string): Promise<void> {
   const storage = getStorage();
   
-  const deletePromises = [];
-  for (let i = 0; i < totalChunks; i++) {
-    const chunkKey = `chunks/${fileHash}/${i.toString().padStart(6, '0')}`;
-    deletePromises.push(
-      storage.deleteFile({ fileKey: chunkKey }).catch(() => {
+  try {
+    // 使用 listFiles 获取所有分片的实际 key
+    const listResult = await storage.listFiles({ 
+      prefix: `chunks/${fileHash}/`,
+      maxKeys: 1000
+    });
+    
+    const deletePromises = listResult.keys.map(key => 
+      storage.deleteFile({ fileKey: key }).catch(() => {
         // 忽略删除失败
       })
     );
+    
+    await Promise.all(deletePromises);
+    console.log('[MergeUpload] 分片清理完成:', fileHash, `删除 ${listResult.keys.length} 个分片`);
+  } catch (err) {
+    console.warn('[MergeUpload] 清理分片失败:', err);
   }
-  
-  await Promise.all(deletePromises);
-  console.log('[MergeUpload] 分片清理完成:', fileHash);
 }

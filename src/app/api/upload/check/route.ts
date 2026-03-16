@@ -58,21 +58,21 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 2. 检查已上传的分片（断点续传）
+    // 2. 检查已上传的分片（断点续传）- 使用 listFiles 因为 SDK 会添加 UUID 后缀
+    const listResult = await storage.listFiles({ 
+      prefix: `chunks/${fileHash}/`,
+      maxKeys: totalChunks + 10
+    });
+    
+    // 解析分片索引
     const uploadedChunks: number[] = [];
-    
-    // 并行检查所有分片（提高速度）
-    const checkPromises = [];
-    for (let i = 0; i < totalChunks; i++) {
-      const chunkKey = `chunks/${fileHash}/${i.toString().padStart(6, '0')}`;
-      checkPromises.push(
-        storage.fileExists({ fileKey: chunkKey }).then(exists => {
-          if (exists) uploadedChunks.push(i);
-        })
-      );
+    for (const key of listResult.keys) {
+      // 解析索引：chunks/{fileHash}/{index}_uuid -> {index}
+      const match = key.match(/chunks\/[^\/]+\/(\d+)/);
+      if (match) {
+        uploadedChunks.push(parseInt(match[1], 10));
+      }
     }
-    
-    await Promise.all(checkPromises);
     uploadedChunks.sort((a, b) => a - b);
 
     console.log('[UploadCheck] 断点续传检查:', fileHash, 
