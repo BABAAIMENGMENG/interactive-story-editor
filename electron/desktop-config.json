@@ -1,5 +1,5 @@
 {
-  "comment": "桌面版配置 - 修改 apiUrl 为你的在线版地址",
-  "apiUrl": "https://your-app.vercel.app",
-  "webUrl": "https://your-app.vercel.app"
+  "comment": "桌面版配置 - 连接在线版 API",
+  "apiUrl": "https://projects-kappa-brown.vercel.app",
+  "webUrl": "https://projects-kappa-brown.vercel.app"
 }
