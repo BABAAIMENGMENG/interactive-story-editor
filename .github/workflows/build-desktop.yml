@@ -24,21 +24,19 @@ jobs:
         env:
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
 
-      - name: Show package.json
-        run: cat package.json
-
-      - name: Build with electron-builder
-        run: npx electron-builder --win --x64 --config.nsis.oneClick=false
+      - name: Build portable exe only
+        run: npx electron-builder --win portable --x64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+
+      - name: List output
+        run: dir dist-electron
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: windows-app
-          path: |
-            dist-electron/*
-            dist/*
+          path: dist-electron/*
           retention-days: 7
