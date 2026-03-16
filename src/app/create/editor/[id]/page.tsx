@@ -3685,16 +3685,61 @@ export default function EditorPage() {
         height: 160,
       });
     } else if (resource.type === 'video') {
-      addElement('video', undefined, {
-        src: resource.url,
-        name: resource.name,
-        width: 320,
-        height: 180,
-        playOnVisible: true,
-        loop: true,
-        muted: true,
-        controls: false,
-      });
+      // 先创建一个临时视频元素获取实际尺寸
+      const video = document.createElement('video');
+      video.src = resource.url;
+      video.preload = 'metadata';
+      
+      video.onloadedmetadata = () => {
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        
+        // 计算元素尺寸，保持视频比例，最大宽度 320
+        let width = 320;
+        let height = 180;
+        
+        if (vw > 0 && vh > 0) {
+          const aspectRatio = vw / vh;
+          if (aspectRatio > 1) {
+            // 横屏
+            width = 320;
+            height = Math.round(320 / aspectRatio);
+          } else {
+            // 竖屏或正方形
+            height = 320;
+            width = Math.round(320 * aspectRatio);
+          }
+        }
+        
+        addElement('video', undefined, {
+          src: resource.url,
+          name: resource.name,
+          width,
+          height,
+          playOnVisible: true,
+          loop: true,
+          muted: true,
+          controls: false,
+        });
+        
+        video.remove();
+      };
+      
+      video.onerror = () => {
+        // 获取尺寸失败，使用默认尺寸
+        addElement('video', undefined, {
+          src: resource.url,
+          name: resource.name,
+          width: 320,
+          height: 180,
+          playOnVisible: true,
+          loop: true,
+          muted: true,
+          controls: false,
+        });
+        video.remove();
+      };
+      
     } else if (resource.type === 'audio') {
       addElement('audio', undefined, {
         src: resource.url,
