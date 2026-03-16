@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { 
   Upload, 
   Pause, 
@@ -21,9 +22,13 @@ import {
   CheckCircle2, 
   AlertCircle,
   Loader2,
-  Link2
+  Link2,
+  Zap,
+  HardDrive,
+  Globe
 } from "lucide-react";
 import { useChunkedUpload, UploadTask } from "@/hooks/useChunkedUpload";
+import { isElectron, selectLocalFiles, importFile, LocalFile } from "@/lib/localFileService";
 
 type MediaType = 'image' | 'video' | 'panorama' | 'panoramaVideo' | 'audio';
 
@@ -31,7 +36,7 @@ interface MediaUploadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mediaType: MediaType;
-  onUploadComplete: (result: { fileUrl: string; fileName: string; fileSize: number }) => void;
+  onUploadComplete: (result: { fileUrl: string; fileName: string; fileSize: number; isLocal?: boolean }) => void;
 }
 
 // 格式化文件大小
@@ -63,7 +68,9 @@ export function MediaUploadDialog({
 }: MediaUploadDialogProps) {
   const [url, setUrl] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
   
+  // 在线版本使用分片上传
   const { 
     tasks, 
     results,
@@ -74,6 +81,11 @@ export function MediaUploadDialog({
     cancelUpload, 
     clearCompleted,
   } = useChunkedUpload();
+
+  // 检测运行环境
+  useEffect(() => {
+    setIsDesktop(isElectron());
+  }, []);
 
   // 获取媒体类型对应的文件 accept
   const getAccept = useCallback(() => {
@@ -102,29 +114,56 @@ export function MediaUploadDialog({
   }, [mediaType]);
 
   // 处理文件选择
-  const handleFiles = useCallback(async (files: FileList) => {
-    const fileArray = Array.from(files);
-    
+  const handleFiles = useCallback(async (files: FileList | LocalFile[]) => {
+    // Electron 环境：直接导入本地文件
+    if (isDesktop) {
+      for (const file of files) {
+        const localFile = 'path' in file ? file : {
+          path: (file as File).name,
+          name: file.name,
+          size: file.size,
+          ext: '.' + file.name.split('.').pop(),
+          type: mediaType === 'audio' ? 'audio' : mediaType.includes('video') ? 'video' : 'image',
+        };
+        
+        const result = await importFile(localFile as LocalFile);
+        
+        if (result.success) {
+          onUploadComplete({
+            fileUrl: result.url,
+            fileName: result.name,
+            fileSize: result.size,
+            isLocal: result.isLocal,
+          });
+        }
+      }
+      return;
+    }
+
+    // 浏览器环境：使用分片上传
+    const fileArray = Array.from(files as FileList);
     for (const file of fileArray) {
       const taskId = await addTask(file);
       startUpload(taskId);
     }
-  }, [addTask, startUpload]);
+  }, [isDesktop, mediaType, addTask, startUpload, onUploadComplete]);
 
-  // 监听上传完成
+  // 监听上传完成（仅浏览器环境）
   useEffect(() => {
+    if (isDesktop) return;
+    
     for (const result of results) {
-      // 检查是否已经处理过这个结果
       const task = tasks.find(t => t.id === result.id);
       if (task?.status === 'completed') {
         onUploadComplete({
           fileUrl: result.fileUrl,
           fileName: result.fileName,
           fileSize: result.fileSize,
+          isLocal: false,
         });
       }
     }
-  }, [results, tasks, onUploadComplete]);
+  }, [isDesktop, results, tasks, onUploadComplete]);
 
   // 添加 URL
   const handleAddUrl = useCallback(() => {
@@ -134,11 +173,38 @@ export function MediaUploadDialog({
       fileUrl: url.trim(),
       fileName: url.split('/').pop() || '外部资源',
       fileSize: 0,
+      isLocal: false,
     });
     
     setUrl("");
     onOpenChange(false);
   }, [url, onUploadComplete, onOpenChange]);
+
+  // 打开系统文件选择器
+  const handleSelectClick = useCallback(async () => {
+    if (isDesktop) {
+      // Electron：使用系统文件选择器
+      const files = await selectLocalFiles({
+        accept: getAccept(),
+        multiple: true,
+      });
+      
+      if (files.length > 0) {
+        handleFiles(files);
+      }
+    } else {
+      // 浏览器：触发 input
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.accept = getAccept();
+      input.onchange = (e) => {
+        const files = (e.target as HTMLInputElement).files;
+        if (files) handleFiles(files);
+      };
+      input.click();
+    }
+  }, [isDesktop, getAccept, handleFiles]);
 
   // 拖拽处理
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -159,25 +225,38 @@ export function MediaUploadDialog({
     }
   }, [handleFiles]);
 
-  // 当前活跃的任务
+  // 当前活跃的任务（仅浏览器环境）
   const activeTasks = tasks.filter(t => t.status !== 'completed');
-  const completedTasks = tasks.filter(t => t.status === 'completed');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-zinc-800 border-zinc-600 max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-white">
+          <DialogTitle className="text-white flex items-center gap-2">
             导入{getMediaTypeName()}
+            {isDesktop && (
+              <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500/50">
+                <HardDrive className="w-3 h-3 mr-1" />
+                桌面版
+              </Badge>
+            )}
+            {!isDesktop && (
+              <Badge variant="outline" className="bg-blue-500/20 text-blue-400 border-blue-500/50">
+                <Globe className="w-3 h-3 mr-1" />
+                在线版
+              </Badge>
+            )}
           </DialogTitle>
           <DialogDescription className="text-zinc-300">
-            选择上传方式
+            {isDesktop 
+              ? '选择本地文件，无需上传，秒级导入' 
+              : '选择上传方式，大文件建议使用 URL 导入'}
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4 py-2">
-          {/* 上传进度显示 */}
-          {activeTasks.length > 0 && (
+          {/* 上传进度显示（仅浏览器环境） */}
+          {!isDesktop && activeTasks.length > 0 && (
             <div className="space-y-2 p-3 bg-zinc-700/50 rounded-lg">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-zinc-300">正在上传...</p>
@@ -203,9 +282,21 @@ export function MediaUploadDialog({
             </div>
           )}
 
-          {/* 分片上传区域 */}
+          {/* 文件选择区域 */}
           <div className="space-y-2">
-            <Label className="text-sm">本地上传（支持大文件）</Label>
+            <Label className="text-sm flex items-center gap-2">
+              {isDesktop ? (
+                <>
+                  <HardDrive className="w-4 h-4 text-green-400" />
+                  本地文件（秒级导入）
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  本地上传（支持大文件）
+                </>
+              )}
+            </Label>
             <div 
               className={`
                 border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
@@ -218,32 +309,37 @@ export function MediaUploadDialog({
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              onClick={() => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.multiple = true;
-                input.accept = getAccept();
-                input.onchange = (e) => {
-                  const files = (e.target as HTMLInputElement).files;
-                  if (files) handleFiles(files);
-                };
-                input.click();
-              }}
+              onClick={handleSelectClick}
             >
-              <Upload className="w-8 h-8 mx-auto text-zinc-300 mb-2" />
-              <p className="text-sm text-zinc-300">点击选择文件或拖拽到此处</p>
-              <p className="text-xs text-zinc-400 mt-1">
-                支持 {mediaType === 'audio' ? 'MP3, WAV, OGG' : mediaType.includes('video') ? 'MP4, WebM, MOV' : 'JPG, PNG, WebP'} 格式
-              </p>
-              <p className="text-xs text-purple-400 mt-1">
-                ✨ 支持断点续传，大文件秒传
-              </p>
+              {isDesktop ? (
+                <>
+                  <Zap className="w-10 h-10 mx-auto text-green-400 mb-2" />
+                  <p className="text-sm text-zinc-300 font-medium">点击选择本地文件</p>
+                  <p className="text-xs text-green-400 mt-1">
+                    ⚡ 无需上传，直接读取本地磁盘，秒级完成
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-8 h-8 mx-auto text-zinc-300 mb-2" />
+                  <p className="text-sm text-zinc-300">点击选择文件或拖拽到此处</p>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    支持 {mediaType === 'audio' ? 'MP3, WAV, OGG' : mediaType.includes('video') ? 'MP4, WebM, MOV' : 'JPG, PNG, WebP'} 格式
+                  </p>
+                  <p className="text-xs text-purple-400 mt-1">
+                    ✨ 支持断点续传，大文件秒传
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
           {/* URL导入 */}
           <div className="space-y-2">
-            <Label className="text-sm">URL链接导入</Label>
+            <Label className="text-sm flex items-center gap-2">
+              <Link2 className="w-4 h-4" />
+              URL链接导入
+            </Label>
             <div className="flex gap-2">
               <Input
                 value={url}
@@ -255,7 +351,6 @@ export function MediaUploadDialog({
                 }}
               />
               <Button onClick={handleAddUrl} className="bg-purple-600 hover:bg-purple-700">
-                <Link2 className="w-4 h-4 mr-1" />
                 添加
               </Button>
             </div>

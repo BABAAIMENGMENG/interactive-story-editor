@@ -1,14 +1,18 @@
 {
-  "name": "projects",
-  "version": "0.1.0",
-  "private": true,
+  "name": "interactive-story-editor",
+  "version": "1.0.0",
+  "description": "互动故事编辑器 - 支持在线版和桌面版",
+  "author": "Your Team",
+  "main": "electron/main.js",
   "scripts": {
-    "build": "bash ./scripts/build.sh",
     "dev": "bash ./scripts/dev.sh",
-    "preinstall": "npx only-allow pnpm",
-    "lint": "eslint",
+    "build": "bash ./scripts/build.sh",
     "start": "bash ./scripts/start.sh",
-    "ts-check": "tsc -p tsconfig.json"
+    "lint": "eslint",
+    "ts-check": "tsc -p tsconfig.json",
+    "electron:dev": "concurrently \"pnpm dev\" \"wait-on http://localhost:5000 && electron .\"",
+    "electron:build": "next build && next export && electron-builder",
+    "electron:preview": "electron ."
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",
@@ -96,6 +100,31 @@
   "pnpm": {
     "overrides": {
       "esbuild": "^0.25.12"
+    }
+  },
+  "build": {
+    "appId": "com.interactivestory.editor",
+    "productName": "互动故事编辑器",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "out/**/*",
+      "public/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.video",
+      "icon": "public/icon.icns",
+      "target": ["dmg", "zip"]
+    },
+    "win": {
+      "icon": "public/icon.ico",
+      "target": ["nsis", "portable"]
+    },
+    "linux": {
+      "icon": "public/icon.png",
+      "target": ["AppImage", "deb"]
     }
   }
 }
