@@ -24,19 +24,23 @@ jobs:
         env:
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
 
-      - name: Build portable exe only
-        run: npx electron-builder --win portable --x64
+      - name: Build as directory
+        run: npx electron-builder --win dir --x64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+
+      - name: Create ZIP archive
+        run: Compress-Archive -Path dist-electron/win-unpacked -DestinationPath dist-electron/interactive-story-editor-win-x64.zip
 
       - name: List output
         run: dir dist-electron
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: windows-app
-          path: dist-electron/*
+          path: |
+            dist-electron/win-unpacked/*
+            dist-electron/*.zip
           retention-days: 7
