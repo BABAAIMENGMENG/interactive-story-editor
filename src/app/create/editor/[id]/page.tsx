@@ -5789,7 +5789,7 @@ export default function EditorPage() {
                     const controlOut = point.controlOut || autoControls.controlOut;
                     
                     return (
-                      <g key={point.id}>
+                      <g key={point.id} className={pathEditMode ? "pointer-events-auto" : "pointer-events-none"}>
                         {/* 控制点连接线 */}
                         {controlIn && (
                           <line 
