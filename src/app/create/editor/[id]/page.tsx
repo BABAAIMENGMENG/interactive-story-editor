@@ -107,6 +107,7 @@ import {
 import EditorPanoramaViewer from '@/components/panorama/EditorPanoramaViewer';
 import TransparentVideo from '@/components/ui/transparent-video';
 import { UploadManager } from '@/components/UploadManager';
+import { MediaUploadDialog } from '@/components/MediaUploadDialog';
 
 // 辅助函数：将十六进制颜色转换为 rgba
 function hexToRgba(hex: string, alpha: number): string {
@@ -9882,81 +9883,48 @@ export default function EditorPage() {
         </DialogContent>
       </Dialog>
 
-{/* 媒体导入弹窗 */}
-      <Dialog open={showMediaDialog} onOpenChange={setShowMediaDialog}>
-        <DialogContent className="bg-zinc-800 border-zinc-600 max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-white">
-              导入{mediaType === 'image' ? '图片' : mediaType === 'video' ? '视频' : mediaType === 'panorama' ? '全景图' : mediaType === 'panoramaVideo' ? '全景视频' : '音频'}
-            </DialogTitle>
-            <DialogDescription className="text-zinc-300">
-              选择上传方式
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {/* 上传进度显示 */}
-            {Object.keys(uploadProgress).length > 0 && (
-              <div className="space-y-2 p-3 bg-zinc-700/50 rounded-lg">
-                <p className="text-sm text-zinc-300">正在上传...</p>
-                {Object.entries(uploadProgress).map(([fileId, progress]) => (
-                  <div key={fileId} className="space-y-1">
-                    <div className="flex justify-between text-xs text-zinc-400">
-                      <span className="truncate max-w-[200px]">{fileId.split('-').slice(1).join('-')}</span>
-                      <span>{progress}%</span>
-                    </div>
-                    <div className="h-2 bg-zinc-600 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-purple-500 transition-all duration-300"
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            {/* 文件上传 */}
-            <div className="space-y-2">
-              <Label className="text-sm">本地上传（最大 500MB）</Label>
-              <div 
-                className="border-2 border-dashed border-zinc-600 rounded-lg p-6 text-center hover:border-purple-500 transition-colors cursor-pointer"
-                onClick={() => {
-                  const input = document.createElement('input');
-                  input.type = 'file';
-                  input.accept = mediaType === 'audio' ? 'audio/*' : mediaType.includes('video') ? 'video/*' : 'image/*';
-                  input.onchange = (e) => handleFileUpload((e.target as HTMLInputElement).files, mediaType);
-                  input.click();
-                }}
-              >
-                <Upload className="w-8 h-8 mx-auto text-zinc-300 mb-2" />
-                <p className="text-sm text-zinc-300">点击选择文件</p>
-                <p className="text-xs text-zinc-400 mt-1">
-                  支持 {mediaType === 'audio' ? 'MP3, WAV, OGG' : mediaType.includes('video') ? 'MP4, WebM, MOV' : 'JPG, PNG, WebP'} 格式
-                </p>
-              </div>
-            </div>
-
-            {/* URL导入 */}
-            <div className="space-y-2">
-              <Label className="text-sm">URL链接导入（推荐大文件使用）</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={mediaUrl}
-                  onChange={(e) => setMediaUrl(e.target.value)}
-                  placeholder={mediaType === 'audio' ? '输入音频链接...' : '输入图片或视频链接...'}
-                  className="bg-zinc-700 border-zinc-600"
-                />
-                <Button onClick={addMediaFromUrl} className="bg-purple-600 hover:bg-purple-700">
-                  添加
-                </Button>
-              </div>
-              <p className="text-xs text-zinc-400">
-                支持外部图床、视频平台直链等
-              </p>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+{/* 媒体导入弹窗 - 使用分片上传 */}
+      <MediaUploadDialog
+        open={showMediaDialog}
+        onOpenChange={setShowMediaDialog}
+        mediaType={mediaType}
+        onUploadComplete={(result) => {
+          const resource: MediaResource = {
+            id: `media-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            type: mediaType,
+            name: result.fileName,
+            url: result.fileUrl,
+            size: result.fileSize,
+          };
+          
+          setMediaResources(prev => [...prev, resource]);
+          
+          // 如果当前选中的元素是图片或视频控件，自动更新其src属性
+          if (selectedElement) {
+            if (mediaType === 'image' && selectedElement.type === 'image') {
+              updateElement({ src: result.fileUrl, name: result.fileName });
+            } else if (mediaType === 'video' && selectedElement.type === 'video') {
+              updateElement({ src: result.fileUrl, name: result.fileName });
+            } else if (mediaType === 'audio' && selectedElement.type === 'audio') {
+              updateElement({ src: result.fileUrl, name: result.fileName });
+            }
+          }
+          
+          // 处理全景资源
+          if (mediaType === 'panorama' && currentScene) {
+            setScenes(scenes.map(s => 
+              s.id === currentSceneId ? { ...s, panoramaImage: result.fileUrl } : s
+            ));
+          } else if (mediaType === 'panoramaVideo' && currentScene) {
+            setScenes(scenes.map(s => 
+              s.id === currentSceneId ? { ...s, panoramaVideo: result.fileUrl } : s
+            ));
+          }
+          
+          setSaveStatus('unsaved');
+          setShowMediaDialog(false);
+        }}
+      />
 
       {/* 发布对话框 */}
       <Dialog open={showPublishDialog} onOpenChange={setShowPublishDialog}>
