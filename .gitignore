@@ -1,5 +1,9 @@
 .next
 
+# 阿里云函数计算配置（包含敏感信息）
+.s/
+s.yaml
+
 # Dependencies
 node_modules/
 .pnp
