@@ -2,11 +2,6 @@ name: Build Desktop App
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: '版本号'
-        required: false
-        default: '1.0.0'
 
 jobs:
   build:
@@ -22,37 +17,28 @@ jobs:
           node-version: '20'
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 9
-
-      - name: Cache Electron
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~\AppData\Local\electron\Cache
-            ~\AppData\Local\electron-builder\Cache
-          key: electron-cache-${{ runner.os }}-${{ hashFiles('**/package.json') }}
-          restore-keys: |
-            electron-cache-${{ runner.os }}-
+        run: npm install -g pnpm@9
 
       - name: Install dependencies
-        run: pnpm install --ignore-scripts
+        run: pnpm install --ignore-scripts --no-frozen-lockfile
         env:
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
 
-      - name: Build Electron app
-        run: npx electron-builder --win --x64
+      - name: Show package.json
+        run: cat package.json
+
+      - name: Build with electron-builder
+        run: npx electron-builder --win --x64 --config.nsis.oneClick=false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
 
-      - name: List output
-        run: dir dist-electron
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: windows-app
-          path: dist-electron/*
+          path: |
+            dist-electron/*
+            dist/*
           retention-days: 7
