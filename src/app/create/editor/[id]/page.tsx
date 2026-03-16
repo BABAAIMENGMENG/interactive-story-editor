@@ -4501,9 +4501,48 @@ export default function EditorPage() {
                             <ImageIcon className="w-8 h-8 text-zinc-300" />
                           </div>
                         )
+                      ) : resource.type === 'video' || resource.type === 'panoramaVideo' ? (
+                        <div className="w-full h-full relative">
+                          {resource.thumbnail ? (
+                            <img src={resource.thumbnail} alt={resource.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <video 
+                              src={resource.url} 
+                              className="w-full h-full object-cover"
+                              muted
+                              preload="metadata"
+                              crossOrigin="anonymous"
+                              onLoadedMetadata={(e) => {
+                                const video = e.currentTarget;
+                                video.currentTime = 0.1;
+                              }}
+                              onLoadedData={(e) => {
+                                const video = e.currentTarget;
+                                if (!resource.thumbnail && video.readyState >= 2) {
+                                  const canvas = document.createElement('canvas');
+                                  canvas.width = 160;
+                                  canvas.height = 160;
+                                  const ctx = canvas.getContext('2d');
+                                  if (ctx) {
+                                    ctx.drawImage(video, 0, 0, 160, 160);
+                                    const thumbnail = canvas.toDataURL('image/jpeg', 0.7);
+                                    setMediaResources(prev => prev.map(r => 
+                                      r.id === resource.id ? { ...r, thumbnail } : r
+                                    ));
+                                  }
+                                }
+                              }}
+                            />
+                          )}
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center">
+                              <Video className="w-4 h-4 text-white" />
+                            </div>
+                          </div>
+                        </div>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-zinc-700">
-                          <Video className="w-8 h-8 text-zinc-300" />
+                          <Music className="w-8 h-8 text-zinc-300" />
                         </div>
                       )}
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
