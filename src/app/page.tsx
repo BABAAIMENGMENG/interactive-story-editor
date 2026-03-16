@@ -137,7 +137,14 @@ function ProjectCard({
         {/* 播放按钮 */}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center shadow-lg">
-            <Play className="w-5 h-5 text-purple-600 ml-1" />
+            {/* 播放/暂停组合图标 */}
+            <div className="flex items-center gap-0.5">
+              <Play className="w-4 h-4 text-purple-600 ml-0.5" />
+              <div className="flex gap-0.5 mr-0.5">
+                <div className="w-0.5 h-3 bg-purple-600 rounded-sm" />
+                <div className="w-0.5 h-3 bg-purple-600 rounded-sm" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
