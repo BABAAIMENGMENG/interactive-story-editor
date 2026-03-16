@@ -4,18 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号（如 1.0.0）'
+        description: '版本号'
         required: false
         default: '1.0.0'
 
 jobs:
   build:
-    strategy:
-      matrix:
-        os: [windows-latest]
-      fail-fast: false
-    
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     
     steps:
       - name: Checkout code
@@ -31,16 +26,33 @@ jobs:
         with:
           version: 9
 
-      - name: Get dependencies
-        run: pnpm install
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-cache-${{ runner.os }}-${{ hashFiles('**/package.json') }}
+          restore-keys: |
+            electron-cache-${{ runner.os }}-
 
-      - name: Build Electron (Windows)
-        run: pnpm electron:build
+      - name: Install dependencies
+        run: pnpm install --ignore-scripts
+        env:
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+
+      - name: Build Electron app
+        run: npx electron-builder --win --x64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+
+      - name: List output
+        run: dir dist-electron
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-app
           path: dist-electron/*
+          retention-days: 7
