@@ -400,7 +400,83 @@ export function useChunkedUpload() {
     // 等待哈希计算完成
     const fileHash = await fileHashPromise;
     
-    // 检查是否有已上传的进度
+    // 先检查服务器端（秒传检测 + 断点续传）
+    try {
+      const checkResponse = await fetch('/api/upload/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileHash,
+          fileSize: file.size,
+          totalChunks,
+        }),
+      });
+      
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json();
+        
+        // 秒传命中！
+        if (checkData.instantUpload) {
+          console.log('[Upload] 秒传成功:', file.name);
+          
+          updateTaskState(taskId, {
+            status: 'completed',
+            progress: 100,
+            endTime: Date.now(),
+          });
+          
+          const result: UploadResult = {
+            id: taskId,
+            fileName: file.name,
+            fileKey: checkData.fileKey,
+            fileUrl: checkData.fileUrl,
+            fileSize: file.size,
+            fileType: file.type,
+          };
+          setResults(prev => [...prev, result]);
+          
+          return taskId;
+        }
+        
+        // 断点续传：使用服务器返回的已上传分片
+        if (checkData.uploadedChunks && checkData.uploadedChunks.length > 0) {
+          const serverUploadedChunks = new Set<number>(checkData.uploadedChunks);
+          
+          chunks.forEach(chunk => {
+            if (serverUploadedChunks.has(chunk.index)) {
+              chunk.status = 'completed';
+            }
+          });
+          
+          const uploadedSize = Array.from(serverUploadedChunks).reduce((sum, idx) => {
+            const c = chunks[idx];
+            return sum + (c ? c.size : 0);
+          }, 0);
+          
+          updateTaskState(taskId, {
+            chunks: [...chunks],
+            progress: (uploadedSize / file.size) * 100,
+            uploadedSize,
+            uploadedChunks: serverUploadedChunks,
+          });
+          
+          // 存储任务数据
+          taskDataRef.current.set(taskId, {
+            file,
+            fileHash,
+            chunks: [...chunks],
+            uploadedChunks: serverUploadedChunks,
+            abortControllers: [],
+          });
+          
+          return taskId;
+        }
+      }
+    } catch (err) {
+      console.warn('[Upload] 检查接口失败，继续普通上传:', err);
+    }
+    
+    // 检查本地存储的上传进度（降级方案）
     const savedProgress = await loadProgress(fileHash);
     const uploadedChunks = new Set<number>(savedProgress?.uploadedChunks || []);
     

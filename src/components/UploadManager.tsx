@@ -72,13 +72,17 @@ const UploadTaskItem = memo(function UploadTaskItem({
       case "paused":
         return <Pause className="h-4 w-4 text-yellow-500" />;
       case "completed":
+        // 检查是否是秒传（上传时间小于1秒）
+        if (task.endTime && task.startTime && task.endTime - task.startTime < 1000) {
+          return <CheckCircle2 className="h-4 w-4 text-purple-500" />; // 紫色表示秒传
+        }
         return <CheckCircle2 className="h-4 w-4 text-green-500" />;
       case "error":
         return <AlertCircle className="h-4 w-4 text-red-500" />;
       default:
         return <File className="h-4 w-4 text-gray-400" />;
     }
-  }, [task.status]);
+  }, [task.status, task.startTime, task.endTime]);
 
   // 获取状态文本
   const statusText = useMemo(() => {
@@ -90,13 +94,17 @@ const UploadTaskItem = memo(function UploadTaskItem({
       case "paused":
         return `已暂停 ${task.progress.toFixed(1)}%`;
       case "completed":
+        // 检查是否是秒传
+        if (task.endTime && task.startTime && task.endTime - task.startTime < 1000) {
+          return "秒传成功";
+        }
         return "上传完成";
       case "error":
         return `失败: ${task.error || "未知错误"}`;
       default:
         return "未知状态";
     }
-  }, [task.status, task.progress, task.error]);
+  }, [task.status, task.progress, task.error, task.startTime, task.endTime]);
 
   // 计算分片进度
   const chunkProgress = useMemo(() => {
@@ -142,7 +150,15 @@ const UploadTaskItem = memo(function UploadTaskItem({
 
           {/* 完成或错误状态 */}
           {(task.status === "completed" || task.status === "error") && (
-            <p className="text-sm text-muted-foreground">{statusText}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-muted-foreground">{statusText}</p>
+              {/* 秒传标记 */}
+              {task.status === "completed" && task.endTime && task.startTime && task.endTime - task.startTime < 1000 && (
+                <span className="text-xs bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">
+                  秒传
+                </span>
+              )}
+            </div>
           )}
 
           {/* 分片进度 */}
