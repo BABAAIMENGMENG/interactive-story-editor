@@ -76,8 +76,11 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:5000');
     mainWindow.webContents.openDevTools();
   } else {
-    // 生产模式：加载构建后的文件
-    mainWindow.loadFile(path.join(__dirname, '../out/index.html'));
+    // 生产模式：直接加载在线版（保持功能完整）
+    // 桌面版通过 electronAPI 访问本地文件，其他功能与在线版相同
+    const onlineUrl = desktopConfig.webUrl || 'https://your-app.com';
+    console.log('[Electron] 加载在线版:', onlineUrl);
+    mainWindow.loadURL(onlineUrl);
   }
 
   // 创建菜单

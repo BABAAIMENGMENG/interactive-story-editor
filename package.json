@@ -11,7 +11,7 @@
     "lint": "eslint",
     "ts-check": "tsc -p tsconfig.json",
     "electron:dev": "concurrently \"pnpm dev\" \"wait-on http://localhost:5000 && electron .\"",
-    "electron:build": "next build && next export && electron-builder",
+    "electron:build": "electron-builder --win --x64",
     "electron:preview": "electron ."
   },
   "dependencies": {
@@ -85,6 +85,8 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^41.0.2",
+    "electron-builder": "^26.8.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "only-allow": "^1.2.2",
@@ -109,22 +111,26 @@
       "output": "dist-electron"
     },
     "files": [
-      "electron/**/*",
-      "out/**/*",
-      "public/**/*"
+      "electron/**/*"
     ],
-    "mac": {
-      "category": "public.app-category.video",
-      "icon": "public/icon.icns",
-      "target": ["dmg", "zip"]
-    },
+    "extraResources": [
+      {
+        "from": "electron/desktop-config.json",
+        "to": "desktop-config.json"
+      }
+    ],
     "win": {
-      "icon": "public/icon.ico",
-      "target": ["nsis", "portable"]
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
     },
-    "linux": {
-      "icon": "public/icon.png",
-      "target": ["AppImage", "deb"]
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable.exe"
     }
   }
 }
