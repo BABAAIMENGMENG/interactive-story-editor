@@ -920,12 +920,23 @@ function GamePageContent() {
           return;
         }
 
-        // 尝试从 API 加载
+        // 尝试从 API 加载（使用 projects 表，而不是 stories 表）
         console.log('预览 - 尝试从 API 加载...');
-        const response = await fetch(`/api/stories/${storyId}`);
+        const response = await fetch(`/api/projects/${storyId}`);
         const data = await response.json();
 
-        if (data.story) {
+        if (data.project && data.project.project_data) {
+          // 从 projects 表获取数据
+          const projectData = data.project.project_data;
+          useProjectData({
+            id: storyId,
+            name: data.project.name || '我的作品',
+            scenes: projectData.scenes || [],
+            mediaResources: projectData.mediaResources || [],
+          });
+          dataLoaded = true;
+        } else if (data.story) {
+          // 兼容旧的 stories 表
           setStory(data.story);
           setScenes(data.scenes || []);
           setNodes(data.nodes || []);

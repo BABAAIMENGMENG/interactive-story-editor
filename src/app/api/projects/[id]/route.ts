@@ -98,6 +98,36 @@ export async function PUT(
     if (body.projectData !== undefined) updates.project_data = body.projectData;
     if (body.beansPrice !== undefined) updates.beans_price = body.beansPrice;
     if (body.category !== undefined) updates.category = body.category;
+    
+    // 如果项目不存在，先创建
+    if (findError || !existingProject) {
+      const shareCode = generateShareCode();
+      const { data: newProject, error: createError } = await supabase
+        .from('projects')
+        .insert({
+          id: id,
+          user_id: user.id,
+          name: body.name || '我的作品',
+          project_data: body.projectData || { scenes: [], mediaResources: [] },
+          is_public: false,
+          share_code: shareCode,
+          view_count: 0,
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('创建项目失败:', createError);
+        return NextResponse.json({ error: '创建项目失败' }, { status: 500 });
+      }
+
+      return NextResponse.json({ project: newProject });
+    }
+
+    if (existingProject.user_id !== user.id) {
+      return NextResponse.json({ error: '无权修改此项目' }, { status: 403 });
+    }
+
     if (body.isPublic !== undefined) {
       // 如果设置为公开，需要进入审核流程
       if (body.isPublic) {
