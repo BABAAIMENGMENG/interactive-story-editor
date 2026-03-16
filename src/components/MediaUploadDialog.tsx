@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -70,6 +70,9 @@ export function MediaUploadDialog({
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   
+  // 追踪已处理的上传结果，避免重复调用 onUploadComplete
+  const processedResultsRef = useRef<Set<string>>(new Set());
+  
   // 在线版本使用分片上传
   const { 
     tasks, 
@@ -86,6 +89,13 @@ export function MediaUploadDialog({
   useEffect(() => {
     setIsDesktop(isElectron());
   }, []);
+
+  // 弹窗打开时重置已处理结果的追踪
+  useEffect(() => {
+    if (open) {
+      processedResultsRef.current.clear();
+    }
+  }, [open]);
 
   // 获取媒体类型对应的文件 accept
   const getAccept = useCallback(() => {
@@ -153,8 +163,14 @@ export function MediaUploadDialog({
     if (isDesktop) return;
     
     for (const result of results) {
+      // 跳过已处理的结果
+      if (processedResultsRef.current.has(result.id)) continue;
+      
       const task = tasks.find(t => t.id === result.id);
       if (task?.status === 'completed') {
+        // 标记为已处理
+        processedResultsRef.current.add(result.id);
+        
         onUploadComplete({
           fileUrl: result.fileUrl,
           fileName: result.fileName,
