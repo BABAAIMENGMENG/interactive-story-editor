@@ -4489,47 +4489,6 @@ export default function EditorPage() {
                   </div>
                 )}
 
-                <Separator className="bg-zinc-700" />
-
-                {/* 大文件分片上传 */}
-                <div className="bg-zinc-700/30 rounded-lg p-2">
-                  <UploadManager
-                    onUploadComplete={(result) => {
-                      // 根据文件类型确定资源类型
-                      let resourceType: 'image' | 'video' | 'panorama' | 'panoramaVideo' | 'audio' = 'image';
-                      const fileName = result.fileName.toLowerCase();
-                      
-                      if (fileName.includes('panorama') || fileName.includes('360') || fileName.includes('vr')) {
-                        if (fileName.match(/\.(mp4|webm|mov)$/i)) {
-                          resourceType = 'panoramaVideo';
-                        } else {
-                          resourceType = 'panorama';
-                        }
-                      } else if (fileName.match(/\.(mp4|webm|mov|avi|mkv)$/i)) {
-                        resourceType = 'video';
-                      } else if (fileName.match(/\.(mp3|wav|ogg|aac)$/i)) {
-                        resourceType = 'audio';
-                      }
-                      
-                      const resource: MediaResource = {
-                        id: `media-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                        type: resourceType,
-                        name: result.fileName,
-                        url: result.fileUrl,
-                      };
-                      
-                      setMediaResources(prev => [...prev, resource]);
-                      setSaveStatus('unsaved');
-                    }}
-                    maxFiles={5}
-                    maxFileSize={1024}
-                    acceptedTypes={["video/*", "image/*", "audio/*"]}
-                    className="bg-transparent border-0 shadow-none"
-                  />
-                </div>
-
-                <Separator className="bg-zinc-700" />
-
                 <p className="text-xs text-zinc-400">资源库 ({mediaResources.length})</p>
                 <div className="grid grid-cols-2 gap-2">
                   {mediaResources.map((resource) => (
