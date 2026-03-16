@@ -1,0 +1,46 @@
+name: Build Desktop App
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（如 1.0.0）'
+        required: false
+        default: '1.0.0'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest]
+      fail-fast: false
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Get dependencies
+        run: pnpm install
+
+      - name: Build Electron (Windows)
+        run: pnpm electron:build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-app
+          path: dist-electron/*
