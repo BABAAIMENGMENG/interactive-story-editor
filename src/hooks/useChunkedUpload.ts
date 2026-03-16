@@ -36,10 +36,9 @@ export interface ChunkInfo {
   error?: string;
 }
 
-// 上传任务（精简版，减少渲染压力）
-export interface UploadTask {
+// 任务状态（用于 UI 显示，不包含 File 对象）
+export interface UploadTaskState {
   id: string;
-  file: File;
   fileName: string;
   fileSize: number;
   fileType: string;
@@ -50,6 +49,10 @@ export interface UploadTask {
   startTime: number;
   endTime?: number;
   error?: string;
+}
+
+// 上传任务（精简版，减少渲染压力）
+export interface UploadTask extends UploadTaskState {
   // 分片信息单独存储，不触发重渲染
   chunks: ChunkInfo[];
   uploadedChunks: Set<number>;
@@ -382,7 +385,6 @@ export function useChunkedUpload() {
     // 先创建任务（哈希计算在后台进行）
     const task: UploadTask = {
       id: taskId,
-      file,
       fileName: file.name,
       fileSize: file.size,
       fileType: file.type,
@@ -396,6 +398,16 @@ export function useChunkedUpload() {
     };
 
     setTasks(prev => new Map(prev).set(taskId, task));
+    
+    // 立即存储任务数据（包括 file 对象），以便 startUpload 使用
+    // 注意：这里存储的是临时数据，哈希计算完成后会更新
+    taskDataRef.current.set(taskId, {
+      file,
+      fileHash: '', // 临时占位，稍后更新
+      chunks: [...chunks],
+      uploadedChunks: new Set(),
+      abortControllers: [],
+    });
     
     // 等待哈希计算完成
     const fileHash = await fileHashPromise;
@@ -515,17 +527,14 @@ export function useChunkedUpload() {
 
   // 开始上传
   const startUpload = useCallback(async (taskId: string) => {
-    const task = tasks.get(taskId);
+    // 只从 taskDataRef 获取数据，不依赖 tasks state（避免状态竞争）
     const taskData = taskDataRef.current.get(taskId);
     
-    if (!task || !taskData || uploadingRef.current.has(taskId)) {
+    if (!taskData || uploadingRef.current.has(taskId)) {
+      console.log('[Upload] startUpload 跳过: taskData=', !!taskData, 'uploading=', uploadingRef.current.has(taskId));
       return;
     }
     
-    if (task.status === 'completed') {
-      return;
-    }
-
     pausedRef.current.delete(taskId);
     uploadingRef.current.add(taskId);
     
@@ -537,6 +546,8 @@ export function useChunkedUpload() {
     // 获取待上传的分片
     const pendingChunks = chunks.filter(c => c.status !== 'completed');
     
+    console.log('[Upload] 开始上传:', file.name, '分片数:', pendingChunks.length, '/', totalChunks);
+    
     if (pendingChunks.length === 0) {
       // 所有分片已上传，直接合并
       uploadingRef.current.delete(taskId);
@@ -546,7 +557,7 @@ export function useChunkedUpload() {
     
     // 速度计算变量
     let lastCheckTime = Date.now();
-    let lastUploadedSize = task.uploadedSize;
+    let lastUploadedSize = 0; // 改为从 taskData 计算
     
     // 并发上传队列
     let runningCount = 0;
@@ -593,7 +604,7 @@ export function useChunkedUpload() {
           const now = Date.now();
           const timeDiff = (now - lastCheckTime) / 1000;
           const sizeDiff = uploadedSize - lastUploadedSize;
-          const speed = timeDiff > 0.5 ? sizeDiff / timeDiff : task.uploadSpeed;
+          const speed = timeDiff > 0.5 ? sizeDiff / timeDiff : 0;
           
           if (timeDiff > 0.5) {
             lastCheckTime = now;
